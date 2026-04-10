@@ -1,0 +1,1499 @@
+\documentclass[11pt, a4paper]{report}
+
+% ========== Packages ==========
+\usepackage{fontspec}
+\usepackage{kotex}
+\usepackage{amsmath, amssymb, amsthm}
+\usepackage{mathtools}
+\usepackage{bm}
+\usepackage{graphicx}
+\usepackage{booktabs}
+\usepackage{array}
+\usepackage{tabularx}
+\usepackage{longtable}
+\usepackage{hyperref}
+\usepackage{cleveref}
+\usepackage{geometry}
+\usepackage{fancyhdr}
+\usepackage{titlesec}
+\usepackage{enumitem}
+\usepackage{xcolor}
+\usepackage{tcolorbox}
+\usepackage{algorithm}
+\usepackage{algorithmic}
+\usepackage{tikz}
+\usetikzlibrary{arrows.meta, positioning, calc, decorations.pathreplacing}
+\usepackage{pgfplots}
+\pgfplotsset{compat=1.18}
+\usepackage{caption}
+\usepackage{subcaption}
+\usepackage{float}
+
+\geometry{margin=2.5cm, top=3cm, bottom=3cm}
+
+% ========== Colors ==========
+\definecolor{defblue}{RGB}{30, 80, 150}
+\definecolor{thmgreen}{RGB}{20, 110, 60}
+\definecolor{noteorange}{RGB}{200, 100, 0}
+\definecolor{lightblue}{RGB}{230, 240, 255}
+\definecolor{lightgreen}{RGB}{230, 255, 235}
+\definecolor{lightorange}{RGB}{255, 245, 230}
+\definecolor{lightgray}{RGB}{245, 245, 245}
+
+% ========== Theorem-like environments ==========
+\theoremstyle{definition}
+\newtheorem{definition}{Definition}[chapter]
+\newtheorem{example}{Example}[chapter]
+
+\theoremstyle{plain}
+\newtheorem{theorem}{Theorem}[chapter]
+\newtheorem{proposition}{Proposition}[chapter]
+
+\theoremstyle{remark}
+\newtheorem{remark}{Remark}[chapter]
+
+% ========== tcolorbox environments ==========
+\newtcolorbox{keyidea}[1][]{
+  colback=lightblue,
+  colframe=defblue,
+  fonttitle=\bfseries,
+  title={Key Idea},
+  #1
+}
+
+\newtcolorbox{importantnote}[1][]{
+  colback=lightorange,
+  colframe=noteorange,
+  fonttitle=\bfseries,
+  title={Important},
+  #1
+}
+
+\newtcolorbox{summary}[1][]{
+  colback=lightgreen,
+  colframe=thmgreen,
+  fonttitle=\bfseries,
+  title={Summary},
+  #1
+}
+
+% ========== Custom commands ==========
+\newcommand{\vx}{\mathbf{x}}
+\newcommand{\vd}{\mathbf{d}}
+\newcommand{\vo}{\mathbf{o}}
+\newcommand{\vc}{\mathbf{c}}
+\newcommand{\vr}{\mathbf{r}}
+\newcommand{\vp}{\mathbf{p}}
+\newcommand{\vv}{\mathbf{v}}
+\newcommand{\vn}{\mathbf{n}}
+\newcommand{\vmu}{\bm{\mu}}
+\newcommand{\vbeta}{\bm{\beta}}
+\newcommand{\vtheta}{\bm{\theta}}
+\newcommand{\vpsi}{\bm{\psi}}
+\newcommand{\mSigma}{\bm{\Sigma}}
+\newcommand{\mR}{\mathbf{R}}
+\newcommand{\mS}{\mathbf{S}}
+\newcommand{\mW}{\mathbf{W}}
+\newcommand{\mJ}{\mathbf{J}}
+\newcommand{\mG}{\mathbf{G}}
+\newcommand{\mT}{\mathbf{T}}
+\newcommand{\mI}{\mathbf{I}}
+\newcommand{\mB}{\mathbf{B}}
+\newcommand{\RR}{\mathbb{R}}
+\newcommand{\SO}{\mathrm{SO}}
+
+% ========== Header/Footer ==========
+\pagestyle{fancy}
+\fancyhf{}
+\fancyhead[L]{\leftmark}
+\fancyhead[R]{\thepage}
+\renewcommand{\headrulewidth}{0.4pt}
+
+% ========== Title formatting ==========
+\titleformat{\chapter}[display]
+  {\normalfont\huge\bfseries\color{defblue}}
+  {\chaptertitlename\ \thechapter}{20pt}{\Huge}
+
+\titleformat{\section}
+  {\normalfont\Large\bfseries\color{defblue!80!black}}
+  {\thesection}{1em}{}
+
+\titleformat{\subsection}
+  {\normalfont\large\bfseries\color{defblue!60!black}}
+  {\thesubsection}{1em}{}
+
+% ========== Document ==========
+\begin{document}
+
+% ==================== TITLE PAGE ====================
+\begin{titlepage}
+\centering
+\vspace*{2cm}
+
+{\Huge\bfseries\color{defblue} 3D Gaussian Splatting에서\\[0.3cm] GART까지}
+
+\vspace{1cm}
+
+{\LARGE\color{defblue!70!black} A Comprehensive Guide from\\Neural Radiance Fields to\\Gaussian Articulated Representations}
+
+\vspace{2cm}
+
+{\large 컴퓨터 비전 \& 3D 재구성}
+
+\vspace{0.5cm}
+
+{\large 기초 이론부터 최신 연구까지}
+
+\vspace{3cm}
+
+{\large 2026}
+
+\vspace{\fill}
+
+{\small\color{gray} 본 교재는 NeRF, 3D Gaussian Splatting, 인체 모델링(SMPL/SMPL-X),\\
+그리고 GART를 포함한 인체 3D 재구성 기술을 체계적으로 다룹니다.}
+\end{titlepage}
+
+% ==================== TABLE OF CONTENTS ====================
+\tableofcontents
+\newpage
+
+% ==================== PREFACE ====================
+\chapter*{서문}
+\addcontentsline{toc}{chapter}{서문}
+
+본 교재는 3D Gaussian Splatting(3DGS)의 기반 기술인 Neural Radiance Fields(NeRF)부터 시작하여, 명시적(explicit) 3D 표현 방식인 3DGS, 인체 파라메트릭 모델(SMPL/SMPL-X), 동적 장면 표현, 그리고 최종적으로 관절 기반 인체 아바타 생성 기술인 GART(Gaussian Articulated Representation Templates)까지의 발전 과정을 체계적으로 설명합니다.
+
+각 장은 이전 장의 개념을 기반으로 구성되어 있어, 순서대로 읽으면 자연스럽게 이해할 수 있도록 설계하였습니다. 수학적 표기법을 일관되게 사용하며, 핵심 개념은 별도의 박스로 강조합니다.
+
+\begin{importantnote}[title={이 교재를 읽기 위한 사전 지식}]
+\begin{itemize}[leftmargin=*]
+  \item 선형대수: 행렬 연산, 고유값 분해, SVD
+  \item 미적분: 편미분, 체인룰, 적분
+  \item 확률/통계: 가우시안 분포, 공분산 행렬
+  \item 딥러닝 기초: MLP, 역전파, 경사하강법
+  \item 컴퓨터 그래픽스 기초: 카메라 모델, 동차좌표, 래스터화
+\end{itemize}
+\end{importantnote}
+
+
+% ====================================================================
+% CHAPTER 1: NeRF
+% ====================================================================
+\chapter{Neural Radiance Fields (NeRF)}
+\label{ch:nerf}
+
+\section{개요와 동기}
+
+3D 장면을 여러 각도에서 촬영한 2D 이미지들로부터 새로운 시점(novel view)의 이미지를 합성하는 것은 컴퓨터 비전의 핵심 문제입니다. 2020년 Mildenhall 등이 제안한 \textbf{NeRF(Neural Radiance Fields)}는 이 문제에 혁신적인 접근을 제시했습니다.
+
+\begin{keyidea}
+NeRF는 3D 장면을 \textbf{연속적인 체적 함수(continuous volumetric function)}로 표현합니다. 신경망(MLP)이 공간의 임의 좌표와 시선 방향을 입력받아 해당 지점의 색상과 밀도를 출력하며, 이를 \textbf{볼륨 렌더링(volume rendering)}으로 통합하여 이미지를 생성합니다.
+\end{keyidea}
+
+\subsection{왜 NeRF를 먼저 이해해야 하는가}
+
+3DGS를 이해하기 위해 NeRF를 먼저 다루는 이유는 다음과 같습니다:
+
+\begin{enumerate}[leftmargin=*]
+  \item \textbf{볼륨 렌더링 수식}: 3DGS의 알파 블렌딩은 NeRF의 이산화된 볼륨 렌더링과 수학적으로 동치입니다.
+  \item \textbf{미분 가능 렌더링}: 두 방법 모두 ``렌더 후 비교(render-and-compare)'' 패러다임으로 학습합니다.
+  \item \textbf{한계 인식}: NeRF의 속도 문제가 3DGS라는 대안을 낳았습니다.
+\end{enumerate}
+
+\section{장면 표현 (Scene Representation)}
+
+NeRF는 장면을 5D 함수로 모델링합니다:
+\begin{equation}
+  F_\Theta : (\vx, \vd) \longrightarrow (\vc, \sigma)
+  \label{eq:nerf_function}
+\end{equation}
+
+여기서:
+\begin{itemize}[leftmargin=*]
+  \item $\vx = (x, y, z) \in \RR^3$: 3D 공간 좌표
+  \item $\vd = (\theta, \phi) \in \mathbb{S}^2$: 2D 시선 방향 (단위 구 위의 방향 벡터)
+  \item $\vc = (r, g, b) \in [0,1]^3$: 해당 지점에서 방출되는 색상
+  \item $\sigma \in \RR_{\geq 0}$: 체적 밀도 (volume density)
+\end{itemize}
+
+\begin{importantnote}
+핵심 설계 원칙: \textbf{밀도 $\sigma$는 위치 $\vx$에만 의존}하고, \textbf{색상 $\vc$는 위치와 방향 모두에 의존}합니다. 밀도가 방향에 독립적이므로 다시점 기하학적 일관성(multi-view consistency)이 보장되며, 색상의 방향 의존성은 반사광(specular highlight) 같은 view-dependent 효과를 표현합니다.
+\end{importantnote}
+
+
+\section{위치 인코딩 (Positional Encoding)}
+\label{sec:pos_encoding}
+
+MLP는 본질적으로 \textbf{저주파 함수에 편향(spectral bias)}되어 있습니다. 즉, 좌표를 직접 입력하면 날카로운 엣지나 세밀한 텍스처를 표현하지 못합니다. 이를 해결하기 위해 입력을 고차원 공간으로 매핑하는 \textbf{위치 인코딩} $\gamma$를 적용합니다:
+
+\begin{equation}
+\gamma(p) = \Big( \sin(2^0 \pi p),\; \cos(2^0 \pi p),\; \sin(2^1 \pi p),\; \cos(2^1 \pi p),\; \ldots,\; \sin(2^{L-1} \pi p),\; \cos(2^{L-1} \pi p) \Big)
+\label{eq:pos_encoding}
+\end{equation}
+
+스칼라 $p$ 하나가 $2L$차원 벡터로 확장됩니다. 각 좌표에 독립적으로 적용:
+
+\begin{itemize}[leftmargin=*]
+  \item 3D 위치 $(x,y,z)$: $L=10$ $\Rightarrow$ $3 \times 2 \times 10 = 60$차원
+  \item 시선 방향 (3D 단위벡터): $L=4$ $\Rightarrow$ $3 \times 2 \times 4 = 24$차원
+\end{itemize}
+
+\begin{remark}
+위치 인코딩은 Transformer의 positional encoding과 동일한 아이디어입니다. 서로 다른 주파수의 사인/코사인 기저를 사용하여, 네트워크가 다양한 스케일의 패턴을 학습할 수 있게 합니다. $2^l$ 항은 $l$이 커질수록 고주파를 담당합니다.
+\end{remark}
+
+
+\section{MLP 아키텍처}
+
+NeRF의 신경망 구조는 다음과 같습니다:
+
+\begin{enumerate}[leftmargin=*]
+  \item \textbf{입력}: 60차원 위치 인코딩 벡터 $\gamma(\vx)$
+  \item \textbf{은닉층 1--5}: 256채널 fully connected + ReLU 활성화
+  \item \textbf{스킵 연결}: 5번째 층에서 원래 입력 $\gamma(\vx)$를 concatenation
+  \item \textbf{은닉층 6--8}: 256채널 fully connected + ReLU
+  \item \textbf{밀도 출력}: 선형 층 $\rightarrow \sigma$ (활성화 없음, 음수 가능하나 ReLU로 클리핑)
+  \item \textbf{특징 벡터}: 256차원 벡터 추출
+  \item \textbf{방향 입력}: 특징 벡터 + 24차원 $\gamma(\vd)$ concatenation
+  \item \textbf{색상 출력}: 128채널 + ReLU $\rightarrow$ 3채널 + Sigmoid $\rightarrow$ $\vc \in [0,1]^3$
+\end{enumerate}
+
+밀도가 방향과 무관하게 먼저 결정되고, 색상은 방향 정보를 추가로 받아 결정되는 구조입니다.
+
+
+\section{볼륨 렌더링 (Volume Rendering)}
+\label{sec:volume_rendering}
+
+NeRF는 카메라 레이(ray)를 따라 색상과 밀도를 적분하여 픽셀 색상을 계산합니다.
+
+\subsection{레이 매개변수화}
+
+카메라 원점 $\vo$에서 방향 $\vd$로 발사되는 레이:
+\begin{equation}
+\vr(t) = \vo + t\,\vd, \quad t \in [t_n, t_f]
+\label{eq:ray}
+\end{equation}
+여기서 $t_n$, $t_f$는 근평면(near plane)과 원평면(far plane) 거리입니다.
+
+\subsection{연속 볼륨 렌더링 적분}
+
+레이를 따른 렌더링된 색상:
+\begin{equation}
+\boxed{
+C(\vr) = \int_{t_n}^{t_f} T(t)\, \sigma(\vr(t))\, \vc(\vr(t), \vd)\, dt
+}
+\label{eq:volume_rendering}
+\end{equation}
+
+여기서 \textbf{누적 투과율(accumulated transmittance)}은:
+\begin{equation}
+T(t) = \exp\!\left( -\int_{t_n}^{t} \sigma(\vr(s))\, ds \right)
+\label{eq:transmittance}
+\end{equation}
+
+$T(t)$는 레이가 $t_n$에서 $t$까지 어떤 입자에도 부딪히지 않고 도달할 확률이며, $T(t)\,\sigma(t)$는 $t$ 지점에서 레이가 정지할 확률 밀도 함수(PDF)를 형성합니다.
+
+\begin{keyidea}
+볼륨 렌더링의 직관: 레이가 장면을 관통하면서, 각 지점의 ``불투명도''만큼 해당 지점의 색상을 누적합니다. 앞쪽의 불투명한 물체가 뒤를 가리는 것이 자연스럽게 표현됩니다.
+\end{keyidea}
+
+\subsection{이산 근사 (Numerical Quadrature)}
+
+연속 적분을 계산하기 위해 레이를 따라 $N$개의 점 $t_1 < t_2 < \cdots < t_N$을 샘플링합니다. 구간 간격 $\delta_i = t_{i+1} - t_i$일 때:
+
+\begin{equation}
+\hat{C}(\vr) = \sum_{i=1}^{N} T_i \cdot \alpha_i \cdot \vc_i
+\label{eq:discrete_rendering}
+\end{equation}
+
+각 항의 정의:
+\begin{align}
+\alpha_i &= 1 - \exp(-\sigma_i \cdot \delta_i) & \text{(샘플별 불투명도)} \label{eq:alpha} \\
+T_i &= \prod_{j=1}^{i-1}(1 - \alpha_j) & \text{(이산 투과율)} \label{eq:discrete_T} \\
+w_i &= T_i \cdot \alpha_i & \text{(샘플 가중치, $\sum_i w_i \leq 1$)} \label{eq:weight}
+\end{align}
+
+이는 전통적인 \textbf{알파 합성(alpha compositing)}의 front-to-back 공식과 정확히 동일합니다.
+
+
+\section{계층적 샘플링 (Hierarchical Sampling)}
+
+균일 샘플링은 빈 공간에서도 불필요한 연산을 수행합니다. NeRF는 두 개의 네트워크를 사용하여 이를 해결합니다:
+
+\begin{enumerate}[leftmargin=*]
+  \item \textbf{Coarse 네트워크}: $N_c = 64$개 점을 \textbf{층화 샘플링(stratified sampling)}으로 추출. 레이 구간을 $N_c$개 균등 bin으로 나누고 각 bin에서 균일하게 1개 추출:
+  \begin{equation}
+    t_i \sim \mathcal{U}\!\left[ t_n + \frac{i-1}{N_c}(t_f - t_n),\;\; t_n + \frac{i}{N_c}(t_f - t_n) \right]
+  \end{equation}
+
+  \item \textbf{Fine 네트워크}: Coarse 가중치 $w_i$로 구간별 상수(piecewise-constant) PDF를 구성하고, \textbf{역변환 샘플링(inverse transform sampling)}으로 $N_f = 128$개 추가 점을 추출. 이 점들은 표면 근처에 집중됩니다.
+
+  \item Fine 네트워크는 총 $N_c + N_f$개 점을 모두 평가합니다.
+\end{enumerate}
+
+
+\section{학습 (Training)}
+
+\subsection{손실 함수}
+
+Coarse와 fine 렌더링 모두에 대한 MSE 합:
+\begin{equation}
+\mathcal{L} = \sum_{\vr \in \mathcal{R}} \left[ \| \hat{C}_c(\vr) - C_{\text{gt}}(\vr) \|_2^2 + \| \hat{C}_f(\vr) - C_{\text{gt}}(\vr) \|_2^2 \right]
+\label{eq:nerf_loss}
+\end{equation}
+여기서 $\mathcal{R}$은 미니배치 내 레이 집합, $C_{\text{gt}}$는 실제 이미지 픽셀 색상입니다.
+
+\subsection{학습 파이프라인}
+
+\begin{algorithm}[H]
+\caption{NeRF Training (1 iteration)}
+\begin{algorithmic}[1]
+\STATE 학습 이미지에서 레이 배치 $\mathcal{R}$ 샘플링
+\FORALL{$\vr \in \mathcal{R}$}
+  \STATE 층화 샘플링으로 $N_c$개 점 생성
+  \STATE Coarse MLP로 각 점의 $(\vc, \sigma)$ 예측
+  \STATE \cref{eq:discrete_rendering}으로 coarse 색상 $\hat{C}_c(\vr)$ 계산
+  \STATE Coarse 가중치로 $N_f$개 중요도 샘플 추가 생성
+  \STATE Fine MLP로 총 $N_c + N_f$개 점의 $(\vc, \sigma)$ 예측
+  \STATE Fine 색상 $\hat{C}_f(\vr)$ 계산
+\ENDFOR
+\STATE $\mathcal{L}$ 계산 후 역전파
+\STATE Adam 옵티마이저로 $\Theta$ 업데이트
+\end{algorithmic}
+\end{algorithm}
+
+
+\section{NeRF의 한계}
+
+\begin{itemize}[leftmargin=*]
+  \item \textbf{렌더링 속도}: 픽셀마다 레이를 쏘고 수백 개의 MLP 쿼리가 필요 $\Rightarrow$ 프레임당 수십 초
+  \item \textbf{학습 시간}: 장면 하나에 수 시간 소요
+  \item \textbf{편집 불가}: 암묵적(implicit) 표현이라 특정 물체를 선택적으로 수정하기 어려움
+  \item \textbf{빈 공간 낭비}: 물체가 없는 곳에서도 네트워크를 쿼리해야 함
+\end{itemize}
+
+이러한 한계를 극복하기 위해 다음 장에서 소개할 \textbf{3D Gaussian Splatting}이 등장합니다.
+
+
+% ====================================================================
+% CHAPTER 2: 3D Gaussian Splatting
+% ====================================================================
+\chapter{3D Gaussian Splatting (3DGS)}
+\label{ch:3dgs}
+
+\section{개요}
+
+2023년 Kerbl 등이 SIGGRAPH에서 발표한 \textbf{3D Gaussian Splatting}은 NeRF의 암묵적 신경망 표현을 \textbf{명시적(explicit) 3D 가우시안 집합}으로 대체합니다.
+
+\begin{keyidea}
+3DGS의 핵심 아이디어: 장면을 수십만$\sim$수백만 개의 \textbf{비등방성 3D 가우시안(anisotropic 3D Gaussian)} 타원체로 표현하고, 이를 2D 이미지 평면에 \textbf{스플래팅(splatting)}하여 미분 가능하게 렌더링합니다. 이 방식은 NeRF와 동등하거나 더 높은 품질을 달성하면서도 \textbf{1080p에서 100+ FPS} 실시간 렌더링이 가능합니다.
+\end{keyidea}
+
+
+\section{3D 가우시안 프리미티브}
+\label{sec:gaussian_primitive}
+
+장면의 $i$번째 가우시안은 다음 매개변수로 정의됩니다:
+
+\begin{center}
+\renewcommand{\arraystretch}{1.3}
+\begin{tabular}{lll}
+\toprule
+\textbf{매개변수} & \textbf{기호} & \textbf{설명} \\
+\midrule
+위치 (평균) & $\vmu_i \in \RR^3$ & 가우시안의 중심점 \\
+공분산 행렬 & $\mSigma_i \in \RR^{3\times 3}$ & 모양과 방향 \\
+불투명도 & $\alpha_i \in (0, 1]$ & 투명도 제어 \\
+색상 (SH) & $\mathbf{f}_i \in \RR^C$ & 구면 조화 계수 \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+위치 $\vx$에서 $i$번째 가우시안의 공간적 영향:
+\begin{equation}
+\boxed{
+G_i(\vx) = \exp\!\left( -\frac{1}{2} (\vx - \vmu_i)^\top \mSigma_i^{-1} (\vx - \vmu_i) \right)
+}
+\label{eq:3d_gaussian}
+\end{equation}
+
+이는 다변량 정규분포의 확률밀도함수에서 정규화 상수를 제외한 형태입니다.
+
+
+\section{공분산 행렬의 매개변수화}
+
+공분산 행렬 $\mSigma$를 직접 최적화하면 \textbf{양의 준정치(positive semi-definite)} 조건을 위반할 수 있습니다. 이를 해결하기 위해 다음과 같이 분해합니다:
+
+\begin{equation}
+\mSigma_i = \mR_i \, \mS_i \, \mS_i^\top \, \mR_i^\top
+\label{eq:cov_decomp}
+\end{equation}
+
+여기서:
+\begin{itemize}[leftmargin=*]
+  \item $\mR_i \in \SO(3)$: 회전 행렬, 단위 쿼터니언 $\mathbf{q}_i \in \RR^4$ ($\|\mathbf{q}\|=1$)로 저장 $\rightarrow$ 4개 파라미터
+  \item $\mS_i = \mathrm{diag}(s_x, s_y, s_z)$: 대각 스케일링 행렬 $\rightarrow$ 3개 파라미터
+\end{itemize}
+
+이 분해는 $\mSigma$가 항상 양의 준정치임을 \textbf{구조적으로 보장}합니다. 물리적으로, $\mR$은 타원체의 방향을, $\mS$는 각 축의 크기를 결정합니다.
+
+\begin{remark}
+가우시안 하나의 총 파라미터 수: 위치(3) + 쿼터니언(4) + 스케일(3) + 불투명도(1) + SH($3 \times 16 = 48$, degree 3) = \textbf{59개}.
+\end{remark}
+
+
+\section{구면 조화 (Spherical Harmonics)}
+\label{sec:sh}
+
+NeRF가 MLP로 시점 의존적 색상을 모델링하는 반면, 3DGS는 \textbf{구면 조화(SH) 계수}를 사용합니다. SH는 구면 위의 함수를 표현하는 직교 기저 함수 집합입니다.
+
+\begin{center}
+\renewcommand{\arraystretch}{1.3}
+\begin{tabular}{cccc}
+\toprule
+\textbf{차수 (Degree)} & \textbf{기저 수} & \textbf{누적 기저 수} & \textbf{표현 가능한 효과} \\
+\midrule
+0 & 1 & 1 & 확산(diffuse) 색상 \\
+1 & 3 & 4 & 선형 방향 변화 \\
+2 & 5 & 9 & 이차 변화 (부드러운 반사) \\
+3 & 7 & 16 & 고차 효과 (날카로운 반사) \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+3DGS는 보통 3차 SH를 사용하여 RGB 3채널에 대해 $16 \times 3 = 48$개의 SH 계수를 저장합니다. 시선 방향 $\vd$가 주어지면:
+\begin{equation}
+\vc_i(\vd) = \mathrm{SH}(\mR_i^\top \vd,\; \mathbf{f}_i)
+\label{eq:sh_color}
+\end{equation}
+
+
+\section{스플래팅: 3D $\rightarrow$ 2D 투영}
+\label{sec:splatting}
+
+NeRF의 레이 마칭(ray marching)과 달리, 3DGS는 \textbf{스플래팅}---3D 가우시안을 2D 이미지 평면에 투영---을 사용합니다.
+
+\subsection{투영 과정}
+
+3D 가우시안의 평균은 표준 원근 투영(perspective projection)으로 2D로 변환되고, 3D 공분산은 \textbf{야코비안(Jacobian) $\mJ$}을 사용한 아핀 근사로 2D 공분산이 됩니다:
+
+\begin{align}
+\vmu_{\text{2D}} &= \pi(\vmu_i;\; \mathbf{E}, \mathbf{K}) \label{eq:mean_proj} \\
+\mSigma_{\text{2D}} &= \mJ \, \mW \, \mSigma_i \, \mW^\top \mJ^\top \label{eq:cov_proj}
+\end{align}
+
+여기서:
+\begin{itemize}[leftmargin=*]
+  \item $\mathbf{E}$: 외부 파라미터(extrinsic) 행렬 (월드 $\rightarrow$ 카메라 변환)
+  \item $\mathbf{K}$: 내부 파라미터(intrinsic) 행렬
+  \item $\mW$: 뷰 변환 행렬의 회전 부분
+  \item $\mJ$: 원근 투영의 야코비안 (가우시안 중심에서 평가)
+  \item $\mSigma_{\text{2D}} \in \RR^{2\times 2}$: 결과 2D 타원
+\end{itemize}
+
+\begin{importantnote}
+NeRF는 \textbf{이미지 공간}에서 작업합니다 (픽셀마다 레이를 쏨). 3DGS는 \textbf{프리미티브 공간}에서 작업합니다 (각 가우시안을 이미지에 투영). 이 차이가 속도의 핵심 원인입니다: 빈 공간에 대한 연산이 전혀 없습니다.
+\end{importantnote}
+
+
+\section{알파 블렌딩 렌더링}
+\label{sec:alpha_blending}
+
+겹치는 투영된 가우시안들을 깊이 순서로 정렬한 후 front-to-back 알파 합성:
+
+\begin{equation}
+\boxed{
+C(\mathbf{u}) = \sum_{i=1}^{N} T_i \cdot \alpha_i \cdot \vc_i, \qquad T_i = \prod_{j=1}^{i-1}(1 - \alpha_j)
+}
+\label{eq:3dgs_rendering}
+\end{equation}
+
+여기서 유효 불투명도(effective opacity)는:
+\begin{equation}
+\alpha_i = \text{opacity}_i \cdot G_{\text{2D}}(\mathbf{u} \mid \vmu_{\text{2D},i},\; \mSigma_{\text{2D},i})
+\label{eq:effective_opacity}
+\end{equation}
+
+$G_{\text{2D}}$는 2D 가우시안을 픽셀 좌표 $\mathbf{u}$에서 평가한 값입니다. 이 수식은 \textbf{NeRF의 이산 볼륨 렌더링(\cref{eq:discrete_rendering})과 수학적으로 동치}이지만, 레이 공간이 아닌 이미지 공간에서 작동합니다.
+
+
+\section{타일 기반 미분 가능 래스터라이저}
+\label{sec:rasterizer}
+
+실시간 성능은 맞춤형 CUDA 타일 기반 래스터라이저로 달성됩니다:
+
+\begin{enumerate}[leftmargin=*]
+  \item \textbf{절두체 컬링(Frustum Culling)}: 시야 밖 가우시안 제거
+  \item \textbf{2D 투영}: $\vmu_{\text{2D}}$, $\mSigma_{\text{2D}}$ 계산
+  \item \textbf{타일 할당}: 화면을 $16 \times 16$ 픽셀 타일로 분할; 각 가우시안을 겹치는 모든 타일에 할당
+  \item \textbf{가우시안 복제}: 여러 타일에 걸친 가우시안은 타일마다 복제
+  \item \textbf{Radix 정렬}: (타일 ID, 깊이) 쌍을 정렬 $\rightarrow$ 타일 내 front-to-back 순서
+  \item \textbf{타일별 블렌딩}: GPU 스레드가 병렬로 알파 합성. 누적 불투명도가 임계값(예: $0.9999$)을 초과하면 \textbf{early stopping}
+\end{enumerate}
+
+전체 파이프라인이 미분 가능하여 모든 가우시안 파라미터에 대한 그래디언트를 계산할 수 있습니다.
+
+
+\section{적응적 밀도 제어 (Adaptive Density Control)}
+\label{sec:density_control}
+
+학습 중 100 iteration마다 가우시안 집합을 세 가지 연산으로 조정합니다:
+
+\subsection{복제 (Cloning)}
+
+\begin{itemize}[leftmargin=*]
+  \item \textbf{조건}: 위치 그래디언트 크기가 임계값 $\tau_{\text{pos}}$ 초과 \textbf{AND} 가우시안이 ``작음'' (최대 스케일 축 $<$ 임계값)
+  \item \textbf{동작}: 동일 위치에 가우시안을 복제 $\rightarrow$ 희소 영역 채움
+  \item \textbf{직관}: 작은 가우시안이 큰 그래디언트를 받는다 = 더 많은 가우시안이 필요한 곳
+\end{itemize}
+
+\subsection{분할 (Splitting)}
+
+\begin{itemize}[leftmargin=*]
+  \item \textbf{조건}: 위치 그래디언트 크기 $> \tau_{\text{pos}}$ \textbf{AND} 가우시안이 ``큼''
+  \item \textbf{동작}: 원래 가우시안을 제거하고 두 개의 작은 가우시안으로 대체. 새 스케일 $s' = s/\phi$ ($\phi \approx 1.6$), 새 위치는 원래 분포에서 샘플링
+  \item \textbf{직관}: 하나의 큰 가우시안이 세밀한 디테일을 가리고 있음
+\end{itemize}
+
+\subsection{가지치기 (Pruning)}
+
+\begin{itemize}[leftmargin=*]
+  \item 불투명도가 임계값 $\epsilon_\alpha$(예: $0.005$) 미만인 가우시안 제거
+  \item 지나치게 큰 가우시안 (월드 또는 스크린 공간) 제거
+  \item 주기적으로 전체 불투명도를 0 근처로 리셋하고 유용한 가우시안만 회복되게 함
+\end{itemize}
+
+
+\section{학습 손실 함수}
+
+\begin{equation}
+\mathcal{L} = (1 - \lambda)\, \mathcal{L}_1 + \lambda\, \mathcal{L}_{\text{D-SSIM}}
+\label{eq:3dgs_loss}
+\end{equation}
+
+여기서:
+\begin{itemize}[leftmargin=*]
+  \item $\mathcal{L}_1 = \| I - \hat{I} \|_1$: L1 광도 손실
+  \item $\mathcal{L}_{\text{D-SSIM}} = \frac{1 - \text{SSIM}(I, \hat{I})}{2}$: 구조적 유사성 손실
+  \item $\lambda = 0.2$: 가중치 하이퍼파라미터
+\end{itemize}
+
+Adam 옵티마이저를 사용하며, 각 파라미터 유형(위치, 쿼터니언, 스케일, 불투명도, SH)별로 서로 다른 학습률을 적용합니다.
+
+
+\section{3DGS vs NeRF 비교}
+
+\begin{center}
+\renewcommand{\arraystretch}{1.4}
+\begin{tabular}{p{3cm}p{5cm}p{5cm}}
+\toprule
+\textbf{측면} & \textbf{NeRF} & \textbf{3DGS} \\
+\midrule
+표현 방식 & 암묵적 (MLP) & 명시적 (가우시안 프리미티브) \\
+렌더링 & 레이 마칭 (픽셀 기반) & 스플래팅 (프리미티브 기반) \\
+렌더링 속도 & 프레임당 수 초 & 100+ FPS (실시간) \\
+학습 시간 & 수 시간 & 수 분 $\sim$ 1시간 \\
+메모리 & 작음 (MLP 가중치) & 큼 (수백만 가우시안) \\
+편집 가능성 & 어려움 & 자연스러움 (이동/삭제 가능) \\
+빈 공간 & 불필요한 샘플링 & 연산 없음 \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+\begin{summary}
+3DGS는 NeRF의 ``렌더 후 비교'' 학습 패러다임을 유지하면서, 장면 표현을 MLP에서 명시적 가우시안 집합으로 바꿔 실시간 렌더링을 달성했습니다. 핵심 요소는: (1) 쿼터니언+스케일 공분산 분해, (2) SH 기반 시점 의존 색상, (3) 타일 기반 미분 가능 래스터라이저, (4) 적응적 밀도 제어입니다.
+\end{summary}
+
+
+% ====================================================================
+% CHAPTER 3: SMPL/SMPL-X
+% ====================================================================
+\chapter{인체 파라메트릭 모델: SMPL과 SMPL-X}
+\label{ch:smpl}
+
+\section{개요}
+
+인체를 3D로 표현하기 위해서는 \textbf{관절 구조(articulation)}, \textbf{체형 변화(body shape variation)}, \textbf{자세에 따른 변형(pose-dependent deformation)}을 모두 다룰 수 있는 모델이 필요합니다. \textbf{SMPL(Skinned Multi-Person Linear Model)}은 수천 건의 3D 인체 스캔 데이터로부터 학습된 파라메트릭 모델로, 저차원 파라미터로 전체 인체 메시를 생성합니다.
+
+\begin{keyidea}
+SMPL의 핵심: 소수의 \textbf{체형 파라미터 $\vbeta$}와 \textbf{자세 파라미터 $\vtheta$}만으로 인체의 다양한 형태와 동작을 표현합니다. 이 파라미터들은 \textbf{선형 혼합 스키닝(Linear Blend Skinning, LBS)}을 통해 3D 메시 꼭짓점 좌표로 변환됩니다.
+\end{keyidea}
+
+\section{모델 사양}
+
+\begin{center}
+\renewcommand{\arraystretch}{1.3}
+\begin{tabular}{lcc}
+\toprule
+& \textbf{SMPL} & \textbf{SMPL-X} \\
+\midrule
+꼭짓점 수 & 6,890 & 10,475 \\
+삼각면 수 & 13,776 & 20,908 \\
+관절 수 & 24 (23 + 루트) & 54 (21 몸통 + 30 손 + 3 얼굴) \\
+체형 파라미터 $\vbeta$ & $\RR^{10}$ (최대 300) & $\RR^{10}$ (최대 300) \\
+자세 파라미터 $\vtheta$ & $\RR^{72}$ (축-각도) & $\RR^{165}$ \\
+표정 파라미터 $\vpsi$ & -- & $\RR^{10}$ (최대 100) \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+\begin{remark}
+SMPL-X의 ``X''는 e\textbf{X}pressive를 의미합니다. SMPL(몸통) + MANO(손) + FLAME(얼굴)을 하나로 통합한 모델입니다.
+\end{remark}
+
+
+\section{SMPL 파이프라인}
+
+SMPL 모델의 전체 수식:
+\begin{equation}
+\boxed{
+M(\vbeta, \vtheta) = \mathrm{LBS}\!\Big( \bar{\mT} + B_S(\vbeta) + B_P(\vtheta),\;\; J(\vbeta),\;\; \vtheta,\;\; \mW \Big)
+}
+\label{eq:smpl_full}
+\end{equation}
+
+4단계로 진행됩니다.
+
+\subsection{Step 1: 체형 블렌드 셰이프 (Shape Blend Shapes)}
+
+기본 템플릿 메시 $\bar{\mT} \in \RR^{3N}$에 체형 변화를 더합니다:
+\begin{equation}
+B_S(\vbeta) = \sum_{n=1}^{|\vbeta|} \beta_n \cdot \mathbf{S}_n
+\label{eq:shape_bs}
+\end{equation}
+
+$\mathbf{S}_n \in \RR^{3N}$은 PCA로 학습된 직교 주성분입니다. 10개 성분만으로도 키, 체중, 체형 비율 등 대부분의 변이를 포착합니다.
+
+\begin{definition}[블렌드 셰이프]
+\textbf{블렌드 셰이프(blend shape)}란 기본 메시에 더해지는 꼭짓점 변위 벡터입니다. 여러 블렌드 셰이프의 가중합으로 다양한 형태를 표현합니다. 이는 PCA 기저 벡터와 계수의 곱에 해당합니다.
+\end{definition}
+
+\subsection{Step 2: 자세 블렌드 셰이프 (Pose Blend Shapes)}
+
+자세에 따른 보정 변형(근육 팽창, 피부 늘어남 등):
+\begin{equation}
+B_P(\vtheta) = \sum_{n=1}^{9K} \big( R_n(\vtheta) - R_n(\vtheta^*) \big) \cdot \mathbf{P}_n
+\label{eq:pose_bs}
+\end{equation}
+
+여기서:
+\begin{itemize}[leftmargin=*]
+  \item $R_n(\vtheta)$: 관절 회전행렬의 원소들 (펼친 형태)
+  \item $R_n(\vtheta^*)$: 기본 자세(rest pose)에서의 회전행렬 원소들 (항등행렬)
+  \item $\mathbf{P}_n \in \RR^{3N}$: 자세 블렌드 셰이프 기저
+  \item 기본 자세에서의 뺄셈은 $\vtheta = \vtheta^*$일 때 보정이 0이 되도록 보장
+\end{itemize}
+
+\subsection{Step 3: 보정된 템플릿}
+
+체형과 자세 보정이 적용된 템플릿:
+\begin{equation}
+T_P(\vbeta, \vtheta) = \bar{\mT} + B_S(\vbeta) + B_P(\vtheta)
+\end{equation}
+
+\subsection{Step 4: 관절 회귀 (Joint Regression)}
+
+관절 위치는 보정된 꼭짓점으로부터 회귀합니다:
+\begin{equation}
+J(\vbeta) = \mJ_{\text{regressor}} \cdot \big( \bar{\mT} + B_S(\vbeta) \big)
+\label{eq:joint_regression}
+\end{equation}
+$\mJ_{\text{regressor}} \in \RR^{K \times N}$은 희소(sparse) 회귀 행렬로, 각 관절이 소수의 꼭짓점 위치의 가중합으로 결정됩니다.
+
+
+\section{순방향 운동학 (Forward Kinematics)}
+\label{sec:fk}
+
+관절 변환은 \textbf{운동학적 트리(kinematic tree)} 구조를 따릅니다.
+
+\subsection{로컬 관절 변환}
+
+관절 $k$의 로컬 변환 ($\vtheta_k$는 축-각도(axis-angle) 표현):
+\begin{equation}
+\mT_k^{\text{local}} =
+\begin{bmatrix}
+\mR(\vtheta_k) & J_k \\
+\mathbf{0}^\top & 1
+\end{bmatrix}
+\end{equation}
+
+$\mR(\vtheta_k)$는 \textbf{로드리게스 공식(Rodrigues' formula)}으로 축-각도에서 회전행렬로 변환:
+\begin{equation}
+\mR(\vtheta) = \mI + \sin\|\vtheta\| \cdot [\hat{\vtheta}]_\times + (1 - \cos\|\vtheta\|) \cdot [\hat{\vtheta}]_\times^2
+\end{equation}
+여기서 $\hat{\vtheta} = \vtheta/\|\vtheta\|$이고 $[\cdot]_\times$는 반대칭 행렬(skew-symmetric matrix)입니다.
+
+\subsection{글로벌 관절 변환}
+
+부모 관절 $p(k)$에서 재귀적으로:
+\begin{equation}
+\mT_k^{\text{global}} = \mT_{p(k)}^{\text{global}} \cdot \mT_k^{\text{local}}
+\end{equation}
+
+기본 자세의 관절 위치를 제거하여 최종 스키닝 변환:
+\begin{equation}
+\mG_k(\vtheta, J) = \mT_k^{\text{global}} \cdot (\mT_k^{\text{rest}})^{-1}
+\label{eq:skinning_transform}
+\end{equation}
+
+
+\section{선형 혼합 스키닝 (Linear Blend Skinning)}
+\label{sec:lbs}
+
+각 꼭짓점은 뼈 변환의 가중합으로 변형됩니다:
+\begin{equation}
+\boxed{
+\vv_i' = \sum_{k=1}^{K} w_{k,i} \cdot \mG_k(\vtheta, J(\vbeta)) \cdot \vv_i
+}
+\label{eq:lbs}
+\end{equation}
+
+여기서:
+\begin{itemize}[leftmargin=*]
+  \item $\vv_i = T_P(\vbeta, \vtheta)_i$: 캐노니컬 공간의 $i$번째 꼭짓점 (블렌드 셰이프 보정 포함)
+  \item $w_{k,i} \geq 0$: 관절 $k$가 꼭짓점 $i$에 미치는 스키닝 가중치, $\sum_k w_{k,i} = 1$
+  \item $\mG_k$: 관절 $k$의 글로벌 스키닝 변환
+  \item $\mW \in \RR^{K \times N}$: 블렌드 가중치 행렬 (데이터로부터 학습)
+\end{itemize}
+
+\begin{importantnote}
+LBS의 한계: 관절이 크게 구부러지면 ``candy-wrapper'' 아티팩트가 발생합니다 (팔꿈치를 180도 구부리면 부피가 사라지는 현상). 이를 SMPL에서는 \textbf{자세 블렌드 셰이프}로 보정합니다.
+\end{importantnote}
+
+
+\section{SMPL-X 확장}
+\label{sec:smplx}
+
+SMPL-X는 \textbf{표정 블렌드 셰이프}를 추가합니다:
+\begin{equation}
+T_P(\vbeta, \vtheta, \vpsi) = \bar{\mT} + B_S(\vbeta) + B_P(\vtheta) + B_E(\vpsi)
+\end{equation}
+
+\begin{equation}
+B_E(\vpsi) = \sum_{n=1}^{|\vpsi|} \psi_n \cdot \mathbf{E}_n
+\end{equation}
+
+$\mathbf{E}_n$은 FLAME 얼굴 모델로부터 학습된 표정 기저입니다. SMPL-X는 다음을 통합합니다:
+\begin{itemize}[leftmargin=*]
+  \item \textbf{SMPL}: 몸통 모델
+  \item \textbf{MANO}: 손 모델 (손목 포함 각 손 15개 관절)
+  \item \textbf{FLAME}: 얼굴 모델 (턱, 눈, 표정 공간)
+\end{itemize}
+
+\begin{summary}
+SMPL/SMPL-X는 ``체형 $\vbeta$ + 자세 $\vtheta$ $\rightarrow$ 3D 메시''의 \textbf{미분 가능한 매핑}을 제공합니다. 핵심 구성요소: (1) PCA 기반 체형/자세 블렌드 셰이프, (2) 관절 회귀, (3) 순방향 운동학, (4) 선형 혼합 스키닝. 이 모델은 이후 장에서 3DGS와 결합되어 인체 아바타를 생성하는 핵심 사전 지식(prior)으로 사용됩니다.
+\end{summary}
+
+
+% ====================================================================
+% CHAPTER 4: Dynamic 3DGS
+% ====================================================================
+\chapter{동적 3D Gaussian Splatting}
+\label{ch:dynamic}
+
+\section{문제 정의}
+
+정적 3DGS는 특정 시점의 장면만 표현합니다. \textbf{동적 장면}---시간에 따라 형태와 외형이 변하는 장면---을 표현하려면 시간 차원을 추가로 다뤄야 합니다.
+
+가장 단순한 접근은 프레임마다 독립적인 가우시안 집합을 유지하는 것이지만, 이는 $O(T \times N)$의 저장 공간이 필요하고 시간적 일관성(temporal consistency)을 보장하지 못합니다.
+
+\begin{keyidea}
+핵심 아이디어: \textbf{캐노니컬(canonical)} 가우시안 집합 하나를 유지하고, 시간 $t$에 따른 \textbf{변형 필드(deformation field)}로 가우시안 파라미터를 변환합니다. 저장 복잡도는 $O(N + F)$ ($F$: 변형 필드 파라미터)로 줄어듭니다.
+\end{keyidea}
+
+\section{4D Gaussian Splatting (4DGS)}
+\label{sec:4dgs}
+
+Wu 등 (CVPR 2024)이 제안한 4DGS는 시공간 구조를 효율적으로 인코딩합니다.
+
+\subsection{HexPlane 시공간 인코더}
+
+4D 시공간 볼륨 $(x, y, z, t)$를 6개의 2D 특징 평면으로 분해합니다:
+
+\begin{itemize}[leftmargin=*]
+  \item \textbf{공간 평면 3개}: $(x,y)$, $(x,z)$, $(y,z)$
+  \item \textbf{시공간 평면 3개}: $(x,t)$, $(y,t)$, $(z,t)$
+\end{itemize}
+
+각 평면 $\mathcal{R}_l$은 학습 가능한 2D 그리드(예: $64 \times 64$)입니다. 쿼리 점 $(x,y,z,t)$에 대해 각 평면에서 \textbf{이중선형 보간(bilinear interpolation)}으로 특징을 추출:
+
+\begin{equation}
+\mathbf{f}_h = \mathrm{Concat}\!\big( \mathcal{R}_{xy}(x,y),\; \mathcal{R}_{xz}(x,z),\; \mathcal{R}_{yz}(y,z),\; \mathcal{R}_{xt}(x,t),\; \mathcal{R}_{yt}(y,t),\; \mathcal{R}_{zt}(z,t) \big)
+\label{eq:hexplane}
+\end{equation}
+
+다중 해상도 인코딩을 사용하여 거친 움직임과 세밀한 움직임을 모두 포착합니다.
+
+\subsection{가우시안 변형 디코더}
+
+경량 MLP가 융합된 특징을 세 개의 변형 헤드로 처리:
+
+\begin{align}
+\mathbf{f}_d &= \phi_d(\mathbf{f}_h) & \text{(융합 MLP)} \\
+\Delta \vx &= \phi_x(\mathbf{f}_d) & \text{(위치 변형)} \\
+\Delta \mathbf{r} &= \phi_r(\mathbf{f}_d) & \text{(회전 변형)} \\
+\Delta \mathbf{s} &= \phi_s(\mathbf{f}_d) & \text{(스케일 변형)}
+\end{align}
+
+시간 $t$에서의 변형된 가우시안:
+\begin{equation}
+\vx'(t) = \vx + \Delta \vx(t), \quad \mathbf{r}'(t) = \mathbf{r} + \Delta \mathbf{r}(t), \quad \mathbf{s}'(t) = \mathbf{s} + \Delta \mathbf{s}(t)
+\end{equation}
+
+\subsection{학습 및 성능}
+
+손실: $(1-\lambda)\mathcal{L}_1 + \lambda \mathcal{L}_{\text{D-SSIM}}$ + 시간 매끄러움 정규화.\\
+성능: RTX 3090에서 $800 \times 800$에서 82 FPS.
+
+
+\section{Deformable 3D Gaussians}
+\label{sec:deformable}
+
+Yang 등 (CVPR 2024)은 HexPlane 대신 \textbf{순수 MLP 기반 변형 필드}를 사용합니다:
+
+\begin{equation}
+F_\theta : \big( \gamma(\vx),\; \gamma(t) \big) \longrightarrow (\Delta \vx,\; \Delta \mathbf{r},\; \Delta \mathbf{s})
+\end{equation}
+
+$\gamma$는 위치/시간 인코딩입니다.
+
+\subsection{Annealed Smoothing}
+
+실제 데이터의 부정확한 카메라 포즈에 대응하기 위한 기법:
+\begin{itemize}[leftmargin=*]
+  \item 초기 학습: 강한 시간적 매끄러움(temporal smoothness) 정규화 적용
+  \item 학습 진행에 따라 점진적으로 완화
+  \item 거친 움직임 $\rightarrow$ 세밀한 움직임 순서로 학습
+\end{itemize}
+
+
+\section{동적 접근법 비교}
+
+\begin{center}
+\renewcommand{\arraystretch}{1.3}
+\begin{tabular}{lccc}
+\toprule
+\textbf{방법} & \textbf{시간 인코딩} & \textbf{변형 구조} & \textbf{FPS} \\
+\midrule
+4DGS & HexPlane (6 평면) & 다중 헤드 MLP & 82 \\
+Deformable 3DGS & 위치 인코딩 & MLP & $\sim$60 \\
+프레임별 독립 3DGS & 없음 (독립) & 없음 & 빠름 \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+\begin{summary}
+동적 3DGS는 ``캐노니컬 가우시안 + 시간 의존 변형''이라는 공통 패러다임을 따릅니다. 이 패러다임은 다음 장에서 인체 모델(SMPL)과 결합될 때, 변형 필드를 \textbf{관절 기반 스키닝}으로 대체하는 방향으로 발전합니다.
+\end{summary}
+
+
+% ====================================================================
+% CHAPTER 5: GART
+% ====================================================================
+\chapter{GART: Gaussian Articulated Representation Templates}
+\label{ch:gart}
+
+\section{개요와 동기}
+
+앞선 장에서 우리는 세 가지 핵심 구성요소를 배웠습니다:
+\begin{enumerate}[leftmargin=*]
+  \item \textbf{3DGS}: 명시적 가우시안으로 장면을 실시간 렌더링
+  \item \textbf{SMPL}: 자세/체형 파라미터로 인체 메시를 생성
+  \item \textbf{동적 3DGS}: 시간에 따른 가우시안 변형
+\end{enumerate}
+
+\textbf{GART(Lei et al., CVPR 2024)}는 이들을 결합하여, 단안(monocular) 영상으로부터 \textbf{애니메이션 가능한 인체 아바타}를 생성합니다.
+
+\begin{keyidea}
+GART의 핵심: 3D 가우시안을 \textbf{캐노니컬 공간(기본 자세)}에 정의하고, SMPL의 \textbf{순방향 스키닝(forward skinning)}으로 관찰 자세로 변환합니다. 추가로 \textbf{잠재 뼈(latent bones)}라는 가상 관절을 도입하여 옷이나 머리카락 같은 비강체 변형도 표현합니다.
+\end{keyidea}
+
+
+\section{캐노니컬 공간 표현}
+
+캐노니컬 공간의 각 가우시안 $i$:
+
+\begin{align}
+\vmu^{(i)} &\in \RR^3 & \text{(위치)} \\
+\mR^{(i)} &\in \SO(3) & \text{(회전)} \\
+\mathbf{s}^{(i)} &\in \RR^3_+ & \text{(비등방 스케일)} \\
+\eta^{(i)} &\in (0, 1] & \text{(불투명도)} \\
+\mathbf{f}^{(i)} &\in \RR^C & \text{(SH 색상 계수)}
+\end{align}
+
+캐노니컬 공간에서의 밀도:
+\begin{equation}
+\sigma^{(i)}(\vx_c) = \eta^{(i)} \cdot \exp\!\left( -\frac{1}{2} (\vx_c - \vmu^{(i)})^\top (\mSigma^{(i)})^{-1} (\vx_c - \vmu^{(i)}) \right)
+\end{equation}
+
+여기서 $\mSigma^{(i)} = \mR^{(i)} \cdot \mathrm{diag}((\mathbf{s}^{(i)})^2) \cdot (\mR^{(i)})^\top$입니다.
+
+
+\section{가우시안의 순방향 스키닝}
+\label{sec:forward_skinning}
+
+GART는 캐노니컬 $\rightarrow$ 관찰 공간으로의 \textbf{순방향 스키닝(forward skinning)}을 사용합니다. 이는 명시적 가우시안 표현에 자연스럽습니다.
+
+\begin{importantnote}[title={순방향 vs 역방향 스키닝}]
+\begin{itemize}[leftmargin=*]
+  \item \textbf{역방향 스키닝(inverse skinning)}: 관찰 공간 점 $\rightarrow$ 캐노니컬 공간. NeRF 기반 방법에서 주로 사용 (레이 위의 점을 캐노니컬 공간으로 매핑하여 MLP 쿼리).
+  \item \textbf{순방향 스키닝(forward skinning)}: 캐노니컬 공간 점 $\rightarrow$ 관찰 공간. 명시적 표현(메시, 가우시안)에서 자연스러움 (캐노니컬 프리미티브를 직접 변환).
+\end{itemize}
+\end{importantnote}
+
+\subsection{SMPL 템플릿 스키닝}
+
+표준 스키닝:
+\begin{equation}
+\vx = \left( \sum_{k=1}^{n_b} W_k(\vx_c) \cdot \mB_k \right) \cdot \vx_c
+\end{equation}
+
+$W_k$는 스키닝 가중치, $\mB_k$는 뼈 변환 행렬입니다.
+
+\subsection{학습 가능한 스키닝 가중치 보정}
+
+SMPL의 고정된 스키닝 가중치만으로는 가우시안의 자유로운 변형을 표현하기 어렵습니다. GART는 \textbf{가우시안별 학습 가능 보정(per-Gaussian learnable correction)}을 추가합니다:
+
+\begin{equation}
+\hat{W}(\vmu^{(i)}) = W(\vmu^{(i)}) + \Delta \mathbf{w}^{(i)}
+\label{eq:weight_correction}
+\end{equation}
+
+$\Delta \mathbf{w}^{(i)} \in \RR^{n_b}$는 $i$번째 가우시안의 학습 가능한 스키닝 가중치 보정입니다. 이를 통해 가우시안이 SMPL 메시에 엄격히 묶이지 않고 옷 등의 변형을 표현할 수 있습니다.
+
+\subsection{관절 변환 계산}
+
+$i$번째 가우시안의 관절 변환:
+\begin{equation}
+\mathbf{A}^{(i)} = \sum_{k=1}^{n_b} \hat{W}_k(\vmu^{(i)}) \cdot \mB_k
+\label{eq:articulation}
+\end{equation}
+
+$\mathbf{A}^{(i)}$를 회전 부분 $\mathbf{A}_{\text{rot}}^{(i)}$과 이동 부분 $\mathbf{A}_t^{(i)}$로 분리하면, 변형된 가우시안 파라미터:
+
+\begin{align}
+\vmu_{\text{art}}^{(i)} &= \mathbf{A}_{\text{rot}}^{(i)} \cdot \vmu^{(i)} + \mathbf{A}_t^{(i)} \label{eq:posed_mean} \\
+\mR_{\text{art}}^{(i)} &= \mathbf{A}_{\text{rot}}^{(i)} \cdot \mR^{(i)} \label{eq:posed_rot}
+\end{align}
+
+\begin{remark}
+스케일 $\mathbf{s}^{(i)}$와 불투명도 $\eta^{(i)}$는 변환하지 않습니다. 이들은 가우시안의 \textbf{로컬 기하학}을 기술하며, 자세 변환은 가우시안의 위치와 방향만 변경해야 합니다.
+\end{remark}
+
+
+\section{잠재 뼈 (Latent Bones)}
+\label{sec:latent_bones}
+
+실제 변형(느슨한 옷, 머리카락, 연조직 등)은 골격 LBS만으로 표현할 수 없습니다. GART는 \textbf{잠재 뼈(latent bones)}---템플릿 스켈레톤에 없는 가상의 추가 뼈---를 도입합니다.
+
+\subsection{잠재 뼈 변환}
+
+\begin{equation}
+[\tilde{\mB}_1, \ldots, \tilde{\mB}_{n_l}] = \tilde{B}(\vtheta)
+\end{equation}
+
+잠재 뼈 변환은 자세 $\vtheta$의 함수로, MLP 또는 프레임별 최적화 가능한 룩업 테이블로 매개변수화됩니다.
+
+\subsection{확장된 순방향 스키닝}
+
+잠재 뼈를 포함한 전체 관절 변환:
+\begin{equation}
+\boxed{
+\mathbf{A}^{(i)} = \underbrace{\sum_{k=1}^{n_b} \hat{W}_k(\vmu^{(i)}) \cdot \mB_k}_{\text{SMPL 스켈레톤 변환}} + \underbrace{\sum_{q=1}^{n_l} \tilde{W}_q(\vmu^{(i)}) \cdot \tilde{\mB}_q}_{\text{잠재 뼈 변환}}
+}
+\label{eq:extended_skinning}
+\end{equation}
+
+$\tilde{W}_q$는 잠재 뼈의 학습 가능한 스키닝 가중치입니다.
+
+\begin{keyidea}
+잠재 뼈의 직관: SMPL의 24개 뼈로는 옷의 펄럭임이나 머리카락의 흔들림을 표현할 수 없습니다. 잠재 뼈는 이러한 비강체 변형을 자세 의존적 ``가상 관절''로 모델링합니다. 자세가 바뀌면 잠재 뼈도 반응하여 일관된 변형을 생성합니다.
+\end{keyidea}
+
+
+\section{자세 의존적 외형}
+
+자세 $\vtheta$에서의 완전한 관절 표현:
+\begin{equation}
+\mathcal{G}_{\text{art}}(\vtheta) = \big\{ (\vmu_{\text{art}}^{(i)},\; \mR_{\text{art}}^{(i)},\; \mathbf{s}^{(i)},\; \eta^{(i)},\; \mathbf{f}^{(i)}) \big\}_{i=1}^{N}
+\end{equation}
+
+SH 계수 $\mathbf{f}^{(i)}$로 시점 의존 색상을 제공하며, $\mR_{\text{art}}^{(i)}$에 의해 적절히 회전됩니다.
+
+
+\section{미분 가능 렌더링}
+
+각 관절 변환된 가우시안의 2D 투영:
+\begin{align}
+\vmu_{\text{2D}} &= \pi(\vmu_{\text{art}};\; \mathbf{E}, \mathbf{K}) \\
+\mSigma_{\text{2D}} &= \mJ \cdot \mathbf{E} \cdot \mSigma_{\text{art}} \cdot \mathbf{E}^\top \cdot \mJ^\top
+\end{align}
+
+볼륨 렌더링 (스플래팅):
+\begin{equation}
+I(\mathbf{u}, \vd) = \sum_{i=1}^{N} \alpha^{(i)} \cdot \mathrm{SH}(\mR^{\top} \vd,\; \mathbf{f}^{(i)}) \cdot \prod_{j=1}^{i-1}(1 - \alpha^{(j)})
+\end{equation}
+
+
+\section{손실 함수}
+\label{sec:gart_loss}
+
+\subsection{주 학습 손실}
+
+\begin{equation}
+\mathcal{L} = \mathcal{L}_1(\hat{I}, I^*) + \lambda_{\text{SSIM}} \cdot \mathcal{L}_{\text{SSIM}}(\hat{I}, I^*) + \mathcal{L}_{\text{reg}}
+\end{equation}
+
+\subsection{매끄러움 정규화}
+
+인접 가우시안 간의 속성 일관성:
+\begin{equation}
+\mathcal{L}_{\text{STD}}^{(i)} = \sum_{\text{attr} \in \{\mR, \mathbf{s}, \eta, \mathbf{f}, \hat{W}, \tilde{W}\}} \lambda_{\text{attr}} \cdot \mathrm{STD}_{j \in \mathrm{KNN}(\vmu^{(i)})}(\text{attr}^{(j)})
+\label{eq:smoothness}
+\end{equation}
+
+$K$-최근접 이웃(KNN)의 속성 표준편차를 페널티합니다. 이는 인접 가우시안이 유사한 속성을 갖도록 유도하여 공간적 매끄러움을 보장합니다.
+
+\subsection{정규화 정규화 (Normalization Regularization)}
+
+\begin{equation}
+\mathcal{L}_{\text{norm}}^{(i)} = \lambda_{\hat{W}} \|\Delta \mathbf{w}^{(i)}\|_2 + \lambda_{\tilde{W}} \|\tilde{W}(\vmu^{(i)})\|_2 + \lambda_s \|\mathbf{s}^{(i)}\|_\infty
+\label{eq:norm_reg}
+\end{equation}
+
+각 항의 역할:
+\begin{itemize}[leftmargin=*]
+  \item $\|\Delta \mathbf{w}^{(i)}\|_2$: 스키닝 가중치 보정을 작게 유지 (SMPL 템플릿에 가깝게)
+  \item $\|\tilde{W}(\vmu^{(i)})\|_2$: 잠재 뼈 가중치를 최소화 (필요할 때만 활성화)
+  \item $\|\mathbf{s}^{(i)}\|_\infty$: 스케일을 제한 (지나치게 큰 가우시안 방지)
+\end{itemize}
+
+\subsection{전체 정규화 손실}
+
+\begin{equation}
+\mathcal{L}_{\text{reg}} = \frac{1}{N} \sum_{i=1}^{N} \big[ \mathcal{L}_{\text{STD}}^{(i)} + \mathcal{L}_{\text{norm}}^{(i)} \big]
+\end{equation}
+
+
+\section{학습 전략}
+\label{sec:gart_training}
+
+\begin{enumerate}[leftmargin=*]
+  \item \textbf{초기화}: SMPL 메시 표면 위의 꼭짓점(6,890개)에 가우시안 배치
+  \item \textbf{동시 최적화}: 가우시안 파라미터 $\mathcal{G}$, 스키닝 보정 $\hat{W}$, 잠재 뼈 변환 $\tilde{B}$, 잠재 뼈 가중치 $\tilde{W}$ 동시 최적화
+  \item \textbf{선택적 자세 정제}: 추정된 SMPL 자세 $\vtheta$를 함께 최적화 가능
+  \item \textbf{적응적 밀도 제어}: 3DGS 스타일의 분할/복제/가지치기 적용
+  \item \textbf{복셀 증류 스키닝}: 선택적으로 스키닝 가중치를 공간 복셀 그리드에 증류하여 더 매끄러운 변형 달성
+\end{enumerate}
+
+\begin{summary}
+GART 학습 파이프라인 요약:
+\begin{enumerate}[leftmargin=*]
+  \item SMPL 메시 위에 가우시안 초기화
+  \item 각 학습 프레임에 대해: 캐노니컬 가우시안 $\xrightarrow{\text{순방향 스키닝 (확장)}}$ 관찰 자세 가우시안 $\xrightarrow{\text{타일 래스터라이저}}$ 렌더링 이미지
+  \item 렌더링 이미지와 실제 이미지 비교하여 손실 계산
+  \item 역전파로 모든 파라미터 업데이트
+\end{enumerate}
+학습 시간: 표준 하드웨어에서 30초 $\sim$ 2.5분. 렌더링: 150+ FPS.
+\end{summary}
+
+
+% ====================================================================
+% CHAPTER 6: Related Methods
+% ====================================================================
+\chapter{관련 인체 3DGS 방법들}
+\label{ch:related}
+
+\section{공통 프레임워크}
+
+대부분의 방법이 공유하는 \textbf{캐노니컬-포즈드(canonical-to-posed)} 패러다임:
+
+\begin{enumerate}[leftmargin=*]
+  \item 캐노니컬 (기본 자세) 공간에서 3D 가우시안 정의 (보통 SMPL/SMPL-X로 초기화)
+  \item 변형 모델 (주로 LBS 기반)로 목표 자세로 변환
+  \item 미분 가능 래스터화로 렌더링
+  \item 광도 손실로 실제 이미지와 비교하여 최적화
+\end{enumerate}
+
+\begin{figure}[h]
+\centering
+\begin{tikzpicture}[
+  block/.style={rectangle, draw, rounded corners, minimum width=3cm, minimum height=1cm, align=center, fill=lightblue},
+  arrow/.style={-{Stealth[length=3mm]}, thick}
+]
+\node[block] (canon) at (0,0) {캐노니컬\\가우시안};
+\node[block] (lbs) at (5,0) {LBS/스키닝\\변환};
+\node[block] (posed) at (10,0) {포즈드\\가우시안};
+\node[block] (render) at (10,-2.5) {미분 가능\\렌더링};
+\node[block] (loss) at (5,-2.5) {손실 계산\\(L1 + SSIM)};
+\node[block, fill=lightorange] (smpl) at (5,2) {SMPL 자세\\$\vtheta$};
+\node[block, fill=lightorange] (gt) at (0,-2.5) {실제 이미지};
+
+\draw[arrow] (canon) -- (lbs);
+\draw[arrow] (lbs) -- (posed);
+\draw[arrow] (smpl) -- (lbs);
+\draw[arrow] (posed) -- (render);
+\draw[arrow] (render) -- (loss);
+\draw[arrow] (gt) -- (loss);
+\draw[arrow, dashed, red] (loss) -- node[left, text=red, font=\small] {역전파} (canon);
+\end{tikzpicture}
+\caption{인체 3DGS 방법의 공통 학습 파이프라인}
+\label{fig:common_pipeline}
+\end{figure}
+
+
+\section{GauHuman}
+
+Hu 등 (CVPR 2024)은 단안 영상에서 관절 아바타를 생성합니다.
+
+\subsection{핵심 기여}
+
+\begin{enumerate}[leftmargin=*]
+  \item \textbf{SMPL 초기화}: 6,890개 SMPL 꼭짓점에 가우시안 초기화
+  \item \textbf{LBS 가중치 정제}: MLP로 SMPL 스키닝 가중치에 오프셋 예측:
+  \begin{equation}
+    w_k = \mathrm{softmax}\!\big( \log(w_k^{\text{SMPL}} + \epsilon) + \mathrm{MLP}(\gamma(\vp^c))[k] \big)
+  \end{equation}
+
+  \item \textbf{자세 정제}: 학습 가능한 상대 쿼터니언 보정:
+  \begin{equation}
+    \vtheta = \vtheta^{\text{SMPL}} \otimes \mathrm{MLP}(\vtheta)
+  \end{equation}
+
+  \item \textbf{KL-발산 기반 가우시안 제어}: 그래디언트 임계값 대신 가우시안 간 KL 발산을 사용:
+  \begin{equation}
+    \text{KL}(G_0 \| G_1) = \frac{1}{2}\!\left( \mathrm{tr}(\mSigma_1^{-1}\mSigma_0) + \ln\frac{|\mSigma_1|}{|\mSigma_0|} + (\vp_1{-}\vp_0)^\top \mSigma_1^{-1}(\vp_1{-}\vp_0) - 3 \right)
+  \end{equation}
+  복잡도를 $O(U^2)$에서 $O(U)$로 줄이며, KL $< 0.1$인 중복 가우시안을 \textbf{병합(merge)} 가능
+\end{enumerate}
+
+\subsection{성능}
+
+학습: 1--2분, 렌더링: 189 FPS, 가우시안 수: $\sim$13K.
+
+
+\section{Animatable Gaussians}
+
+Li 등 (CVPR 2024)은 다시점 영상에서 고품질 인체 아바타를 생성합니다.
+
+\subsection{핵심 기여}
+
+\begin{enumerate}[leftmargin=*]
+  \item \textbf{UV 가우시안 맵}: 템플릿 메시를 앞/뒤 두 개의 UV 맵으로 매개변수화. 각 UV 텍셀이 하나의 가우시안을 표현
+  \item \textbf{StyleUNet}: 자세 조건부 CNN이 UV 맵에서 가우시안 속성 (위치 오프셋, 회전, 스케일, 불투명도, 색상) 예측
+  \item \textbf{입력}: SMPL-X 꼭짓점 위치를 인코딩한 UV-포지션 맵 + 자세 파라미터
+  \item \textbf{자세 투영}: PCA를 적용하여 학습되지 않은 새로운 자세도 일반화
+\end{enumerate}
+
+\begin{importantnote}
+Animatable Gaussians는 3D 가우시안을 2D UV 공간에서 정의합니다. 이 2D 매개변수화 덕분에 강력한 2D CNN 아키텍처를 활용할 수 있어, 느슨한 옷의 동적 변형을 잘 표현합니다.
+\end{importantnote}
+
+
+\section{ExAvatar}
+
+Moon 등 (ECCV 2024)은 짧은 단안 영상에서 \textbf{표현력 있는 전신 아바타}(얼굴 + 손 + 몸통)를 생성합니다.
+
+\subsection{핵심 기여}
+
+\begin{enumerate}[leftmargin=*]
+  \item \textbf{메시-가우시안 하이브리드}: 각 가우시안을 SMPL-X 토폴로지를 따르는 메시의 꼭짓점으로 취급. 167K 꼭짓점, 335K 면 (SMPL-X 메시를 세분화)
+
+  \item \textbf{트라이플레인 특징 추출}: 학습 가능한 트라이플레인 $\mathcal{T} \in \RR^{3 \times 32 \times 128 \times 128}$에서 꼭짓점별 특징을 직교 투영 + 이중선형 보간으로 추출. 얼굴 전용 트라이플레인도 별도 사용
+
+  \item \textbf{가우시안 속성 회귀}: 두 MLP가 트라이플레인 특징을 처리:
+  \begin{itemize}[leftmargin=*]
+    \item 정체성 의존: 3D 오프셋 $\Delta V_{\text{tri}}$, 스케일, RGB
+    \item 자세 의존: 꼭짓점 오프셋 $\Delta V_{\text{pose}}$, 스케일/RGB 오프셋
+  \end{itemize}
+  모든 가우시안은 \textbf{등방성(isotropic)} (회전 = 항등, 불투명도 = 1) $\rightarrow$ 일반화 향상
+
+  \item \textbf{표정 구동 변형}: SMPL-X 표정 오프셋 직접 사용:
+  \begin{equation}
+    \bar{V}_{\text{pose}} = \bar{V} + \Delta V_{\text{tri}} + \Delta V_{\text{pose}} + \Delta V_{\text{expr}}
+  \end{equation}
+
+  \item \textbf{연결성 기반 정규화}: 라플라시안 정규화로 메시 연결성을 활용한 매끄러움 보장
+\end{enumerate}
+
+
+\section{HumanGaussian}
+
+Liu 등 (CVPR 2024 Highlight)은 텍스트로부터 3D 인체를 \textbf{생성}합니다 (재구성이 아님).
+
+\subsection{핵심 기여}
+
+\begin{enumerate}[leftmargin=*]
+  \item \textbf{구조 인식 SDS(Score Distillation Sampling)}: RGB 이미지와 깊이 맵을 동시에 디노이징하는 이중 분기 모델
+  \item SMPL-X 표면에 밀집된 가우시안 초기화
+  \item 생성임에도 SMPL-X 자세 시퀀스로 제로샷 애니메이션 가능
+\end{enumerate}
+
+
+\section{비교 요약}
+
+\begin{center}
+\renewcommand{\arraystretch}{1.3}
+\small
+\begin{tabular}{lccccc}
+\toprule
+\textbf{방법} & \textbf{입력} & \textbf{SMPL} & \textbf{핵심 혁신} & \textbf{학습} & \textbf{FPS} \\
+\midrule
+GART & 단안 영상 & SMPL & 잠재 뼈 + 가중치 보정 & 0.5--2.5분 & 150+ \\
+GauHuman & 단안 영상 & SMPL & KL 기반 밀도 제어 & 1--2분 & 189 \\
+Anim.\ Gauss. & 다시점 & SMPL-X & StyleUNet UV 맵 & $\sim$2일 & 10 \\
+ExAvatar & 단안 영상 & SMPL-X & 메시-가우시안 하이브리드 & 1.5--5시간 & 실시간 \\
+HumanGaussian & 텍스트 & SMPL-X & 구조 인식 SDS & 수 시간 & -- \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+
+\section{기술 발전의 계보}
+
+\begin{figure}[h]
+\centering
+\begin{tikzpicture}[
+  block/.style={rectangle, draw, rounded corners, minimum width=3.5cm, minimum height=0.9cm, align=center, font=\small},
+  arrow/.style={-{Stealth[length=2.5mm]}, thick},
+  node distance=1.2cm
+]
+\node[block, fill=lightblue] (nerf) {NeRF (2020)\\암묵적 볼륨 렌더링};
+\node[block, fill=lightblue, right=2cm of nerf] (3dgs) {3DGS (2023)\\명시적 가우시안 스플래팅};
+\node[block, fill=lightorange, below=of nerf] (smpl) {SMPL/SMPL-X\\파라메트릭 인체 모델};
+\node[block, fill=lightgreen, below=of 3dgs] (dyn) {4DGS / Deformable 3DGS\\동적 장면};
+\node[block, fill=red!15, below=1.5cm of $(smpl)!0.5!(dyn)$] (gart) {GART / GauHuman\\관절 가우시안 아바타};
+\node[block, fill=red!15, below=of gart] (next) {ExAvatar / Anim.\ Gauss.\\전신 표현 아바타};
+
+\draw[arrow] (nerf) -- node[above, font=\scriptsize] {속도 개선} (3dgs);
+\draw[arrow] (3dgs) -- (dyn);
+\draw[arrow] (smpl) -- (gart);
+\draw[arrow] (dyn) -- (gart);
+\draw[arrow] (3dgs) -- (gart);
+\draw[arrow] (gart) -- (next);
+\end{tikzpicture}
+\caption{NeRF에서 인체 가우시안 아바타까지의 기술 계보}
+\label{fig:lineage}
+\end{figure}
+
+
+% ====================================================================
+% CHAPTER 7: 수학적 부록
+% ====================================================================
+\chapter{수학적 부록}
+\label{ch:appendix}
+
+\section{쿼터니언과 회전}
+\label{sec:quaternion}
+
+\subsection{쿼터니언 기초}
+
+단위 쿼터니언 $\mathbf{q} = (q_w, q_x, q_y, q_z)$, $\|\mathbf{q}\| = 1$은 3D 회전을 표현합니다.
+
+회전축 $\hat{\mathbf{n}}$과 회전각 $\theta$에 대해:
+\begin{equation}
+\mathbf{q} = \left(\cos\frac{\theta}{2},\;\; \hat{\mathbf{n}} \sin\frac{\theta}{2}\right)
+\end{equation}
+
+\subsection{쿼터니언 $\rightarrow$ 회전행렬}
+
+\begin{equation}
+\mR(\mathbf{q}) = \begin{bmatrix}
+1 - 2(q_y^2 + q_z^2) & 2(q_x q_y - q_w q_z) & 2(q_x q_z + q_w q_y) \\
+2(q_x q_y + q_w q_z) & 1 - 2(q_x^2 + q_z^2) & 2(q_y q_z - q_w q_x) \\
+2(q_x q_z - q_w q_y) & 2(q_y q_z + q_w q_x) & 1 - 2(q_x^2 + q_y^2)
+\end{bmatrix}
+\end{equation}
+
+\subsection{축-각도 $\rightarrow$ 회전행렬 (로드리게스)}
+
+축-각도 벡터 $\vtheta \in \RR^3$에서 $\theta = \|\vtheta\|$, $\hat{\vtheta} = \vtheta / \theta$:
+\begin{equation}
+\mR(\vtheta) = \cos\theta\, \mI + (1 - \cos\theta)\, \hat{\vtheta}\hat{\vtheta}^\top + \sin\theta\, [\hat{\vtheta}]_\times
+\end{equation}
+
+반대칭 행렬:
+\begin{equation}
+[\hat{\vtheta}]_\times = \begin{bmatrix}
+0 & -\hat{\theta}_z & \hat{\theta}_y \\
+\hat{\theta}_z & 0 & -\hat{\theta}_x \\
+-\hat{\theta}_y & \hat{\theta}_x & 0
+\end{bmatrix}
+\end{equation}
+
+
+\section{구면 조화 (Spherical Harmonics)}
+\label{sec:sh_appendix}
+
+실수 SH 기저 함수 $Y_l^m(\theta, \phi)$ (차수 $l$, 차수 $m$, $-l \leq m \leq l$):
+
+\begin{itemize}[leftmargin=*]
+  \item $l = 0$: $Y_0^0 = \frac{1}{2\sqrt{\pi}}$ (상수)
+  \item $l = 1$: 3개 기저 (선형 방향 의존성)
+  \begin{align}
+    Y_1^{-1} &= \sqrt{\tfrac{3}{4\pi}}\, y, \quad
+    Y_1^{0} = \sqrt{\tfrac{3}{4\pi}}\, z, \quad
+    Y_1^{1} = \sqrt{\tfrac{3}{4\pi}}\, x
+  \end{align}
+  여기서 $(x, y, z)$는 단위 방향 벡터의 좌표
+  \item $l = 2$: 5개 기저 (이차 의존성)
+  \item $l = 3$: 7개 기저 (삼차 의존성)
+\end{itemize}
+
+방향 $\vd$에서의 색상 (R/G/B 각 채널):
+\begin{equation}
+c(\vd) = \sum_{l=0}^{l_{\max}} \sum_{m=-l}^{l} f_l^m \cdot Y_l^m(\vd)
+\end{equation}
+
+3DGS에서 $l_{\max} = 3$이면 총 $(0+1)+(1+2)+(2+3)+(3+4) = 1+3+5+7 = 16$개 기저.
+
+
+\section{SSIM (Structural Similarity Index)}
+\label{sec:ssim}
+
+두 이미지 패치 $x$, $y$에 대해:
+\begin{equation}
+\text{SSIM}(x, y) = \frac{(2\mu_x \mu_y + C_1)(2\sigma_{xy} + C_2)}{(\mu_x^2 + \mu_y^2 + C_1)(\sigma_x^2 + \sigma_y^2 + C_2)}
+\end{equation}
+
+여기서 $\mu$는 평균, $\sigma^2$은 분산, $\sigma_{xy}$는 공분산, $C_1$, $C_2$는 안정화 상수입니다.
+
+D-SSIM 손실: $\mathcal{L}_{\text{D-SSIM}} = \frac{1 - \text{SSIM}}{2}$
+
+
+\section{KL 발산 (두 가우시안 사이)}
+\label{sec:kl}
+
+두 다변량 가우시안 $\mathcal{N}_0(\vmu_0, \mSigma_0)$, $\mathcal{N}_1(\vmu_1, \mSigma_1)$ ($d$차원):
+\begin{equation}
+\text{KL}(\mathcal{N}_0 \| \mathcal{N}_1) = \frac{1}{2}\left[ \mathrm{tr}(\mSigma_1^{-1}\mSigma_0) + (\vmu_1 - \vmu_0)^\top \mSigma_1^{-1}(\vmu_1 - \vmu_0) - d + \ln\frac{|\mSigma_1|}{|\mSigma_0|} \right]
+\end{equation}
+
+GauHuman에서는 이를 가우시안 분할/병합 기준으로 사용합니다 ($d=3$).
+
+
+\section{동차 좌표와 원근 투영}
+\label{sec:projection}
+
+\subsection{월드 $\rightarrow$ 카메라 변환}
+
+외부 파라미터 $[\mR_{\text{cam}} | \mathbf{t}_{\text{cam}}]$:
+\begin{equation}
+\vp_{\text{cam}} = \mR_{\text{cam}} \vp_{\text{world}} + \mathbf{t}_{\text{cam}}
+\end{equation}
+
+\subsection{카메라 $\rightarrow$ 이미지 투영}
+
+내부 파라미터 $\mathbf{K}$:
+\begin{equation}
+\mathbf{K} = \begin{bmatrix}
+f_x & 0 & c_x \\
+0 & f_y & c_y \\
+0 & 0 & 1
+\end{bmatrix}
+\end{equation}
+
+원근 투영 ($z$ 나누기 포함):
+\begin{equation}
+\begin{bmatrix} u \\ v \end{bmatrix} = \begin{bmatrix} f_x \cdot x/z + c_x \\ f_y \cdot y/z + c_y \end{bmatrix}
+\end{equation}
+
+이 투영의 야코비안 $\mJ$가 \cref{eq:cov_proj}에서 3D 공분산을 2D로 근사 변환할 때 사용됩니다.
+
+
+% ==================== REFERENCES ====================
+\chapter*{참고 문헌}
+\addcontentsline{toc}{chapter}{참고 문헌}
+
+\begin{enumerate}[leftmargin=*, label={[\arabic*]}]
+  \item Mildenhall, B. et al. ``NeRF: Representing Scenes as Neural Radiance Fields for View Synthesis.'' \textit{ECCV}, 2020.
+
+  \item Kerbl, B. et al. ``3D Gaussian Splatting for Real-Time Radiance Field Rendering.'' \textit{ACM Transactions on Graphics (SIGGRAPH)}, 2023.
+
+  \item Loper, M. et al. ``SMPL: A Skinned Multi-Person Linear Model.'' \textit{ACM Transactions on Graphics (SIGGRAPH Asia)}, 2015.
+
+  \item Pavlakos, G. et al. ``Expressive Body Capture: 3D Hands, Face, and Body from a Single Image.'' (SMPL-X) \textit{CVPR}, 2019.
+
+  \item Wu, G. et al. ``4D Gaussian Splatting for Real-Time Dynamic Scene Rendering.'' \textit{CVPR}, 2024.
+
+  \item Yang, Z. et al. ``Deformable 3D Gaussians for High-Fidelity Monocular Dynamic Scene Reconstruction.'' \textit{CVPR}, 2024.
+
+  \item Lei, J. et al. ``GART: Gaussian Articulated Template Models.'' \textit{CVPR}, 2024.
+
+  \item Hu, S. et al. ``GauHuman: Articulated Gaussian Splatting from Monocular Human Videos.'' \textit{CVPR}, 2024.
+
+  \item Li, J. et al. ``Animatable Gaussians: Learning Pose-dependent Gaussian Maps for High-fidelity Human Avatar Modeling.'' \textit{CVPR}, 2024.
+
+  \item Moon, G. et al. ``ExAvatar: Expressive Whole-Body 3D Gaussian Avatar.'' \textit{ECCV}, 2024.
+
+  \item Liu, S. et al. ``HumanGaussian: Text-Driven 3D Human Generation with Gaussian Splatting.'' \textit{CVPR}, 2024.
+
+  \item Rombach, R. et al. ``High-Resolution Image Synthesis with Latent Diffusion Models.'' \textit{CVPR}, 2022. (Stable Diffusion, SDS의 기반)
+
+  \item Cao, A. \& Johnson, J. ``HexPlane: A Fast Representation for Dynamic Scenes.'' \textit{CVPR}, 2023.
+
+  \item Tancik, M. et al. ``Fourier Features Let Networks Learn High Frequency Functions in Low Dimensional Domains.'' \textit{NeurIPS}, 2020. (위치 인코딩 이론적 분석)
+\end{enumerate}
+
+
+% ==================== GLOSSARY ====================
+\chapter*{용어집}
+\addcontentsline{toc}{chapter}{용어집}
+
+\begin{description}[leftmargin=!, labelwidth=4.5cm, font=\normalfont\bfseries]
+  \item[3DGS] 3D Gaussian Splatting. 3D 가우시안 프리미티브로 장면을 표현하는 실시간 렌더링 방법.
+
+  \item[Alpha Compositing] 알파 합성. 반투명 레이어를 front-to-back 순서로 합성하여 최종 색상을 계산하는 기법.
+
+  \item[Anisotropic] 비등방성. 방향에 따라 성질이 다른 것. 3DGS에서 가우시안이 세 축으로 다른 크기를 가질 수 있음.
+
+  \item[Blend Shapes] 블렌드 셰이프. 기본 메시에 더해지는 꼭짓점 변위 벡터의 가중합.
+
+  \item[Canonical Space] 캐노니컬 공간. 기본 자세(T-pose 등)에서의 좌표 공간. 모든 프레임의 공통 기준.
+
+  \item[Covariance Matrix] 공분산 행렬. 3D 가우시안의 모양과 방향을 정의하는 $3 \times 3$ 대칭 양정치 행렬.
+
+  \item[Differentiable Rendering] 미분 가능 렌더링. 렌더링 과정이 미분 가능하여, 이미지 손실로부터 장면 파라미터로 역전파 가능.
+
+  \item[Forward Kinematics] 순방향 운동학. 관절 각도로부터 말단(end-effector) 위치를 계산하는 과정.
+
+  \item[Forward Skinning] 순방향 스키닝. 캐노니컬 공간 점을 관찰 공간으로 변환. $\leftrightarrow$ 역방향 스키닝.
+
+  \item[GART] Gaussian Articulated Representation Templates. SMPL 스키닝으로 구동되는 3DGS 인체 아바타.
+
+  \item[HexPlane] 4D 시공간을 6개 2D 평면으로 분해하는 표현 방식.
+
+  \item[Latent Bones] 잠재 뼈. GART에서 비강체 변형을 위해 추가하는 가상 관절/뼈.
+
+  \item[LBS] Linear Blend Skinning. 선형 혼합 스키닝. 뼈 변환의 가중합으로 꼭짓점을 변형.
+
+  \item[MLP] Multi-Layer Perceptron. 다층 퍼셉트론. 완전연결 신경망.
+
+  \item[NeRF] Neural Radiance Fields. MLP로 장면을 암묵적 체적 함수로 표현하는 방법.
+
+  \item[Observation Space] 관찰 공간. 특정 자세/시점에서의 좌표 공간. $\leftrightarrow$ 캐노니컬 공간.
+
+  \item[Opacity] 불투명도. 0(완전 투명)$\sim$1(완전 불투명).
+
+  \item[Quaternion] 쿼터니언. 4개 성분으로 3D 회전을 표현하는 수 체계. 짐벌 락(gimbal lock) 없음.
+
+  \item[Rasterization] 래스터화. 기하학적 프리미티브를 픽셀로 변환하는 과정.
+
+  \item[SDS] Score Distillation Sampling. 사전 학습된 확산 모델의 점수를 증류하여 3D 생성을 가이드하는 기법.
+
+  \item[SH] Spherical Harmonics. 구면 조화. 구면 위의 함수를 표현하는 직교 기저 함수 집합.
+
+  \item[SMPL] Skinned Multi-Person Linear Model. 체형+자세 파라미터로 인체 메시를 생성하는 모델.
+
+  \item[SMPL-X] SMPL + 손(MANO) + 얼굴(FLAME)을 통합한 표현력 있는 인체 모델.
+
+  \item[Splatting] 스플래팅. 3D 프리미티브를 2D 이미지 평면에 투영하여 렌더링하는 기법. $\leftrightarrow$ 레이 마칭.
+
+  \item[Transmittance] 투과율. 레이가 특정 지점까지 아무 물체에도 부딪히지 않고 도달할 확률.
+
+  \item[Volume Rendering] 볼륨 렌더링. 레이를 따라 색상과 밀도를 적분하여 픽셀 색상을 계산하는 방법.
+\end{description}
+
+
+\end{document}

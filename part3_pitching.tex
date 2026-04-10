@@ -1,0 +1,1259 @@
+\documentclass[11pt, a4paper]{report}
+
+% ========== Packages ==========
+\usepackage{fontspec}
+\usepackage{kotex}
+\usepackage{amsmath, amssymb, amsthm}
+\usepackage{mathtools}
+\usepackage{bm}
+\usepackage{graphicx}
+\usepackage{booktabs}
+\usepackage{array}
+\usepackage{tabularx}
+\usepackage{longtable}
+\usepackage{hyperref}
+\usepackage{cleveref}
+\usepackage{geometry}
+\usepackage{fancyhdr}
+\usepackage{titlesec}
+\usepackage{enumitem}
+\usepackage{xcolor}
+\usepackage{tcolorbox}
+\usepackage{algorithm}
+\usepackage{algorithmic}
+\usepackage{tikz}
+\usetikzlibrary{arrows.meta, positioning, calc, decorations.pathreplacing, shapes.geometric, fit, patterns, angles, quotes}
+\usepackage{pgfplots}
+\pgfplotsset{compat=1.18}
+\usepackage{caption}
+\usepackage{subcaption}
+\usepackage{float}
+\usepackage{multirow}
+\usepackage{siunitx}
+
+\geometry{margin=2.5cm, top=3cm, bottom=3cm}
+
+% ========== Colors ==========
+\definecolor{defblue}{RGB}{30, 80, 150}
+\definecolor{thmgreen}{RGB}{20, 110, 60}
+\definecolor{noteorange}{RGB}{200, 100, 0}
+\definecolor{lightblue}{RGB}{230, 240, 255}
+\definecolor{lightgreen}{RGB}{230, 255, 235}
+\definecolor{lightorange}{RGB}{255, 245, 230}
+\definecolor{lightgray}{RGB}{245, 245, 245}
+\definecolor{lightred}{RGB}{255, 235, 235}
+\definecolor{darkred}{RGB}{180, 30, 30}
+\definecolor{biogreen}{RGB}{10, 130, 80}
+\definecolor{cvpurple}{RGB}{100, 40, 150}
+\definecolor{injuryred}{RGB}{200, 40, 40}
+
+% ========== Theorem-like environments ==========
+\theoremstyle{definition}
+\newtheorem{definition}{Definition}[chapter]
+\newtheorem{example}{Example}[chapter]
+\theoremstyle{remark}
+\newtheorem{remark}{Remark}[chapter]
+
+% ========== tcolorbox ==========
+\newtcolorbox{keyidea}[1][]{colback=lightblue, colframe=defblue, fonttitle=\bfseries, title={Key Idea}, #1}
+\newtcolorbox{importantnote}[1][]{colback=lightorange, colframe=noteorange, fonttitle=\bfseries, title={Important}, #1}
+\newtcolorbox{summary}[1][]{colback=lightgreen, colframe=thmgreen, fonttitle=\bfseries, title={Summary}, #1}
+\newtcolorbox{clinicalnote}[1][]{colback=lightred, colframe=darkred, fonttitle=\bfseries, title={Clinical Note}, #1}
+\newtcolorbox{biomechbox}[1][]{colback=lightgreen, colframe=biogreen, fonttitle=\bfseries, title={Biomechanics}, #1}
+\newtcolorbox{cvbox}[1][]{colback={cvpurple!5}, colframe=cvpurple, fonttitle=\bfseries, title={Computer Vision}, #1}
+\newtcolorbox{injurybox}[1][]{colback={injuryred!8}, colframe=injuryred, fonttitle=\bfseries, title={Injury Risk}, #1}
+\newtcolorbox{setupbox}[1][]{colback=lightgray, colframe=gray!60, fonttitle=\bfseries, title={Setup}, #1}
+
+% ========== Custom commands ==========
+\newcommand{\vx}{\mathbf{x}}
+\newcommand{\vd}{\mathbf{d}}
+\newcommand{\vo}{\mathbf{o}}
+\newcommand{\vc}{\mathbf{c}}
+\newcommand{\vr}{\mathbf{r}}
+\newcommand{\vp}{\mathbf{p}}
+\newcommand{\vv}{\mathbf{v}}
+\newcommand{\vF}{\mathbf{F}}
+\newcommand{\vM}{\mathbf{M}}
+\newcommand{\va}{\mathbf{a}}
+\newcommand{\vg}{\mathbf{g}}
+\newcommand{\vmu}{\bm{\mu}}
+\newcommand{\vbeta}{\bm{\beta}}
+\newcommand{\vtheta}{\bm{\theta}}
+\newcommand{\mSigma}{\bm{\Sigma}}
+\newcommand{\mR}{\mathbf{R}}
+\newcommand{\mW}{\mathbf{W}}
+\newcommand{\mJ}{\mathbf{J}}
+\newcommand{\mI}{\mathbf{I}}
+\newcommand{\RR}{\mathbb{R}}
+\newcommand{\degps}{\,\text{deg/s}}
+\newcommand{\Nm}{\,\text{N}\cdot\text{m}}
+\newcommand{\BW}{\,\text{BW}}
+
+% ========== Header/Footer ==========
+\pagestyle{fancy}
+\fancyhf{}
+\fancyhead[L]{\leftmark}
+\fancyhead[R]{\thepage}
+\renewcommand{\headrulewidth}{0.4pt}
+
+% ========== Title formatting ==========
+\titleformat{\chapter}[display]
+  {\normalfont\huge\bfseries\color{defblue}}
+  {\chaptertitlename\ \thechapter}{20pt}{\Huge}
+\titleformat{\section}
+  {\normalfont\Large\bfseries\color{defblue!80!black}}
+  {\thesection}{1em}{}
+\titleformat{\subsection}
+  {\normalfont\large\bfseries\color{defblue!60!black}}
+  {\thesubsection}{1em}{}
+
+\begin{document}
+
+% ==================== TITLE PAGE ====================
+\begin{titlepage}
+\centering
+\vspace*{1.5cm}
+{\Large\color{gray} Part 3}
+\vspace{0.5cm}
+
+{\Huge\bfseries\color{defblue} 7시점 다시점 촬영 기반\\[0.3cm] 야구 투구 동작 분석}
+
+\vspace{1cm}
+
+{\LARGE\color{defblue!70!black} 240\,Hz 다시점 RGB + Vicon 동기 촬영으로\\3D Gaussian Splatting 기반 투구 생체역학 분석}
+
+\vspace{2cm}
+
+\begin{tikzpicture}[scale=0.65]
+% Mound (top view)
+\fill[brown!30] (0,0) circle (1.5);
+\node[font=\small] at (0,0) {Pitcher};
+% Cameras
+\foreach \angle/\label in {0/Cam1, 45/Cam2, 90/Cam3, 135/Cam4, 180/{Cam5\,(rear)}, 225/Cam6, 315/Cam7} {
+  \fill[defblue] (\angle:5) circle (0.2);
+  \node[font=\tiny, text=defblue] at (\angle:6) {\label};
+  \draw[-Stealth, gray, thin] (\angle:5) -- (\angle:1.8);
+}
+% Home plate
+\fill[gray!50] (270:4) -- ++(0.3,0.2) -- ++(0.3,0) -- ++(0,-0.4) -- ++(-0.3,0) -- cycle;
+\node[font=\tiny] at (270:4.8) {Home};
+\end{tikzpicture}
+
+\vspace{2cm}
+{\large 컴퓨터 공학 $\times$ 스포츠의학}
+\vspace{0.5cm}
+
+{\large 2026}
+
+\vspace{\fill}
+{\small\color{gray} 본 교재는 Part 1 (NeRF$\rightarrow$GART), Part 2 (3DGS+동작분석)의 후속편으로,\\
+야구 투구라는 구체적 시나리오에서의 다시점 분석 가능성을 탐구합니다.}
+\end{titlepage}
+
+\tableofcontents
+\newpage
+
+% ==================== PREFACE ====================
+\chapter*{서문}
+\addcontentsline{toc}{chapter}{서문}
+
+이 교재는 매우 구체적인 시나리오를 다룹니다:
+
+\begin{setupbox}[title={실험 세팅}]
+\begin{itemize}[leftmargin=*]
+  \item \textbf{피사체}: 야구 투수, 오버헤드(overhand) 투구 동작
+  \item \textbf{RGB 카메라}: 7대, 모두 240\,Hz
+  \begin{itemize}
+    \item 6대: 1920$\times$1080 (가로, landscape)
+    \item 1대: 1080$\times$1920 (세로, portrait) --- 피사체 뒤쪽
+  \end{itemize}
+  \item \textbf{Vicon 모션캡처}: 동시 촬영 (250--500\,Hz)
+  \item \textbf{목표}: 투구 생체역학 분석 + 3DGS 기반 3D 재구성
+\end{itemize}
+\end{setupbox}
+
+이 설정에서 ``3DGS 기반 인체 재구성 + 생체역학 분석''이 어떻게 가능한지, 기존 기술(Vicon, 마커리스 상용 시스템)과 비교하여 어떤 이점이 있는지, 그리고 야구 투구 동작의 생체역학적 의미가 무엇인지를 함께 설명합니다.
+
+
+% ====================================================================
+% CHAPTER 1: 투구 생체역학 기초
+% ====================================================================
+\chapter{야구 투구 생체역학의 기초}
+\label{ch:pitching_biomech}
+
+\section{왜 투구 분석이 중요한가?}
+
+야구 투구는 인체에서 가장 빠른 관절 운동을 포함합니다. 어깨 내회전 속도는 \textbf{7,000--9,000\degps}에 달하며, 이는 약 \textbf{122--157\,rad/s}로 인체에서 측정된 가장 빠른 움직임입니다. 이 극단적인 속도와 반복적인 부하가 만나 부상이 빈번하게 발생합니다.
+
+\begin{injurybox}
+2023년 기준 \textbf{MLB 현역 투수의 35.3\%}가 토미 존 수술(UCL 재건술)을 받은 경험이 있으며, 이 비율은 2016년 대비 29\% 증가했습니다. 투구 생체역학 분석은 이러한 부상의 위험 인자를 식별하고, 예방 전략을 수립하는 데 핵심적인 도구입니다.
+\end{injurybox}
+
+
+\section{투구 동작의 6단계}
+\label{sec:pitching_phases}
+
+\begin{figure}[H]
+\centering
+\begin{tikzpicture}[
+  phase/.style={rectangle, draw, rounded corners, minimum width=1.8cm, minimum height=1.2cm, align=center, font=\scriptsize},
+  event/.style={diamond, draw, aspect=2, minimum width=0.5cm, align=center, font=\tiny, fill=noteorange!30},
+  arrow/.style={-{Stealth[length=2mm]}, thick}
+]
+% Phases
+\node[phase, fill=lightblue] (p1) at (0,0) {1. 와인드업\\(Wind-up)};
+\node[phase, fill=lightblue] (p2) at (3,0) {2. 스트라이드\\(Stride)};
+\node[phase, fill=lightorange] (p3) at (6,0) {3. 후기 코킹\\(Late Cocking)};
+\node[phase, fill=injuryred!20] (p4) at (9,0) {4. 가속\\(Acceleration)};
+\node[phase, fill=injuryred!20] (p5) at (12,0) {5. 감속\\(Deceleration)};
+\node[phase, fill=lightgreen] (p6) at (15,0) {6. 팔로스루\\(Follow-through)};
+
+% Events
+\node[event] (e1) at (1.5,1.5) {최대\\무릎 높이};
+\node[event] (e2) at (4.5,1.5) {발 접지\\(FC)};
+\node[event] (e3) at (7.5,1.5) {최대\\외회전\\(MER)};
+\node[event] (e4) at (10.5,1.5) {공 릴리스\\(BR)};
+\node[event] (e5) at (13.5,1.5) {최대\\내회전};
+
+% Arrows
+\draw[arrow] (p1) -- (p2);
+\draw[arrow] (p2) -- (p3);
+\draw[arrow] (p3) -- (p4);
+\draw[arrow] (p4) -- (p5);
+\draw[arrow] (p5) -- (p6);
+
+\draw[gray, dashed] (e1) -- (1.5, 0.6);
+\draw[gray, dashed] (e2) -- (4.5, 0.6);
+\draw[gray, dashed] (e3) -- (7.5, 0.6);
+\draw[gray, dashed] (e4) -- (10.5, 0.6);
+\draw[gray, dashed] (e5) -- (13.5, 0.6);
+
+% Time annotation
+\draw[decorate, decoration={brace, amplitude=5pt, mirror}, thick, darkred] (9,-0.8) -- (12,-0.8)
+  node[midway, below=8pt, font=\scriptsize, text=darkred] {\textbf{$\sim$30\,ms (가장 빠른 구간)}};
+\end{tikzpicture}
+\caption{투구 동작의 6단계와 주요 이벤트. 가속 단계는 약 30\,ms로 전체 동작에서 가장 짧지만, 부하가 가장 큰 구간입니다.}
+\label{fig:pitching_phases}
+\end{figure}
+
+\subsection{1단계: 와인드업 (Wind-up)}
+
+투수가 앞발을 들어올리는 순간부터 최대 무릎 높이까지. 리듬을 잡고 위치 에너지를 축적하는 단계로, 관절 부하가 상대적으로 낮습니다.
+
+\subsection{2단계: 스트라이드 / 초기 코킹 (Stride / Early Cocking)}
+
+최대 무릎 높이에서 앞발 접지(Foot Contact, FC)까지. 투수가 홈 방향으로 스트라이드하며, 투구 팔은 외전(abduction)과 외회전(external rotation)을 시작합니다.
+
+\begin{biomechbox}[title={핵심 파라미터: 스트라이드}]
+\begin{itemize}[leftmargin=*]
+  \item \textbf{스트라이드 길이}: 투수 신장의 약 85\% (범위: 74--93\%)
+  \item 숙련도가 높을수록 스트라이드가 길어짐 $\rightarrow$ 공 릴리스 지점이 홈에 가까워짐
+  \item 스트라이드 방향은 홈 방향에서 $\pm 5^\circ$ 이내가 이상적
+\end{itemize}
+\end{biomechbox}
+
+\subsection{3단계: 후기 코킹 (Late Cocking)}
+
+앞발 접지에서 \textbf{최대 외회전(Maximum External Rotation, MER)}까지.
+
+\begin{definition}[골반-몸통 분리 (Hip-Shoulder Separation)]
+앞발 접지 시점에서 골반 회전각과 몸통(어깨) 회전각의 차이:
+\begin{equation}
+\theta_{\text{sep}} = \theta_{\text{pelvis}} - \theta_{\text{trunk}}
+\end{equation}
+골반은 이미 홈 방향으로 $\sim 35^\circ$ 회전했지만 어깨는 아직 닫혀 있어, 평균 $50 \pm 12^\circ$의 분리가 발생합니다. 이 ``탄성 에너지 저장''이 투구 속도의 약 25\%를 설명합니다.
+\end{definition}
+
+후기 코킹 말기에 어깨 외회전은 \textbf{170--180$^\circ$}에 도달하며, 이 시점에서:
+
+\begin{center}
+\renewcommand{\arraystretch}{1.3}
+\begin{tabular}{lcc}
+\toprule
+\textbf{파라미터} & \textbf{값} & \textbf{임상적 의미} \\
+\midrule
+어깨 내회전 토크 피크 & $67\Nm$ & 회전근개 부하 \\
+\textcolor{darkred}{\textbf{팔꿈치 외반 토크 피크}} & \textcolor{darkred}{\textbf{$64\Nm$}} & \textcolor{darkred}{\textbf{UCL 부하 (핵심 부상 지표)}} \\
+어깨 압축력 & $550$--$770$\,N & 관절와순 부하 \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+\subsection{4단계: 가속 (Acceleration)}
+
+MER에서 \textbf{공 릴리스(Ball Release, BR)}까지. 전체 투구에서 \textbf{가장 짧은 구간($\sim$30\,ms)}이지만, 운동 에너지 전달이 집중됩니다.
+
+\begin{keyidea}
+가속 단계에서 어깨는 $\sim$80$^\circ$의 내회전을 약 30\,ms 만에 수행합니다. 이때의 각속도 \textbf{7,000--9,000\degps}는 인체에서 측정된 가장 빠른 관절 운동입니다.
+\begin{equation}
+\omega_{\text{IR}} = \frac{d\theta_{\text{IR}}}{dt} \approx 7{,}000\text{--}9{,}000\degps \approx 122\text{--}157\,\text{rad/s}
+\end{equation}
+\end{keyidea}
+
+\subsection{5단계: 감속 (Deceleration)}
+
+공 릴리스에서 최대 내회전까지. 투구에서 \textbf{역학적으로 가장 가혹한 구간}입니다.
+
+\begin{center}
+\renewcommand{\arraystretch}{1.3}
+\begin{tabular}{lc}
+\toprule
+\textbf{감속 단계 후방 어깨 부하} & \textbf{크기} \\
+\midrule
+후방 전단력 (posterior shear) & $400$\,N \\
+하방 전단력 (inferior shear) & $300$\,N \\
+\textbf{압축력 (compressive)} & \textbf{$>1{,}000$\,N} \\
+어깨 견인력 (distraction) & 체중의 90--150\% \\
+수평 외전 토크 & $97\Nm$ \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+이 엄청난 힘들은 후방 어깨 근육(후면 삼각근, 극하근, 소원근)이 편심성(eccentric) 수축으로 흡수해야 합니다.
+
+\subsection{6단계: 팔로스루 (Follow-through)}
+
+감속이 지속되며 투수가 필딩 자세로 전환합니다.
+
+
+\section{핵심 부상 메커니즘: UCL 부하 패러독스}
+\label{sec:ucl_paradox}
+
+\begin{injurybox}[title={UCL 부하 패러독스 (Loading Paradox)}]
+\textbf{문제}: 사체(cadaver) 연구에서 UCL(척골측부인대)의 파단 강도(failure load)는 약 $30$--$34\Nm$. 그런데 실제 투구에서 팔꿈치 외반 토크는 $40$--$120\Nm$에 달합니다.
+
+\begin{equation}
+\underbrace{\tau_{\text{UCL failure}} \approx 30\text{--}34\Nm}_{\text{인대 파단 강도}} \quad \ll \quad \underbrace{\tau_{\text{valgus peak}} \approx 64\Nm}_{\text{실제 투구 부하}}
+\end{equation}
+
+\textbf{해결}: \textbf{굴근-회내근 복합체(Flexor-Pronator Mass, FPM)}와 이두/삼두의 동시 수축이 내반(varus) 반대 토크를 생성하여 UCL을 보호합니다. 그러나 매 투구마다 UCL에 가해지는 부하는 ``거의 파열에 충분한'' 수준이며, 이것이 \textbf{누적 피로 부상(cumulative fatigue injury)}으로 이어집니다.
+\end{injurybox}
+
+이 패러독스가 바로 투구 생체역학 분석의 핵심 동기입니다: 팔꿈치 외반 토크를 정확하게 측정하고, 부하 누적을 관리하면 UCL 부상을 예방할 수 있습니다.
+
+
+\section{공 릴리스와 구종별 특성}
+\label{sec:ball_release}
+
+\begin{center}
+\renewcommand{\arraystretch}{1.3}
+\begin{tabular}{lccc}
+\toprule
+\textbf{구종} & \textbf{속도 (mph)} & \textbf{회전수 (RPM)} & \textbf{회전 효율} \\
+\midrule
+포심 패스트볼 & 94--95 & $\sim$2,300 & 95--100\% \\
+투심 패스트볼 & $\sim$93 & $\sim$2,150 & -- \\
+커터 & 88--89 & $\sim$2,350 & -- \\
+슬라이더 & 84--85 & $\sim$2,450 & 20--35\% \\
+커브볼 & $\sim$80 & 2,430--2,530 & $\sim$78\% \\
+체인지업 & $\sim$86 & $\sim$1,750 & -- \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+\begin{definition}[회전 효율 (Spin Efficiency)]
+총 회전 중 직선 궤적에 기여하는 ``유효 회전''의 비율:
+\begin{equation}
+\text{Spin Efficiency} = \frac{\omega_{\text{transverse}}}{\omega_{\text{total}}} \times 100\%
+\end{equation}
+패스트볼은 백스핀이 대부분 유효하므로 95--100\%, 슬라이더는 자이로 회전(gyro spin) 성분이 커서 20--35\%입니다.
+\end{definition}
+
+
+% ====================================================================
+% CHAPTER 2: 우리의 실험 세팅
+% ====================================================================
+\chapter{실험 세팅: 7대 카메라 + Vicon 동시 촬영}
+\label{ch:setup}
+
+\section{카메라 배치 설계}
+\label{sec:camera_placement}
+
+\begin{figure}[H]
+\centering
+\begin{tikzpicture}[scale=0.8]
+% Mound
+\fill[brown!20] (0,0) circle (1.8);
+\draw[brown!50] (0,0) circle (1.8);
+\node[font=\small\bfseries] at (0,0.3) {투수};
+\node[font=\tiny, text=gray] at (0,-0.2) {(투구판)};
+
+% Home plate direction
+\draw[-Stealth, thick, gray!50] (0,-2) -- (0,-5) node[right, font=\small] {홈 방향};
+
+% Camera positions
+\def\camrad{6}
+
+% Cam 1: Front-left (landscape)
+\fill[defblue] (-3,-4.5) circle (0.25);
+\node[font=\scriptsize\bfseries, text=defblue] at (-3,-5.2) {Cam 1};
+\node[font=\tiny, text=gray] at (-3,-5.6) {1920$\times$1080};
+\draw[-Stealth, defblue!50, thin] (-3,-4.5) -- (-0.8,-0.5);
+
+% Cam 2: Front-right (landscape)
+\fill[defblue] (3,-4.5) circle (0.25);
+\node[font=\scriptsize\bfseries, text=defblue] at (3,-5.2) {Cam 2};
+\node[font=\tiny, text=gray] at (3,-5.6) {1920$\times$1080};
+\draw[-Stealth, defblue!50, thin] (3,-4.5) -- (0.8,-0.5);
+
+% Cam 3: Left side (landscape)
+\fill[defblue] (-5.5,-1) circle (0.25);
+\node[font=\scriptsize\bfseries, text=defblue] at (-6.5,-1) {Cam 3};
+\node[font=\tiny, text=gray] at (-6.5,-1.4) {1920$\times$1080};
+\draw[-Stealth, defblue!50, thin] (-5.5,-1) -- (-1.5,0);
+
+% Cam 4: Right side (landscape)
+\fill[defblue] (5.5,-1) circle (0.25);
+\node[font=\scriptsize\bfseries, text=defblue] at (6.5,-1) {Cam 4};
+\node[font=\tiny, text=gray] at (6.5,-1.4) {1920$\times$1080};
+\draw[-Stealth, defblue!50, thin] (5.5,-1) -- (1.5,0);
+
+% Cam 5: Rear (portrait!)
+\fill[cvpurple] (0,5.5) circle (0.25);
+\node[font=\scriptsize\bfseries, text=cvpurple] at (0,6.3) {Cam 5 (후면)};
+\node[font=\tiny, text=cvpurple] at (0,5.9) {\textbf{1080$\times$1920}};
+\draw[-Stealth, cvpurple!50, thin] (0,5.5) -- (0,1.5);
+
+% Cam 6: Back-left (landscape)
+\fill[defblue] (-4,4) circle (0.25);
+\node[font=\scriptsize\bfseries, text=defblue] at (-5.2,4) {Cam 6};
+\node[font=\tiny, text=gray] at (-5.2,3.6) {1920$\times$1080};
+\draw[-Stealth, defblue!50, thin] (-4,4) -- (-0.8,0.5);
+
+% Cam 7: Back-right / elevated (landscape)
+\fill[defblue] (4,4) circle (0.25);
+\node[font=\scriptsize\bfseries, text=defblue] at (5.2,4) {Cam 7};
+\node[font=\tiny, text=gray] at (5.2,3.6) {1920$\times$1080};
+\draw[-Stealth, defblue!50, thin] (4,4) -- (0.8,0.5);
+
+% Vicon cameras (small dots)
+\foreach \a in {20,55,90,125,160,200,235,270,305,340} {
+  \fill[thmgreen!70] (\a:7) circle (0.12);
+}
+\node[font=\tiny, text=thmgreen] at (7.5,3) {Vicon IR};
+\node[font=\tiny, text=thmgreen] at (7.5,2.5) {(10--12대)};
+
+% Legend
+\draw[thick] (-7,-7) rectangle (7.5,-8.5);
+\fill[defblue] (-6.5,-7.5) circle (0.15);
+\node[right, font=\scriptsize] at (-6.2,-7.5) {RGB 가로 (1920$\times$1080)};
+\fill[cvpurple] (-6.5,-8) circle (0.15);
+\node[right, font=\scriptsize] at (-6.2,-8) {RGB 세로 (1080$\times$1920)};
+\fill[thmgreen!70] (-1.5,-7.5) circle (0.1);
+\node[right, font=\scriptsize] at (-1.2,-7.5) {Vicon IR 카메라};
+\node[font=\scriptsize\bfseries] at (4.5,-7.7) {모두 240\,Hz};
+\end{tikzpicture}
+\caption{7대 RGB 카메라 + Vicon 배치 상면도. 세로(portrait) 카메라(Cam 5)는 투수 뒤에서 투구 팔의 전체 수직 궤적을 포착합니다.}
+\label{fig:camera_layout}
+\end{figure}
+
+\subsection{각 카메라의 역할}
+
+\begin{center}
+\renewcommand{\arraystretch}{1.3}
+\small
+\begin{tabular}{clp{7cm}}
+\toprule
+\textbf{카메라} & \textbf{위치} & \textbf{포착 대상} \\
+\midrule
+Cam 1--2 & 전방 좌/우 45$^\circ$ & 스트라이드 착지, 몸통 회전, 공 릴리스, 앞발 각도 \\
+Cam 3--4 & 측면 좌/우 & 팔 슬롯, 어깨 외회전/내회전, 무릎 굴곡 (시상면) \\
+\textbf{Cam 5} & \textbf{후면 세로} & \textbf{투구 팔의 전체 수직 궤적, 어깨 외전각, arm path} \\
+Cam 6--7 & 후방 좌/우 & 팔로스루, 몸통 후면, 뒷발 이탈 \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+\begin{importantnote}[title={왜 후면 카메라가 세로(portrait)인가?}]
+투수의 투구 팔은 수직으로 큰 범위를 움직입니다---와인드업에서 머리 위, MER에서 등 뒤, 팔로스루에서 무릎 아래까지. 후면에서 보면 이 수직 동선이 가장 잘 드러나며, \textbf{세로 촬영(1080$\times$1920)}은 이 수직 범위를 최대한 포착합니다. 가로 촬영 시 불필요한 좌우 공간에 해상도가 낭비됩니다.
+\end{importantnote}
+
+
+\section{240\,Hz의 의미: 나이퀴스트 정리와 시간 분해능}
+\label{sec:temporal_resolution}
+
+\begin{definition}[나이퀴스트-섀넌 표본화 정리]
+주파수 $f_{\max}$까지의 성분을 포함하는 신호를 정확히 복원하려면, 최소 $2f_{\max}$ 이상의 샘플링 레이트가 필요합니다:
+\begin{equation}
+f_s \geq 2 f_{\max}
+\end{equation}
+\end{definition}
+
+투구 가속 단계의 운동은 100\,Hz 이상의 주파수 성분을 포함합니다. 따라서 최소 200\,Hz 이상의 촬영이 필요하며, \textbf{240\,Hz는 이 조건을 충족}합니다.
+
+\subsection{프레임 레이트별 시간 분해능 비교}
+
+\begin{center}
+\renewcommand{\arraystretch}{1.3}
+\begin{tabular}{lccc}
+\toprule
+\textbf{프레임 레이트} & \textbf{프레임 간격} & \textbf{가속 단계 프레임 수} & \textbf{피크 시 프레임당 회전각} \\
+\midrule
+30\,fps (일반 영상) & 33.3\,ms & $\sim$1 & $\sim$300$^\circ$ \\
+120\,fps (슬로모션) & 8.33\,ms & $\sim$3--4 & $\sim$75$^\circ$ \\
+\textbf{240\,fps (본 세팅)} & \textbf{4.17\,ms} & \textbf{$\sim$7} & \textbf{$\sim$37.5$^\circ$} \\
+500\,fps (Vicon) & 2.0\,ms & $\sim$15 & $\sim$18$^\circ$ \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+\begin{equation}
+\Delta\theta = \omega \cdot \Delta t = 9{,}000\degps \times \frac{1}{240}\,\text{s} = 37.5^\circ \text{ per frame (피크 시)}
+\end{equation}
+
+30\,fps에서는 가속 단계 전체가 1 프레임 안에 들어가 분석이 불가능합니다. 240\,fps에서는 7 프레임으로 분석이 가능하며, 이는 MER, 공 릴리스 등 핵심 이벤트를 식별하기에 충분합니다.
+
+
+\section{Vicon과의 동기화}
+\label{sec:synchronization}
+
+\subsection{시간 정렬 문제}
+
+\begin{center}
+\renewcommand{\arraystretch}{1.3}
+\begin{tabular}{lcc}
+\toprule
+\textbf{시스템} & \textbf{주파수} & \textbf{프레임 간격} \\
+\midrule
+RGB 카메라 & 240\,Hz & 4.17\,ms \\
+Vicon (옵션 1) & 250\,Hz & 4.0\,ms \\
+Vicon (옵션 2) & 500\,Hz & 2.0\,ms \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+240\,Hz와 250\,Hz는 정수비가 아닙니다 (24:25). 정확한 정렬 주기:
+\begin{equation}
+\text{LCM}(240, 250) = 6{,}000 \quad \Rightarrow \quad \frac{1}{6000}\,\text{s} = 0.167\,\text{ms마다 정확히 정렬}
+\end{equation}
+
+이는 비현실적이므로, 실용적 접근:
+\begin{itemize}[leftmargin=*]
+  \item \textbf{매 0.1초}마다 정확히 정렬 (25 RGB 프레임 = 24 Vicon 프레임 at 250\,Hz)
+  \item 그 사이: Vicon 데이터를 RGB 타임스탬프에 \textbf{큐빅 스플라인 보간}
+  \item 최대 시간 오차: $\pm 2$\,ms (250\,Hz 기준) 또는 $\pm 1$\,ms (500\,Hz 기준)
+\end{itemize}
+
+\subsection{동기화 방법}
+
+\begin{enumerate}[leftmargin=*]
+  \item \textbf{하드웨어 동기화 (Genlock)}: Vicon Lock 장치가 마스터 클럭 신호를 생성하여 모든 카메라의 프레임 캡처를 동기화. GPO(General Purpose Output) 포트로 외부 RGB 카메라 트리거.
+  \item \textbf{동기 신호 (TTL Trigger)}: 촬영 시작 시 모든 카메라에 동시 트리거 펄스 전송.
+  \item \textbf{사후 정렬}: LED 플래시 또는 클래퍼 보드로 시각/청각 동기 신호 기록 후 교차상관(cross-correlation)으로 정렬.
+\end{enumerate}
+
+\begin{remark}
+Vicon이 더 높은 주파수(250/500\,Hz)로 촬영하므로, RGB 프레임마다 시간적으로 가장 가까운 Vicon 프레임이 존재합니다. 보간보다 ``최근접 Vicon 프레임 사용''도 실용적입니다 ($\pm 2$\,ms 이내).
+\end{remark}
+
+
+\section{공간 보정 (Spatial Calibration)}
+\label{sec:calibration}
+
+\subsection{Vicon과 RGB 좌표계 통합}
+
+Vicon과 RGB 카메라는 서로 다른 좌표계를 사용합니다. 이를 통합하려면:
+
+\begin{enumerate}[leftmargin=*]
+  \item \textbf{공유 보정 객체}: Vicon 마커가 부착된 체커보드를 양 시스템에 동시에 보이게 배치
+  \item \textbf{대응점 획득}: 체커보드 코너의 3D 좌표를 Vicon과 RGB 삼각측량에서 각각 측정
+  \item \textbf{강체 변환 계산}: 최소 3개 비공선(non-collinear) 대응점으로 회전 $\mR$과 이동 $\mathbf{t}$ 추정:
+  \begin{equation}
+    \vx_{\text{Vicon}} = \mR \cdot \vx_{\text{RGB}} + \mathbf{t}
+  \end{equation}
+  SVD 기반 최소자승 정합:
+  \begin{equation}
+    \mR^*, \mathbf{t}^* = \arg\min_{\mR, \mathbf{t}} \sum_{i=1}^{N} \| \vx_{\text{Vicon},i} - \mR \vx_{\text{RGB},i} - \mathbf{t} \|^2
+  \end{equation}
+  \item \textbf{검증}: Vicon 마커 3D 좌표를 RGB 이미지에 재투영, 재투영 오차 $<2$ 픽셀 목표
+\end{enumerate}
+
+\subsection{RGB 카메라 개별 보정}
+
+각 RGB 카메라의 \textbf{내부 파라미터(intrinsic)} 보정:
+\begin{equation}
+\mathbf{K} = \begin{bmatrix} f_x & 0 & c_x \\ 0 & f_y & c_y \\ 0 & 0 & 1 \end{bmatrix}
+\end{equation}
++ 렌즈 왜곡 계수 ($k_1, k_2, p_1, p_2, k_3$). 체커보드 다시점 촬영 + Zhang's 방법으로 추정합니다.
+
+\textbf{외부 파라미터(extrinsic)}: 카메라 간 상대 위치/회전. 공유 보정 객체 또는 Vicon 좌표계를 기준으로 추정합니다.
+
+\begin{importantnote}[title={세로 카메라의 보정}]
+Cam 5 (1080$\times$1920)는 별도의 내부 파라미터 보정이 필요합니다. 해상도와 화각이 다르기 때문입니다. 그러나 외부 파라미터는 동일한 보정 절차로 추정되며, \textbf{3DGS는 이질적인 카메라 해상도를 본질적으로 지원}합니다---각 카메라가 자체 투영 모델을 가집니다.
+\end{importantnote}
+
+
+\section{데이터 저장량 산정}
+\label{sec:storage}
+
+\subsection{비압축 RAW}
+
+\begin{align}
+\text{프레임당} &= 1920 \times 1080 \times 3\,\text{bytes} = 6{,}220{,}800\,\text{bytes} \approx 5.93\,\text{MB} \\
+\text{카메라당 초당} &= 5.93 \times 240 = 1{,}423\,\text{MB/s} \approx 1.42\,\text{GB/s} \\
+\text{7대 합계 초당} &= 9.96\,\text{GB/s} \approx 79.7\,\text{Gbps}
+\end{align}
+
+\subsection{압축 포맷별 비교}
+
+\begin{center}
+\renewcommand{\arraystretch}{1.3}
+\begin{tabular}{lcccc}
+\toprule
+\textbf{포맷} & \textbf{투구 1회 (2초)} & \textbf{세션 (100투)} & \textbf{10명 연구} & \textbf{품질} \\
+\midrule
+RAW & $\sim$20\,GB & $\sim$2\,TB & $\sim$20\,TB & 무손실 \\
+ProRes 422 HQ & $\sim$2--3\,GB & 200--300\,GB & 2--3\,TB & 거의 무손실 \\
+H.264 (고품질) & 100--175\,MB & 10--17.5\,GB & 100--175\,GB & 약간의 손실 \\
+H.265 (고품질) & 50--90\,MB & 5--9\,GB & 50--90\,GB & 약간의 손실 \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+\begin{remark}
+3DGS 학습에서는 \textbf{광도 손실(photometric loss)}이 목적함수이므로, 압축 아티팩트가 노이즈로 작용합니다. 분석용 아카이브는 ProRes 이상, 3DGS 학습용은 고품질 H.265가 실용적인 절충안입니다.
+\end{remark}
+
+
+% ====================================================================
+% CHAPTER 3: Vicon 기반 투구 분석
+% ====================================================================
+\chapter{Vicon 마커 기반 투구 분석}
+\label{ch:vicon_pitching}
+
+\section{투구 분석용 마커 세트}
+
+투구 분석은 상지(upper extremity)에 집중하므로, 전신 + 상지 강화 마커 세트(38--59개)를 사용합니다.
+
+\begin{biomechbox}[title={투구 분석 마커 세트 (상지 강화)}]
+\begin{itemize}[leftmargin=*]
+  \item \textbf{머리}: 밴드에 4개 마커
+  \item \textbf{몸통}: C7, T10, 흉골절흔(IJ), 검상돌기(PX), 견갑골
+  \item \textbf{상완}: 견봉(acromion), 중간 상완 추적 클러스터, 내측/외측 상과(epicondyle)
+  \item \textbf{전완}: 요골/척골 경상돌기(styloid), 전완 추적 클러스터
+  \item \textbf{손}: 제2/5 중수골두, 제3 중수골 기저부
+  \item \textbf{골반}: 양측 ASIS, 양측 PSIS
+  \item \textbf{하지}: 대퇴 클러스터, 슬관절 내/외측, 경골 클러스터, 족관절 내/외측, 종골, 발가락
+  \item \textbf{공}: 2개 마커 (공 속도 및 릴리스 시점 계산)
+\end{itemize}
+\end{biomechbox}
+
+\section{ISB 관절 좌표계 (어깨/팔꿈치)}
+
+Wu 등 (2005)의 ISB 권고안:
+
+\subsection{견관절 (Glenohumeral Joint)}
+
+\textbf{Y-X-Y 오일러 분해}:
+\begin{itemize}[leftmargin=*]
+  \item 제1 회전 (Y): \textbf{거상 평면(plane of elevation)} --- 팔이 어느 방향으로 들렸는지 (전방/측방)
+  \item 제2 회전 (X): \textbf{거상각(elevation angle)} --- 팔이 얼마나 들렸는지
+  \item 제3 회전 (Y): \textbf{축 회전(axial rotation)} --- 외회전/내회전
+\end{itemize}
+
+\subsection{주관절 (Elbow Joint)}
+
+\begin{itemize}[leftmargin=*]
+  \item 굴곡/신전 (flexion/extension)
+  \item 회내/회외 (pronation/supination)
+  \item 운반각 (carrying angle)
+\end{itemize}
+
+
+\section{Vicon 투구 분석의 고유한 문제점}
+\label{sec:vicon_challenges}
+
+\begin{enumerate}[leftmargin=*]
+  \item \textbf{마커 가려짐(Occlusion)}: 와인드업 시 글러브 팔과 몸통이 투구 팔 마커를 가림. 팔로스루 시 몸통 회전으로 동일 현상. 갭 필링(gap filling) 알고리즘(스플라인 보간, 칼만 필터)으로 보완하지만, \textbf{가장 빠른 동작 구간에서 가려짐이 발생}하므로 보간 오차가 큼.
+
+  \item \textbf{고속 각운동}: 500\,Hz에서도 프레임 간 $\sim$18$^\circ$ 회전. 마커가 점이 아닌 줄무늬(streak)로 나타나 중심 추정 정확도 저하.
+
+  \item \textbf{마커 탈락}: 극단적 가속도로 마커가 이동/탈락. 전완과 손 부분에서 특히 빈번.
+
+  \item \textbf{연조직 아티팩트}: 삼두근, 삼각근 위의 마커가 근수축 중 실제 뼈 움직임과 10--20\,mm 이상 차이.
+
+  \item \textbf{넓은 포착 볼륨}: 스트라이드($\sim$1.5--1.7\,m) + 와인드업 회전까지 포함하면 상당히 넓은 공간이 필요.
+\end{enumerate}
+
+
+% ====================================================================
+% CHAPTER 4: 마커리스 시스템 현황
+% ====================================================================
+\chapter{마커리스 투구 분석의 현재}
+\label{ch:markerless_pitching}
+
+\section{KinaTrax / Hawk-Eye (MLB 공식 시스템)}
+
+\begin{cvbox}[title={KinaTrax 시스템}]
+\begin{itemize}[leftmargin=*]
+  \item \textbf{카메라}: 8대, 300\,fps, 경기장 관중석에 설치
+  \item \textbf{기술}: 컴퓨터 비전 + 딥러닝 기반 마커리스 모션캡처; 실루엣 기반 인체 모델 피팅
+  \item \textbf{배포}: 다수 MLB 구장에 설치; 경기 중 실시간 생체역학 데이터 수집
+  \item \textbf{검증}: 2023시즌 5개 팀 51명 투수 데이터 수집; 2025년 다수의 검증 연구 발표
+\end{itemize}
+\end{cvbox}
+
+\section{마커리스 vs 마커 기반: 투구 분석 정확도}
+
+2025년 검증 연구 (18명 대학 투수, 최대 노력 패스트볼):
+
+\begin{center}
+\renewcommand{\arraystretch}{1.3}
+\small
+\begin{tabular}{p{4cm}ccc}
+\toprule
+\textbf{지표} & \textbf{Vicon (기준)} & \textbf{Theia3D} & \textbf{KinaTrax} \\
+\midrule
+관절 위치 오차 (MPJPE) & 기준 ($<$1\,mm) & 52.0$\pm$12.3\,mm & 56.6$\pm$9.4\,mm \\
+팔꿈치 위치 오차 & 기준 & $\sim$70--75\,mm & $\sim$70--75\,mm \\
+관절 각도 RMS 오차 & 기준 & 2--16$^\circ$ & 2--16$^\circ$ \\
+회전 속도 오차 & 기준 & 50--400+\degps & 50--400+\degps \\
+스트라이드 길이 & 기준 & CCC $>$ 0.85 & CCC $>$ 0.85 \\
+어깨 회전 변수 & 기준 & 큰 변동성 & 큰 변동성 \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+\begin{clinicalnote}
+마커리스 시스템의 \textbf{관절 위치 오차 52--57\,mm}는 보행 분석에서는 수용 가능하지만, 투구 분석에서는 중요한 한계입니다. 팔꿈치 외반 토크 계산은 모멘트 팔(moment arm)에 매우 민감하며, 수 mm의 관절 중심 오차가 수 Nm의 토크 오차로 증폭됩니다.
+
+특히 \textbf{어깨 회전 변수}에서 가장 큰 불일치가 관찰됩니다---정확히 투구 분석에서 가장 중요한 변수(MER, 내회전 속도)에서 마커리스의 한계가 드러납니다.
+\end{clinicalnote}
+
+
+\section{OpenPose/MediaPipe의 한계}
+
+\begin{itemize}[leftmargin=*]
+  \item 30\,fps 영상용으로 설계 $\rightarrow$ 240\,fps 고속 영상에 직접 적용 시 중복 연산
+  \item 모션 블러에 취약: 고속 투구 시 팔이 흐릿한 줄무늬로 나타남
+  \item \textbf{7,000\degps 이상의 각속도에서 검증된 바 없음}
+  \item 단안 영상 기반으로 3D 깊이 추정에 본질적 한계
+  \item 관절별 정확도가 균일하지 않음 (족관절 등 작은 움직임의 관절에서 특히 부정확)
+\end{itemize}
+
+
+% ====================================================================
+% CHAPTER 5: 3DGS 기반 투구 분석 파이프라인
+% ====================================================================
+\chapter{3DGS 기반 투구 분석 파이프라인}
+\label{ch:3dgs_pitching}
+
+\section{제안 파이프라인 개요}
+
+\begin{figure}[H]
+\centering
+\begin{tikzpicture}[
+  block/.style={rectangle, draw, rounded corners, minimum width=3cm, minimum height=0.9cm, align=center, font=\small},
+  data/.style={rectangle, draw, dashed, rounded corners, minimum width=2.5cm, minimum height=0.6cm, align=center, font=\scriptsize},
+  arrow/.style={-{Stealth[length=2.5mm]}, thick},
+  node distance=0.8cm
+]
+% Input row
+\node[block, fill=lightorange] (rgb) at (0,0) {7대 RGB\\(240\,Hz)};
+\node[block, fill=lightgreen] (vicon) at (6,0) {Vicon\\(250--500\,Hz)};
+
+% Sync
+\node[block, fill=lightgray] (sync) at (3,-1.5) {시간/공간 동기화\\및 보정};
+
+% Processing
+\node[block, fill=lightblue] (pose2d) at (-2,-3.5) {다시점 2D\\자세 추정};
+\node[block, fill=lightblue] (smpl) at (3,-3.5) {다시점 SMPL-X\\피팅};
+\node[block, fill=lightgreen] (vicon_ik) at (8,-3.5) {Vicon 마커 기반\\IK (골드 스탠다드)};
+
+% 3DGS
+\node[block, fill=defblue!20] (3dgs) at (0.5,-5.5) {3DGS 인체 재구성\\(GART/ExAvatar)};
+
+% Outputs
+\node[block, fill=cvpurple!15] (pose_ref) at (-3,-7.5) {정제된 SMPL\\자세 $\vtheta^*$};
+\node[block, fill=cvpurple!15] (render) at (4,-7.5) {포토리얼리스틱\\임의 시점 렌더링};
+
+% Biomech
+\node[block, fill=biogreen!20] (opensim) at (-3,-9.5) {OpenSim\\IK / ID};
+\node[block, fill=biogreen!20] (virtual) at (1,-9.5) {가상 마커\\추출};
+
+% Clinical
+\node[block, fill=injuryred!15] (clinical) at (-1,-11.5) {투구 생체역학 지표\\(MER, 외반토크, 팔속도)};
+
+% Validation
+\node[block, fill=thmgreen!20] (validate) at (6,-9.5) {Vicon 결과와\\비교 검증};
+
+% Arrows
+\draw[arrow] (rgb) -- (sync);
+\draw[arrow] (vicon) -- (sync);
+\draw[arrow] (sync) -- (pose2d);
+\draw[arrow] (sync) -- (smpl);
+\draw[arrow] (sync) -- (vicon_ik);
+\draw[arrow] (pose2d) -- (smpl);
+\draw[arrow] (smpl) -- (3dgs);
+\draw[arrow] (rgb) -- (3dgs);
+\draw[arrow] (3dgs) -- (pose_ref);
+\draw[arrow] (3dgs) -- (render);
+\draw[arrow] (pose_ref) -- (opensim);
+\draw[arrow] (pose_ref) -- (virtual);
+\draw[arrow] (virtual) -- (opensim);
+\draw[arrow] (opensim) -- (clinical);
+\draw[arrow] (vicon_ik) -- (validate);
+\draw[arrow] (clinical) -- (validate);
+\draw[arrow, dashed, darkred] (validate) -- node[right, font=\scriptsize, text=darkred] {정확도 평가} (clinical);
+\end{tikzpicture}
+\caption{3DGS + Vicon 통합 투구 분석 파이프라인. Vicon 결과는 골드 스탠다드로서 3DGS 기반 결과를 검증하는 데 사용됩니다.}
+\label{fig:pitching_pipeline}
+\end{figure}
+
+\section{단계별 상세 설명}
+
+\subsection{Step 1: 다시점 2D 자세 추정}
+
+7대 카메라의 각 프레임에서 독립적으로 2D 관절 위치를 추정합니다. 240\,fps의 고속 영상에서는 \textbf{ViTPose} 또는 \textbf{RTMPose}가 OpenPose보다 적합합니다---모션 블러에 더 강건하고, transformer 기반 구조가 전역 문맥을 잘 활용합니다.
+
+\subsection{Step 2: 다시점 SMPL-X 피팅}
+
+\textbf{EasyMocap} 프레임워크로 다시점 2D 키포인트를 종합하여 SMPL-X 파라미터를 추정:
+
+\begin{equation}
+(\vtheta^*, \vbeta^*) = \arg\min_{\vtheta, \vbeta} \sum_{j=1}^{7} \sum_{k=1}^{K} w_{jk} \| \mathbf{u}_{jk} - \pi_j(\mathbf{J}_k(\vtheta, \vbeta)) \|^2 + \lambda_\theta E_\theta + \lambda_\beta E_\beta
+\label{eq:multiview_smpl}
+\end{equation}
+
+여기서:
+\begin{itemize}[leftmargin=*]
+  \item $j$: 카메라 인덱스 (1--7)
+  \item $k$: 관절 인덱스 (1--$K$)
+  \item $\mathbf{u}_{jk}$: 카메라 $j$에서 관절 $k$의 2D 검출 좌표
+  \item $\pi_j$: 카메라 $j$의 투영 함수
+  \item $\mathbf{J}_k(\vtheta, \vbeta)$: SMPL-X 모델에서 관절 $k$의 3D 위치
+  \item $w_{jk}$: 가중치 (검출 신뢰도, 가려진 관절은 0)
+\end{itemize}
+
+\begin{keyidea}
+7대 카메라의 핵심 이점: 단안 영상에서는 깊이 모호성이 심각하지만, 7시점에서는 $\binom{7}{2} = 21$개의 에피폴라 제약이 깊이를 강력하게 결정합니다. 특히 투구 팔의 깊이---앞뒤로 움직이는 정도---를 정확히 복원할 수 있으며, 이는 어깨 외회전/내회전 추정에 결정적입니다.
+\end{keyidea}
+
+\subsection{Step 3: 3DGS 인체 재구성 + 자세 정제}
+
+GART 또는 ExAvatar 프레임워크로 캐노니컬 3D 가우시안을 생성하고, 매 프레임 SMPL 자세로 구동합니다.
+
+\textbf{핵심: 렌더링 기반 자세 정제}
+
+초기 SMPL 피팅이 부정확해도, 3DGS의 \textbf{광도 손실(photometric loss)}이 자세를 자동으로 교정합니다:
+
+\begin{equation}
+\vtheta^{**} = \arg\min_\vtheta \sum_{j=1}^{7} \Big[ (1-\lambda)\| I_j - \hat{I}_j(\vtheta) \|_1 + \lambda \cdot \mathcal{L}_{\text{D-SSIM}}(I_j, \hat{I}_j(\vtheta)) \Big]
+\label{eq:pose_refinement}
+\end{equation}
+
+``렌더링된 이미지가 7대 카메라의 실제 영상과 일치하려면 자세가 정확해야 한다''는 강력한 제약이 자세를 정제합니다. 이는 2D 키포인트 재투영만 사용하는 기존 방법보다 \textbf{훨씬 풍부한 감독 신호(supervision)}를 제공합니다---전체 픽셀 수준의 외형 일치를 요구하기 때문입니다.
+
+\subsection{Step 4: 가상 마커 추출 + OpenSim}
+
+정제된 SMPL-X 메시에서 해부학적 랜드마크에 해당하는 꼭짓점을 추출하여 OpenSim IK/ID에 입력합니다. Part 2의 \cref{sec:virtual_markers}와 동일한 파이프라인입니다.
+
+\subsection{Step 5: Vicon 결과와 비교 검증}
+
+Vicon의 마커 기반 IK/ID 결과를 골드 스탠다드로 사용하여 3DGS 기반 결과의 정확도를 평가합니다:
+
+\begin{equation}
+\text{RMSE}_{\theta_k} = \sqrt{\frac{1}{T}\sum_{t=1}^{T} (\theta_k^{\text{3DGS}}(t) - \theta_k^{\text{Vicon}}(t))^2}
+\end{equation}
+
+
+\section{3DGS가 투구 분석에 가져오는 고유한 이점}
+\label{sec:3dgs_advantages}
+
+\begin{enumerate}[leftmargin=*]
+  \item \textbf{마커 가려짐 문제 해결}: 3DGS는 물리적 마커가 아닌 학습된 가우시안으로 표현하므로, 와인드업/팔로스루의 가려짐이 근본적으로 없음
+
+  \item \textbf{연조직 역학 시각화}: 마커는 피부 위의 점일 뿐이지만, 3DGS는 실제 표면 외형을 재구성---삼각근 수축, 전완 회내 시 근육 팽창, 유니폼 변형 등을 시각적으로 관찰 가능
+
+  \item \textbf{임의 시점 렌더링}: 투수의 정면, 후면, 포수 시점, 3루측 시점 등 어떤 각도에서든 고품질 렌더링. 코치와 의료진에게 다각도에서 동작을 보여줄 수 있음
+
+  \item \textbf{사후 분석 가능}: 마커 없이 촬영한 과거 영상도 분석 가능---경기 중 영상 활용 가능성
+
+  \item \textbf{자연스러운 동작}: 마커가 고유수용감각(proprioception)이나 역학에 영향을 줄 수 있다는 우려 없음
+
+  \item \textbf{피로 효과 시각화}: 이닝별 투구 동작의 3D 모델을 나란히 비교하여 피로에 따른 동작 변화를 직관적으로 파악
+\end{enumerate}
+
+
+\section{기술적 도전과 해결 전략}
+\label{sec:challenges}
+
+\begin{center}
+\renewcommand{\arraystretch}{1.4}
+\begin{tabular}{p{4cm}p{8cm}}
+\toprule
+\textbf{도전} & \textbf{해결 전략} \\
+\midrule
+30\,ms 가속 단계에서 7 프레임만 확보 & 인접 프레임의 3DGS를 초기값으로 사용(warm-start); 시간적 정규화; Vicon 250/500\,Hz 데이터로 보간 \\
+\addlinespace
+모션 블러 & 짧은 노출 시간 (1/1000초 이하); 충분한 조명; 이벤트 카메라(EventSplat) 결합 가능성 \\
+\addlinespace
+손가락/공의 세밀한 움직임 & SMPL-X의 손 관절(30개) 활용; 공에 별도 트래킹 \\
+\addlinespace
+7대 카메라로 충분한 커버리지? & 투수 주변 $\sim$270$^\circ$ 커버리지로 대부분의 시점에서 3+ 카메라 가시; 가려짐이 적은 배치 설계 \\
+\addlinespace
+계산 비용 & 프레임별 독립 3DGS는 과도; GART의 캐노니컬 모델 + 프레임별 자세만 최적화로 효율화 \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+
+% ====================================================================
+% CHAPTER 6: 임상 응용
+% ====================================================================
+\chapter{임상 응용: 부상 예방과 복귀}
+\label{ch:clinical}
+
+\section{UCL 부상 위험 예측}
+\label{sec:ucl_prediction}
+
+2026년 Bright 등의 획기적 연구: 방송 영상(단안!)만으로 18개 생체역학 지표를 추출하고, 토미 존 수술 예측에 성공했습니다.
+
+\begin{cvbox}[title={방송 영상 기반 부상 예측 (Bright et al., 2026)}]
+\begin{itemize}[leftmargin=*]
+  \item \textbf{입력}: MLB 방송 영상 (단안, 30\,fps)
+  \item \textbf{방법}: DreamPose3D + 생체역학 정제 스택 (뼈 길이 제약, 관절 제한 IK, 스무딩, 대칭성)
+  \item \textbf{결과}: 18개 지표 중 16개에서 MAE $< 1^\circ$ (156투 검증)
+  \item \textbf{부상 예측}:
+  \begin{itemize}
+    \item \textbf{토미 존 수술 예측: AUC = 0.811}
+    \item \textbf{심각한 팔 부상 예측: AUC = 0.825}
+    \item 7,348명 투수 데이터로 검증
+  \end{itemize}
+\end{itemize}
+\end{cvbox}
+
+\begin{importantnote}
+방송 영상(30\,fps, 단안)에서도 AUC 0.811이 가능하다면, \textbf{우리의 세팅(240\,fps, 7시점)}에서는 훨씬 높은 정확도가 기대됩니다. 3DGS 기반 자세 정제가 추가되면, 임상적으로 의미 있는 수준의 개인별 부상 위험 프로파일을 생성할 수 있을 것입니다.
+\end{importantnote}
+
+
+\section{피로 모니터링}
+
+투구 수 누적에 따른 생체역학적 변화:
+
+\begin{center}
+\renewcommand{\arraystretch}{1.3}
+\begin{tabular}{lp{7cm}}
+\toprule
+\textbf{피로 지표} & \textbf{변화} \\
+\midrule
+구속 감소 & $\sim$2\,m/s ($\sim$5\,mph) 감소 (말기 이닝) \\
+MER 감소 & 어깨 최대 외회전 유의하게 감소 \\
+무릎 굴곡 감소 & 더 직립된 착지 $\rightarrow$ 에너지 흡수 능력 저하 \\
+팔꿈치 굴곡 감소 & 관절 부하 증가 \\
+고관절 굴곡 증가 & 보상적 몸통 자세 변화 \\
+구종 변화 & 패스트볼 감소, 변화구 증가 \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+\begin{injurybox}
+상습적인 팔 피로 상태에서 투구하는 투수는 부상 위험이 \textbf{36배} 높습니다. 피로 모니터링은 선수의 자각 증상에만 의존할 수 없으며, 객관적 생체역학 측정이 필수적입니다.
+\end{injurybox}
+
+\subsection{3DGS 기반 피로 모니터링의 장점}
+
+\begin{enumerate}[leftmargin=*]
+  \item 이닝별 동일 투수의 3D 모델을 생성하여 시각적으로 비교
+  \item MER, 스트라이드 길이, 몸통 기울기 등의 변화를 자동으로 추적
+  \item 코치/트레이너에게 실시간에 가까운 피드백 가능 (학습 시간 $\sim$수 분)
+\end{enumerate}
+
+
+\section{복귀 프로토콜과 재활 모니터링}
+
+\subsection{UCL 재건술 후 복귀}
+
+\begin{center}
+\renewcommand{\arraystretch}{1.3}
+\begin{tabular}{lcl}
+\toprule
+\textbf{단계} & \textbf{시기 (개월)} & \textbf{내용} \\
+\midrule
+초기 재활 & 0--2 & 관절 가동범위 회복, 가벼운 근력 운동 \\
+진행성 근력 & 2--4 & 점진적 저항 운동, 고유수용감각 훈련 \\
+투구 시작 & $\sim$5 & 짧은 거리 평지 던지기 시작 \\
+거리 증가 & 5--8 & 30--60--90--120피트 점진적 증가 \\
+마운드 복귀 & 8--10 & 마운드에서 점진적 강도 증가 \\
+모의 경기 & 10--12 & 타자 상대 시뮬레이션 \\
+경기 복귀 & \textbf{12--14} & 실전 경기 (재래식 UCL 재건) \\
+ & \textbf{6--9} & 실전 경기 (내부 보강 수리술) \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+\subsection{3DGS 기반 복귀 모니터링}
+
+재활 과정에서 주기적으로 7대 카메라 세팅에서 투구를 촬영하면:
+\begin{itemize}[leftmargin=*]
+  \item 부상 전과 동일한 동작 패턴으로 복귀했는지 3D로 비교
+  \item 보상 동작(compensation)의 발생 여부를 다각도에서 관찰
+  \item 팔꿈치 외반 토크가 안전 범위 내인지 확인
+  \item 시계열 3D 모델로 복귀 과정을 문서화
+\end{itemize}
+
+
+\section{웨어러블 센서와의 비교}
+
+\begin{center}
+\renewcommand{\arraystretch}{1.3}
+\small
+\begin{tabular}{p{3cm}cccc}
+\toprule
+\textbf{시스템} & \textbf{정확도} & \textbf{실시간} & \textbf{경기 중} & \textbf{비용} \\
+\midrule
+Vicon (마커) & 최고 & $\times$ & $\times$ & \$100K+ \\
+KinaTrax & 높음 & $\bigcirc$ & $\bigcirc$ & \$50K+ \\
+PULSEthrow (IMU) & $\sim$95\% & $\bigcirc$ & $\bigcirc$ & \$150 \\
+본 세팅 (7cam+3DGS) & 높음 (검증 필요) & 준실시간 & 불펜 & \$5--10K \\
+방송 영상 (Bright) & 양호 & $\bigcirc$ & $\bigcirc$ & $\sim$\$0 \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+
+% ====================================================================
+% CHAPTER 7: 최신 연구 동향
+% ====================================================================
+\chapter{최신 연구 동향 (2024--2026)}
+\label{ch:trends}
+
+\section{AI/ML 기반 투구 분석}
+
+\begin{enumerate}[leftmargin=*]
+  \item \textbf{Bright et al. (2026)}: 방송 영상에서 투구 생체역학 추출 + 토미 존 예측 (AUC 0.811)
+  \item \textbf{자동화 투구 단계 분류 (2025)}: 스마트폰 기반 자세 추정 AI로 5단계 투구 분류
+  \item \textbf{AIRADL 프레임워크}: 딥러닝 기반 운동선수 부상 위험 평가
+\end{enumerate}
+
+\section{다시점 스포츠 재구성}
+
+\begin{enumerate}[leftmargin=*]
+  \item \textbf{GS-SFS (IEEE TMM, 2024)}: 3DGS + Shape-from-Silhouette로 대규모 스포츠 장면(농구)의 다인물 재구성
+  \item \textbf{M3GYM (CVPR, 2025)}: 8대 카메라, 50+명 피험자, 4,700만 프레임의 다시점 자세 데이터셋
+  \item \textbf{SV-GS (2025)}: 스켈레톤 구동 가우시안 스플래팅으로 희소 시점 4D 재구성
+  \item \textbf{EventSplat (CVPR, 2025)}: 이벤트 카메라 기반 3DGS---고속 동작의 모션 블러 해결
+\end{enumerate}
+
+\section{물리 인식 인체 재구성}
+
+\begin{enumerate}[leftmargin=*]
+  \item \textbf{PhysPT (CVPR, 2024)}: 오일러-라그랑주 물리 법칙을 손실 함수에 통합
+  \item \textbf{MultiPhys (CVPR, 2024)}: 다인물 물리 인식 3D 동작 추정
+  \item \textbf{PhysHMR (2025)}: 휴머노이드 제어 정책 학습으로 물리 기반 메시 복원
+  \item \textbf{AddBiomechanics (ECCV, 2024)}: 273명, 70+시간의 모캡+힘 데이터셋---학습 데이터 병목 해소
+\end{enumerate}
+
+\section{이 연구들이 우리 세팅에 주는 시사점}
+
+\begin{summary}
+\begin{enumerate}[leftmargin=*]
+  \item \textbf{방송 영상에서도 부상 예측 가능} $\Rightarrow$ 7시점 240\,Hz에서는 훨씬 더 정확한 예측 가능
+  \item \textbf{물리 법칙 통합}이 자세 추정 정확도를 크게 향상 $\Rightarrow$ 3DGS 학습에 물리 손실 추가 가능
+  \item \textbf{대규모 쌍 데이터셋} 등장 $\Rightarrow$ 딥러닝 기반 GRF/토크 추정의 학습 데이터 확보
+  \item \textbf{이벤트 카메라}가 고속 동작의 모션 블러를 해결 $\Rightarrow$ 향후 세팅에 이벤트 카메라 추가 가능성
+  \item \textbf{스포츠 특화 다시점 재구성} 활발 $\Rightarrow$ 야구 투구에 특화된 3DGS 파이프라인 개발의 학문적 기반
+\end{enumerate}
+\end{summary}
+
+
+% ====================================================================
+% CHAPTER 8: 연구 설계
+% ====================================================================
+\chapter{연구 설계 제안}
+\label{ch:study_design}
+
+\section{연구 질문}
+
+\begin{enumerate}[leftmargin=*]
+  \item 7시점 240\,Hz 3DGS 기반 자세 정제가 Vicon 대비 어느 수준의 투구 생체역학 정확도를 달성하는가?
+  \item 3DGS 기반 팔꿈치 외반 토크 추정이 임상적으로 유의미한 정확도에 도달하는가?
+  \item 3DGS의 포토리얼리스틱 렌더링이 코치/의료진의 동작 판단에 부가 가치를 제공하는가?
+\end{enumerate}
+
+\section{실험 프로토콜}
+
+\begin{enumerate}[leftmargin=*]
+  \item \textbf{피험자}: 대학 투수 15--20명 (다양한 투구 유형)
+  \item \textbf{촬영}: 각 투수 3구종 $\times$ 10투 = 30투/세션
+  \item \textbf{장비}: 7대 RGB (240\,Hz) + 10--12대 Vicon (250/500\,Hz) + 힘 측정판 + 공 2개 마커
+  \item \textbf{보정}: Vicon 활성 완드 + 체커보드로 RGB-Vicon 좌표계 정합
+  \item \textbf{마커}: ISB 권고 상지 마커 세트 (38--59개)
+\end{enumerate}
+
+\section{분석 계획}
+
+\begin{center}
+\renewcommand{\arraystretch}{1.3}
+\begin{tabular}{lp{8cm}}
+\toprule
+\textbf{비교} & \textbf{지표} \\
+\midrule
+\textbf{자세 정확도} & 관절 각도 RMSE, 관절 위치 MPJPE (Vicon 기준) \\
+\textbf{운동역학 정확도} & 팔꿈치 외반 토크, 어깨 압축력 ($\pm$ 5\Nm 이내?) \\
+\textbf{이벤트 검출} & MER, FC, BR 시점 오차 (프레임 수) \\
+\textbf{임상 일치도} & Bland-Altman 분석, ICC, SEM \\
+\textbf{시각적 평가} & 전문가 블라인드 평가 (5점 리커트) \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+\section{기대 성과}
+
+\begin{itemize}[leftmargin=*]
+  \item 7시점 3DGS 기반 투구 분석의 첫 번째 체계적 검증 데이터
+  \item Vicon 없이도 임상 수준 투구 분석 가능성 입증 (또는 한계 규명)
+  \item 3DGS의 포토리얼리스틱 렌더링 + 생체역학 = 새로운 ``시각적 생체역학'' 보고서 형식 제안
+  \item 오픈소스 파이프라인 공개 $\rightarrow$ 후속 연구 촉진
+\end{itemize}
+
+
+% ====================================================================
+% Appendix
+% ====================================================================
+\chapter{수학적 부록}
+\label{ch:appendix}
+
+\section{역동역학으로 팔꿈치 외반 토크 계산}
+\label{sec:valgus_torque_calc}
+
+전완 분절에 대한 뉴턴-오일러 방정식 (발단 $\rightarrow$ 근위):
+
+\begin{align}
+\vF_{\text{elbow}} &= m_{\text{forearm}} \va_{\text{CoM}} - m_{\text{forearm}} \vg - \vF_{\text{wrist}} - \vF_{\text{ball}} \\
+\vM_{\text{elbow}} &= \mI_{\text{forearm}} \bm{\alpha} + \bm{\omega} \times (\mI_{\text{forearm}} \bm{\omega}) - \vM_{\text{wrist}} \notag \\
+&\quad + \vr_{\text{CoM} \rightarrow \text{wrist}} \times \vF_{\text{wrist}} - \vr_{\text{CoM} \rightarrow \text{elbow}} \times \vF_{\text{elbow}}
+\end{align}
+
+$\vM_{\text{elbow}}$의 내외측 성분이 \textbf{외반/내반 토크}입니다. 이 값이 양수(내반, varus)이면 UCL을 보호하고, 음수(외반, valgus)이면 UCL에 부하를 가합니다.
+
+\textbf{입력 데이터 요구사항}:
+\begin{itemize}[leftmargin=*]
+  \item 전완 CoM 가속도 $\va_{\text{CoM}}$: 위치의 이중 미분 (SMPL 또는 마커로부터)
+  \item 각속도 $\bm{\omega}$, 각가속도 $\bm{\alpha}$: 회전행렬의 시간 미분
+  \item 손목 관절력 $\vF_{\text{wrist}}$: 손 분절의 역동역학에서 계산
+  \item 공에 의한 힘 $\vF_{\text{ball}}$: 릴리스 전에만 작용 (공 가속도 $\times$ 공 질량)
+\end{itemize}
+
+\begin{importantnote}
+팔꿈치 외반 토크 계산에서 가장 민감한 변수는 \textbf{관절 중심 위치}입니다. 관절 중심이 5\,mm 이동하면 모멘트 팔이 변하여 토크 추정치가 수 Nm 변합니다. 이것이 마커리스 시스템의 관절 위치 오차(52--57\,mm)가 투구 분석에서 심각한 문제인 이유입니다.
+\end{importantnote}
+
+
+\section{다시점 삼각측량 정밀도}
+\label{sec:triangulation_precision}
+
+$N$대 카메라에서의 삼각측량 정밀도. 각 카메라 $j$에서의 2D 검출 오차가 $\sigma_{\text{2D}}$일 때, 3D 복원 오차:
+
+\begin{equation}
+\sigma_{\text{3D}} \approx \frac{\sigma_{\text{2D}} \cdot d}{f \cdot B \cdot \sqrt{N-1}}
+\end{equation}
+
+여기서:
+\begin{itemize}[leftmargin=*]
+  \item $d$: 피사체까지의 거리
+  \item $f$: 초점 거리 (픽셀 단위)
+  \item $B$: 카메라 간 평균 기선 길이(baseline)
+  \item $N$: 카메라 수
+\end{itemize}
+
+7대 카메라($N=7$)는 2대($N=2$) 대비 $\sqrt{6}/\sqrt{1} \approx 2.45$배 정밀합니다.
+
+
+\section{SMPL 관절에서 해부학적 관절 각도 변환}
+\label{sec:smpl_to_clinical}
+
+SMPL의 축-각도 $\vtheta_k \in \RR^3$를 회전행렬 $\mR_k$로 변환 후, ISB 권고 분해 순서에 따라:
+
+\textbf{견관절 (Y-X-Y)}:
+\begin{align}
+\text{거상 평면} &= \text{atan2}(R_{31}, R_{11}) \\
+\text{거상각} &= \text{acos}(R_{21}) \\
+\text{축 회전} &= \text{atan2}(R_{23}, -R_{22})
+\end{align}
+
+\textbf{주관절 (Z-X-Y)}:
+\begin{align}
+\text{굴곡/신전} &= \text{atan2}(-R_{23}, R_{33}) \\
+\text{운반각} &= \text{asin}(R_{13}) \\
+\text{회내/회외} &= \text{atan2}(-R_{12}, R_{11})
+\end{align}
+
+\begin{remark}
+SMPL은 모든 관절을 3-DOF로 모델링하므로, 주관절의 ``운반각'' 성분이 비현실적으로 크게 나올 수 있습니다. 생체역학적 관절 제한(joint constraint)을 적용하여 이를 억제해야 합니다.
+\end{remark}
+
+
+% ==================== REFERENCES ====================
+\chapter*{참고 문헌}
+\addcontentsline{toc}{chapter}{참고 문헌}
+
+\begin{enumerate}[leftmargin=*, label={[\arabic*]}]
+  \item Fleisig, G.S. et al. ``Kinetics of Baseball Pitching with Implications About Injury Mechanisms.'' \textit{Am. J. Sports Med.}, 23(2), 1995.
+
+  \item Diffendaffer, A.Z. et al. ``The Clinician's Guide to Baseball Pitching Biomechanics.'' \textit{Sports Health}, 15(2), 2023.
+
+  \item Escamilla, R.F. et al. ``Pitching Biomechanics as a Pitcher Approaches Muscular Fatigue During a Simulated Baseball Game.'' \textit{Am. J. Sports Med.}, 35(1), 2007.
+
+  \item Wu, G. et al. ``ISB Recommendation on Definitions of Joint Coordinate Systems for the Shoulder, Elbow, Wrist and Hand.'' \textit{J. Biomech.}, 38(5), 2005.
+
+  \item Bright, J., Mende, K. \& Zelek, J. ``Scalable Injury-Risk Screening in Baseball Pitching From Broadcast Video.'' arXiv:2603.04864, 2026.
+
+  \item KinaTrax Validation Study. ``Normative In-Game Pitching Biomechanics Data Using a Markerless Motion-Capture System.'' \textit{Am. J. Sports Med.}, 2023.
+
+  \item Assessment of Markerless Accuracy for Baseball Pitching. \textit{J. Sports Sciences}, 2025.
+
+  \item Lei, J. et al. ``GART: Gaussian Articulated Template Models.'' \textit{CVPR}, 2024.
+
+  \item Moon, G. et al. ``ExAvatar: Expressive Whole-Body 3D Gaussian Avatar.'' \textit{ECCV}, 2024.
+
+  \item Kerbl, B. et al. ``3D Gaussian Splatting for Real-Time Radiance Field Rendering.'' \textit{ACM TOG (SIGGRAPH)}, 2023.
+
+  \item Wu, G. et al. ``4D Gaussian Splatting for Real-Time Dynamic Scene Rendering.'' \textit{CVPR}, 2024.
+
+  \item Yura, A. et al. ``EventSplat: 3D Gaussian Splatting from Moving Event Cameras.'' \textit{CVPR}, 2025.
+
+  \item Zhang, J. et al. ``PhysPT: Physics-aware Pretrained Transformer.'' \textit{CVPR}, 2024.
+
+  \item Werling, K. et al. ``AddBiomechanics Dataset.'' \textit{ECCV}, 2024.
+
+  \item Loper, M. et al. ``SMPL: A Skinned Multi-Person Linear Model.'' \textit{ACM TOG}, 2015.
+
+  \item Dillman, C.J. et al. ``Biomechanical Aspects of Pitching.'' \textit{Am. J. Sports Med.}, 21(2), 1993.
+\end{enumerate}
+
+
+% ==================== GLOSSARY ====================
+\chapter*{용어집}
+\addcontentsline{toc}{chapter}{용어집}
+
+\begin{description}[leftmargin=!, labelwidth=5cm, font=\normalfont\bfseries]
+  \item[Arm Cocking] 팔 코킹. 투구 팔이 외회전하며 에너지를 저장하는 단계.
+  \item[Ball Release (BR)] 공 릴리스. 공이 손에서 떠나는 순간.
+  \item[Baseline] 기선. 두 카메라 사이의 거리. 기선이 길수록 삼각측량 정밀도 향상.
+  \item[Extrinsic Parameters] 외부 파라미터. 카메라의 3D 공간 위치와 방향.
+  \item[Flexor-Pronator Mass] 굴근-회내근 복합체 (FPM). 팔꿈치 내측의 근육군으로 UCL을 보호.
+  \item[Foot Contact (FC)] 앞발 접지. 투수의 앞발이 지면에 닿는 순간.
+  \item[Genlock] 동기 잠금. 모든 카메라를 동일 클럭 신호에 동기화하는 기술.
+  \item[Hip-Shoulder Separation] 골반-몸통 분리. 앞발 접지 시 골반과 어깨의 회전각 차이.
+  \item[Intrinsic Parameters] 내부 파라미터. 카메라의 초점거리, 주점, 왜곡 계수.
+  \item[KinaTrax] MLB에서 사용하는 경기장 기반 마커리스 모션캡처 시스템.
+  \item[MER] Maximum External Rotation. 최대 외회전. 투구 팔이 뒤로 가장 많이 회전한 시점.
+  \item[Moment Arm] 모멘트 팔. 힘의 작용선과 관절 중심 사이의 수직 거리.
+  \item[MPJPE] Mean Per Joint Position Error. 관절별 평균 위치 오차 (mm).
+  \item[Nyquist Theorem] 나이퀴스트 정리. 신호를 정확히 복원하려면 최소 2배의 샘플링 주파수 필요.
+  \item[Photometric Loss] 광도 손실. 렌더링된 이미지와 실제 이미지의 픽셀 수준 차이.
+  \item[Pitch Count] 투구 수. 부상 예방을 위한 투구 횟수 제한 관리.
+  \item[Pose Refinement] 자세 정제. 렌더링 기반 최적화로 초기 자세 추정을 교정하는 과정.
+  \item[Spin Efficiency] 회전 효율. 총 회전 중 공 궤적에 유효한 성분의 비율.
+  \item[Stride Length] 스트라이드 길이. 투구판에서 앞발 착지 지점까지의 거리.
+  \item[Tommy John Surgery] 토미 존 수술. UCL 재건술의 통칭.
+  \item[UCL] Ulnar Collateral Ligament. 척골측부인대. 팔꿈치 내측의 주요 인대.
+  \item[Valgus Torque] 외반 토크. 팔꿈치를 바깥으로 벌어지게 하는 토크. UCL 부하의 핵심 지표.
+  \item[Varus Torque] 내반 토크. 외반 토크에 대항하는 보호 토크 (근육에 의해 생성).
+  \item[Warm-Starting] 이전 프레임의 3DGS 결과를 현재 프레임의 초기값으로 사용하는 전략.
+\end{description}
+
+
+\end{document}

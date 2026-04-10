@@ -1,0 +1,1714 @@
+\documentclass[11pt, a4paper]{report}
+
+% ========== Packages ==========
+\usepackage{fontspec}
+\usepackage{kotex}
+\usepackage{amsmath, amssymb, amsthm}
+\usepackage{mathtools}
+\usepackage{bm}
+\usepackage{graphicx}
+\usepackage{booktabs}
+\usepackage{array}
+\usepackage{tabularx}
+\usepackage{longtable}
+\usepackage{hyperref}
+\usepackage{cleveref}
+\usepackage{geometry}
+\usepackage{fancyhdr}
+\usepackage{titlesec}
+\usepackage{enumitem}
+\usepackage{xcolor}
+\usepackage{tcolorbox}
+\usepackage{algorithm}
+\usepackage{algorithmic}
+\usepackage{tikz}
+\usetikzlibrary{arrows.meta, positioning, calc, decorations.pathreplacing, shapes.geometric, fit}
+\usepackage{pgfplots}
+\pgfplotsset{compat=1.18}
+\usepackage{caption}
+\usepackage{subcaption}
+\usepackage{float}
+\usepackage{multirow}
+
+\geometry{margin=2.5cm, top=3cm, bottom=3cm}
+
+% ========== Colors ==========
+\definecolor{defblue}{RGB}{30, 80, 150}
+\definecolor{thmgreen}{RGB}{20, 110, 60}
+\definecolor{noteorange}{RGB}{200, 100, 0}
+\definecolor{lightblue}{RGB}{230, 240, 255}
+\definecolor{lightgreen}{RGB}{230, 255, 235}
+\definecolor{lightorange}{RGB}{255, 245, 230}
+\definecolor{lightgray}{RGB}{245, 245, 245}
+\definecolor{lightred}{RGB}{255, 235, 235}
+\definecolor{darkred}{RGB}{180, 30, 30}
+\definecolor{biogreen}{RGB}{10, 130, 80}
+\definecolor{cvpurple}{RGB}{100, 40, 150}
+
+% ========== Theorem-like environments ==========
+\theoremstyle{definition}
+\newtheorem{definition}{Definition}[chapter]
+\newtheorem{example}{Example}[chapter]
+
+\theoremstyle{plain}
+\newtheorem{theorem}{Theorem}[chapter]
+\newtheorem{proposition}{Proposition}[chapter]
+
+\theoremstyle{remark}
+\newtheorem{remark}{Remark}[chapter]
+
+% ========== tcolorbox environments ==========
+\newtcolorbox{keyidea}[1][]{
+  colback=lightblue,
+  colframe=defblue,
+  fonttitle=\bfseries,
+  title={Key Idea},
+  #1
+}
+
+\newtcolorbox{importantnote}[1][]{
+  colback=lightorange,
+  colframe=noteorange,
+  fonttitle=\bfseries,
+  title={Important},
+  #1
+}
+
+\newtcolorbox{summary}[1][]{
+  colback=lightgreen,
+  colframe=thmgreen,
+  fonttitle=\bfseries,
+  title={Summary},
+  #1
+}
+
+\newtcolorbox{clinicalnote}[1][]{
+  colback=lightred,
+  colframe=darkred,
+  fonttitle=\bfseries,
+  title={Clinical Note},
+  #1
+}
+
+\newtcolorbox{biomechbox}[1][]{
+  colback=lightgreen,
+  colframe=biogreen,
+  fonttitle=\bfseries,
+  title={Biomechanics},
+  #1
+}
+
+\newtcolorbox{cvbox}[1][]{
+  colback={cvpurple!5},
+  colframe=cvpurple,
+  fonttitle=\bfseries,
+  title={Computer Vision},
+  #1
+}
+
+% ========== Custom commands ==========
+\newcommand{\vx}{\mathbf{x}}
+\newcommand{\vd}{\mathbf{d}}
+\newcommand{\vo}{\mathbf{o}}
+\newcommand{\vc}{\mathbf{c}}
+\newcommand{\vr}{\mathbf{r}}
+\newcommand{\vp}{\mathbf{p}}
+\newcommand{\vv}{\mathbf{v}}
+\newcommand{\vn}{\mathbf{n}}
+\newcommand{\vF}{\mathbf{F}}
+\newcommand{\vM}{\mathbf{M}}
+\newcommand{\va}{\mathbf{a}}
+\newcommand{\vg}{\mathbf{g}}
+\newcommand{\vmu}{\bm{\mu}}
+\newcommand{\vbeta}{\bm{\beta}}
+\newcommand{\vtheta}{\bm{\theta}}
+\newcommand{\vpsi}{\bm{\psi}}
+\newcommand{\mSigma}{\bm{\Sigma}}
+\newcommand{\mR}{\mathbf{R}}
+\newcommand{\mS}{\mathbf{S}}
+\newcommand{\mW}{\mathbf{W}}
+\newcommand{\mJ}{\mathbf{J}}
+\newcommand{\mG}{\mathbf{G}}
+\newcommand{\mT}{\mathbf{T}}
+\newcommand{\mI}{\mathbf{I}}
+\newcommand{\mB}{\mathbf{B}}
+\newcommand{\RR}{\mathbb{R}}
+\newcommand{\SO}{\mathrm{SO}}
+
+% ========== Header/Footer ==========
+\pagestyle{fancy}
+\fancyhf{}
+\fancyhead[L]{\leftmark}
+\fancyhead[R]{\thepage}
+\renewcommand{\headrulewidth}{0.4pt}
+
+% ========== Title formatting ==========
+\titleformat{\chapter}[display]
+  {\normalfont\huge\bfseries\color{defblue}}
+  {\chaptertitlename\ \thechapter}{20pt}{\Huge}
+
+\titleformat{\section}
+  {\normalfont\Large\bfseries\color{defblue!80!black}}
+  {\thesection}{1em}{}
+
+\titleformat{\subsection}
+  {\normalfont\large\bfseries\color{defblue!60!black}}
+  {\thesubsection}{1em}{}
+
+% ========== Document ==========
+\begin{document}
+
+% ==================== TITLE PAGE ====================
+\begin{titlepage}
+\centering
+\vspace*{1.5cm}
+
+{\Large\color{gray} Part 2}
+
+\vspace{0.5cm}
+
+{\Huge\bfseries\color{defblue} 3D Gaussian Splatting과\\[0.3cm] 동작 분석}
+
+\vspace{1cm}
+
+{\LARGE\color{defblue!70!black} 컴퓨터 비전 기반 3D 재구성에서\\생체역학적 보행 분석까지}
+
+\vspace{2cm}
+
+{\large 컴퓨터 공학 $\times$ 스포츠의학}
+
+\vspace{0.5cm}
+
+{\large 마커리스 모션캡처, SMPL 기반 자세 추정,\\OpenSim 생체역학 파이프라인의 융합}
+
+\vspace{3cm}
+
+{\large 2026}
+
+\vspace{\fill}
+
+{\small\color{gray} 본 교재는 Part 1 (NeRF에서 GART까지)의 후속편으로,\\
+3D Gaussian Splatting 기술이 인체 동작 분석 및 보행 분석에\\
+어떻게 연결되는지를 체계적으로 다룹니다.}
+\end{titlepage}
+
+% ==================== TABLE OF CONTENTS ====================
+\tableofcontents
+\newpage
+
+% ==================== PREFACE ====================
+\chapter*{서문}
+\addcontentsline{toc}{chapter}{서문}
+
+본 교재는 Part 1 ``3D Gaussian Splatting에서 GART까지''의 후속편입니다. Part 1이 렌더링 기술 자체에 집중했다면, Part 2는 이 기술이 \textbf{실제 인체 동작 분석(motion analysis)}과 \textbf{보행 분석(gait analysis)}에 어떻게 연결되는지를 다룹니다.
+
+이 교재는 두 분야의 교차점에 서 있는 독자---컴퓨터 공학을 전공하고 스포츠의학을 공부하는 분---를 위해 설계되었습니다. 따라서 양쪽 분야의 기본 용어를 모두 설명하며, 수학적 배경이 잠시 머리에서 멀어진 상태에서도 따라올 수 있도록 단계적으로 서술합니다.
+
+\begin{importantnote}[title={이 교재의 구성}]
+\begin{itemize}[leftmargin=*]
+  \item \textbf{Ch.1}: 전통적 보행 분석 파이프라인 (마커 기반 모션캡처 + 역학 분석)
+  \item \textbf{Ch.2}: 마커리스 모션캡처 (컴퓨터 비전 기반 자세 추정)
+  \item \textbf{Ch.3}: SMPL과 생체역학의 연결 (관절각도, 보행 파라미터 추출)
+  \item \textbf{Ch.4}: 영상 기반 힘 추정 (바닥반력, 관절 모멘트)
+  \item \textbf{Ch.5}: 3DGS 인체 재구성과 동작 분석의 융합
+  \item \textbf{Ch.6}: 오픈소스 도구 (FreeMoCap, OpenCap, Pose2Sim)
+  \item \textbf{Ch.7}: 임상 보행 지표 (GDI, GPS)와 검증
+  \item \textbf{Ch.8}: 미래 방향과 연구 기회
+\end{itemize}
+\end{importantnote}
+
+
+% ====================================================================
+% CHAPTER 1: Traditional Gait Analysis
+% ====================================================================
+\chapter{전통적 보행 분석 파이프라인}
+\label{ch:traditional}
+
+\section{보행 분석이란?}
+
+\begin{definition}[보행 분석 (Gait Analysis)]
+사람의 걷기(walking) 또는 달리기(running) 동작을 \textbf{정량적으로 측정}하고 분석하는 과정입니다. 관절의 움직임(운동학, kinematics), 작용하는 힘(운동역학, kinetics), 그리고 근활성도(electromyography, EMG)를 포함합니다.
+\end{definition}
+
+보행 분석은 다음과 같은 상황에서 사용됩니다:
+\begin{itemize}[leftmargin=*]
+  \item 뇌성마비, 뇌졸중 환자의 수술 전후 비교
+  \item 인공관절 치환술 후 기능 평가
+  \item 스포츠 선수의 부상 위험 평가 및 퍼포먼스 분석
+  \item 재활 프로그램의 효과 모니터링
+\end{itemize}
+
+\section{보행 주기 (Gait Cycle)}
+\label{sec:gait_cycle}
+
+한 발이 지면에 닿는 순간(heel strike)부터 같은 발이 다시 닿을 때까지를 \textbf{보행 주기(gait cycle)} 1회로 정의합니다.
+
+\begin{figure}[H]
+\centering
+\begin{tikzpicture}[scale=1.0]
+% Timeline
+\draw[thick, -Stealth] (0,0) -- (14,0) node[right] {\small 시간};
+\draw[thick] (0,-0.2) -- (0,0.2) node[above] {\small 0\%};
+\draw[thick] (8.4,-0.2) -- (8.4,0.2) node[above] {\small 60\%};
+\draw[thick] (13,-0.2) -- (13,0.2) node[above] {\small 100\%};
+
+% Stance phase
+\draw[fill=defblue!30] (0,-0.8) rectangle (8.4,-1.2);
+\node at (4.2,-1.0) {\small \textbf{입각기 (Stance Phase) $\approx$ 60\%}};
+
+% Swing phase
+\draw[fill=noteorange!30] (8.4,-0.8) rectangle (13,-1.2);
+\node at (10.7,-1.0) {\small \textbf{유각기 (Swing) $\approx$ 40\%}};
+
+% Stance sub-phases
+\draw[thick, dashed] (0,-1.5) -- (0,-3.5);
+\draw[thick, dashed] (1.3,-1.5) -- (1.3,-3.5);
+\draw[thick, dashed] (4.2,-1.5) -- (4.2,-3.5);
+\draw[thick, dashed] (6.5,-1.5) -- (6.5,-3.5);
+\draw[thick, dashed] (8.4,-1.5) -- (8.4,-3.5);
+
+\node[rotate=30, anchor=west, font=\scriptsize] at (0.1,-2.5) {하중 반응기};
+\node[rotate=30, anchor=west, font=\scriptsize] at (0.1,-3.0) {(Loading Response)};
+\node[rotate=30, anchor=west, font=\scriptsize] at (1.7,-2.5) {중간 입각기};
+\node[rotate=30, anchor=west, font=\scriptsize] at (1.7,-3.0) {(Midstance)};
+\node[rotate=30, anchor=west, font=\scriptsize] at (4.5,-2.5) {말기 입각기};
+\node[rotate=30, anchor=west, font=\scriptsize] at (4.5,-3.0) {(Terminal Stance)};
+\node[rotate=30, anchor=west, font=\scriptsize] at (6.7,-2.5) {전유각기};
+\node[rotate=30, anchor=west, font=\scriptsize] at (6.7,-3.0) {(Pre-swing)};
+
+% Events
+\node[below, font=\scriptsize\bfseries, text=darkred] at (0,-3.7) {초기 접지};
+\node[below, font=\scriptsize, text=darkred] at (0,-4.1) {(Heel Strike)};
+\node[below, font=\scriptsize\bfseries, text=darkred] at (8.4,-3.7) {발가락 떼기};
+\node[below, font=\scriptsize, text=darkred] at (8.4,-4.1) {(Toe Off)};
+\node[below, font=\scriptsize\bfseries, text=darkred] at (13,-3.7) {다음 초기 접지};
+\end{tikzpicture}
+\caption{보행 주기의 단계 구분. 입각기(Stance Phase)는 발이 지면에 닿아 있는 구간, 유각기(Swing Phase)는 발이 공중에 있는 구간입니다.}
+\label{fig:gait_cycle}
+\end{figure}
+
+\begin{biomechbox}[title={주요 시공간 보행 파라미터}]
+\begin{itemize}[leftmargin=*]
+  \item \textbf{보폭(Stride Length)}: 같은 발의 연속 접지 간 거리 (m)
+  \item \textbf{걸음 길이(Step Length)}: 좌우 발 사이의 접지 거리 (m)
+  \item \textbf{분속수(Cadence)}: 분당 걸음 수 (steps/min)
+  \item \textbf{보행 속도}: $v = \frac{\text{Stride Length} \times \text{Cadence}}{120}$ (m/s)
+  \item \textbf{보폭 너비(Step Width)}: 연속 좌우 발의 횡방향 거리 (m)
+  \item \textbf{양하지 지지기(Double Support)}: 양발이 동시에 지면에 닿는 시간 비율 (\%)
+\end{itemize}
+\end{biomechbox}
+
+
+\section{마커 기반 모션캡처 시스템}
+\label{sec:marker_based}
+
+\subsection{시스템 구성}
+
+\textbf{마커 기반 모션캡처}는 보행 분석의 ``골드 스탠다드(gold standard)''입니다.
+
+\begin{itemize}[leftmargin=*]
+  \item \textbf{적외선 카메라}: 6$\sim$20대, 100$\sim$500\,Hz (Vicon, OptiTrack 등)
+  \item \textbf{반사 마커}: 직경 9$\sim$14\,mm 구형, 해부학적 랜드마크에 부착
+  \item \textbf{힘 측정판(Force Plate)}: 바닥에 매립, 6성분(3축 힘 + 3축 모멘트) 측정
+  \item \textbf{EMG 센서}: 근활성도 측정 (선택사항)
+\end{itemize}
+
+\begin{definition}[삼각측량 (Triangulation)]
+2대 이상의 카메라가 같은 마커를 촬영하면, 각 카메라에서의 2D 좌표와 카메라 보정(calibration) 정보를 이용해 마커의 \textbf{3D 좌표를 역산}하는 과정입니다.
+
+카메라 $j$에서 마커 $i$의 2D 좌표를 $\mathbf{u}_{ij}$라 하면, 3D 좌표 $\mathbf{X}_i$는 다음을 최소화합니다:
+\begin{equation}
+\mathbf{X}_i^* = \arg\min_{\mathbf{X}} \sum_{j} \| \mathbf{u}_{ij} - \pi_j(\mathbf{X}) \|^2
+\end{equation}
+여기서 $\pi_j$는 카메라 $j$의 투영 함수입니다. 이는 Part 1에서 다룬 원근 투영과 동일합니다.
+\end{definition}
+
+\subsection{마커 프로토콜}
+
+마커를 어디에 붙이느냐를 정의하는 것이 \textbf{마커 프로토콜}입니다.
+
+\begin{center}
+\renewcommand{\arraystretch}{1.3}
+\small
+\begin{tabular}{p{3cm}p{4cm}p{5cm}}
+\toprule
+\textbf{프로토콜} & \textbf{특징} & \textbf{주요 마커 위치} \\
+\midrule
+Helen Hayes & 최소 마커 ($\sim$15개), 하지 중심 & ASIS, 대전자, 외측 과, 외과, 발 \\
+\addlinespace
+Plug-in Gait (Vicon) & 전신, 산업 표준 & ASIS, PSIS, 대퇴 완드, 외측상과, 경골 완드, 외과, 종골, 발가락 \\
+\addlinespace
+Cleveland Clinic & 강체 클러스터 & 분절 위 강체판에 다수 마커 (연조직 아티팩트 감소) \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+\begin{clinicalnote}
+마커 기반 시스템의 최대 오차 원인은 \textbf{연조직 아티팩트(soft tissue artifact)}---피부 위의 마커가 뼈의 실제 움직임과 다르게 움직이는 현상---입니다. 대퇴부에서는 최대 20\,mm까지 오차가 발생할 수 있습니다. 이는 마커를 아무리 정확히 붙여도 근본적으로 해결할 수 없는 한계입니다.
+\end{clinicalnote}
+
+\subsection{해부학적 좌표계}
+
+마커 위치로부터 각 분절(segment)의 \textbf{해부학적 좌표계(anatomical coordinate system)}를 정의합니다. 예를 들어 골반(pelvis):
+
+\begin{align}
+\text{원점} &= \frac{\text{R.ASIS} + \text{L.ASIS}}{2} \\[4pt]
+\hat{\mathbf{e}}_x &= \frac{\text{R.ASIS} - \text{L.ASIS}}{\|\text{R.ASIS} - \text{L.ASIS}\|} \quad \text{(내외측, mediolateral)} \\[4pt]
+\mathbf{temp} &= \text{원점} - \text{Sacrum} \quad \text{(전후방향 임시 벡터)} \\[4pt]
+\hat{\mathbf{e}}_y &= \hat{\mathbf{e}}_x \times \mathbf{temp} / \| \hat{\mathbf{e}}_x \times \mathbf{temp} \| \quad \text{(상하, superoinferior)} \\[4pt]
+\hat{\mathbf{e}}_z &= \hat{\mathbf{e}}_x \times \hat{\mathbf{e}}_y \quad \text{(전후, anteroposterior)}
+\end{align}
+
+관절 각도는 인접 분절의 좌표계 사이의 상대 회전으로 계산됩니다.
+
+
+\section{역운동학과 역동역학}
+\label{sec:ik_id}
+
+\subsection{역운동학 (Inverse Kinematics, IK)}
+
+마커의 3D 궤적이 주어졌을 때, 근골격 모델의 \textbf{일반화 좌표(generalized coordinates)} $\mathbf{q}$ (관절 각도들)를 구하는 과정입니다.
+
+\begin{equation}
+\boxed{
+\mathbf{q}^* = \arg\min_{\mathbf{q}} \left[ \sum_{i=1}^{N_m} w_i \| \vx_i^{\text{exp}} - \vx_i^{\text{model}}(\mathbf{q}) \|^2 + \sum_{j} w_j^c (q_j^{\text{exp}} - q_j)^2 \right]
+}
+\label{eq:ik}
+\end{equation}
+
+\begin{itemize}[leftmargin=*]
+  \item $\vx_i^{\text{exp}}$: 실험에서 측정된 $i$번째 마커의 3D 위치
+  \item $\vx_i^{\text{model}}(\mathbf{q})$: 모델에서 관절 각도 $\mathbf{q}$일 때 $i$번째 마커의 예측 위치
+  \item $w_i$: 마커별 가중치 (신뢰도가 높은 마커에 큰 가중치)
+  \item $w_j^c, q_j^{\text{exp}}$: 좌표 제약조건 (선택사항)
+\end{itemize}
+
+\begin{remark}
+Part 1에서 다룬 SMPL의 순방향 운동학(\cref{sec:fk} in Part 1)은 ``관절 각도 $\rightarrow$ 메시 꼭짓점''의 순방향 과정입니다. 역운동학은 정확히 그 반대---``관측 위치 $\rightarrow$ 관절 각도''---를 구합니다. 수학적으로 이 둘은 역관계이며, 역운동학은 최적화 문제로 풀립니다.
+\end{remark}
+
+\subsection{역동역학 (Inverse Dynamics, ID)}
+
+관절 각도(IK 결과)와 외력(바닥반력)이 주어지면, 각 관절에서의 \textbf{내부 모멘트(joint moment)}를 계산합니다.
+
+\textbf{뉴턴-오일러 방정식}을 말단(발)에서 근위(골반) 방향으로 재귀적으로 풀어갑니다:
+
+\begin{align}
+\sum \vF &= m \va_{\text{CoM}} & \text{(병진 운동)} \label{eq:newton} \\
+\sum \vM &= \mathbf{I} \bm{\alpha} + \bm{\omega} \times (\mathbf{I} \bm{\omega}) & \text{(회전 운동)} \label{eq:euler}
+\end{align}
+
+여기서:
+\begin{itemize}[leftmargin=*]
+  \item $m$: 분절 질량
+  \item $\va_{\text{CoM}}$: 분절 질량중심의 가속도 (IK 결과를 이중 미분)
+  \item $\mathbf{I}$: 분절의 관성 텐서
+  \item $\bm{\alpha}$, $\bm{\omega}$: 분절의 각가속도, 각속도
+  \item $\vF$: 관절력 + 중력 + 외력(GRF)
+  \item $\vM$: 관절 모멘트
+\end{itemize}
+
+\begin{importantnote}[title={역동역학의 입력과 출력}]
+\textbf{입력}: 관절 각도 (IK에서), 바닥반력 (힘 측정판에서), 분절 질량/관성 (인체 측정)
+
+\textbf{출력}: 각 관절에서의 내부 모멘트 (Nm) --- 근육, 인대, 관절낭이 생성하는 순 토크
+
+역동역학은 ``어떤 힘이 이 동작을 만들었는가?''라는 질문에 답합니다. 이는 관절에 가해지는 부하를 이해하고, 부상 위험을 평가하는 데 핵심입니다.
+\end{importantnote}
+
+
+\section{바닥반력 (Ground Reaction Force, GRF)}
+\label{sec:grf}
+
+\begin{definition}[바닥반력]
+걸을 때 발이 지면을 미는 힘에 대한 \textbf{반작용력}(뉴턴 제3법칙)입니다. 힘 측정판(force plate)으로 측정하며, 3성분으로 분해됩니다:
+\begin{itemize}[leftmargin=*]
+  \item $F_x$: 내외측(mediolateral) 힘
+  \item $F_y$: 전후방(anteroposterior) 힘
+  \item $F_z$: 수직(vertical) 힘
+\end{itemize}
+\end{definition}
+
+보행 시 수직 바닥반력($F_z$)은 특징적인 \textbf{이중 봉우리(double hump)} 패턴을 보입니다:
+
+\begin{figure}[H]
+\centering
+\begin{tikzpicture}
+\begin{axis}[
+  width=11cm, height=6cm,
+  xlabel={보행 주기 (\%)},
+  ylabel={수직 GRF (체중 배수, BW)},
+  xmin=0, xmax=100, ymin=0, ymax=1.4,
+  xtick={0,10,20,30,40,50,60,70,80,90,100},
+  ytick={0, 0.2, 0.4, 0.6, 0.8, 1.0, 1.2, 1.4},
+  grid=both, grid style={gray!30},
+  thick,
+  legend pos=north east,
+]
+% Approximate vertical GRF curve
+\addplot[smooth, thick, defblue, domain=0:60, samples=100]
+  {(x>0 && x<60) * (1.2*sin(180*x/60)^0.7 * (1 + 0.15*cos(360*x/60)))};
+\addlegendentry{수직 GRF ($F_z$)}
+
+% Body weight line
+\addplot[dashed, gray, domain=0:100] {1.0};
+\addlegendentry{체중 (1.0 BW)}
+
+% Annotations
+\node[above, font=\small\bfseries, text=darkred] at (axis cs:15,1.18) {제1 봉우리};
+\node[below, font=\scriptsize] at (axis cs:15,1.08) {(하중 반응)};
+\node[above, font=\small\bfseries, text=darkred] at (axis cs:45,1.18) {제2 봉우리};
+\node[below, font=\scriptsize] at (axis cs:45,1.08) {(발가락 밀기)};
+\node[below, font=\small, text=thmgreen] at (axis cs:30,0.75) {골};
+\node[below, font=\scriptsize] at (axis cs:30,0.65) {(중간 입각기)};
+\end{axis}
+\end{tikzpicture}
+\caption{정상 보행 시 수직 바닥반력 패턴. 제1 봉우리(하중 반응기)와 제2 봉우리(말기 입각기)는 약 1.0--1.2 BW이며, 중간 입각기의 골은 약 0.7--0.8 BW입니다.}
+\label{fig:grf}
+\end{figure}
+
+\textbf{압력 중심(Center of Pressure, COP)}은 힘의 작용점입니다:
+\begin{equation}
+\text{COP}_x = -\frac{M_y}{F_z}, \qquad \text{COP}_y = \frac{M_x}{F_z}
+\label{eq:cop}
+\end{equation}
+
+
+\section{OpenSim 파이프라인}
+\label{sec:opensim}
+
+\textbf{OpenSim}은 Stanford 대학에서 개발한 오픈소스 근골격 시뮬레이션 소프트웨어입니다.
+
+\begin{figure}[H]
+\centering
+\begin{tikzpicture}[
+  block/.style={rectangle, draw, rounded corners, minimum width=3.2cm, minimum height=1cm, align=center, font=\small},
+  data/.style={rectangle, draw, rounded corners, minimum width=2.5cm, minimum height=0.7cm, align=center, font=\scriptsize, fill=lightorange},
+  arrow/.style={-{Stealth[length=2.5mm]}, thick}
+]
+% Blocks
+\node[block, fill=lightblue] (scale) at (0,0) {1. 스케일링\\(Scaling)};
+\node[block, fill=lightblue] (ik) at (5,0) {2. 역운동학\\(IK)};
+\node[block, fill=lightblue] (id) at (10,0) {3. 역동역학\\(ID)};
+\node[block, fill=lightgreen] (so) at (10,-2.5) {4. 정적 최적화\\(Static Opt.)};
+
+% Data
+\node[data] (model) at (0,2) {근골격 모델\\(.osim)};
+\node[data] (anthro) at (-2.5,1) {인체 측정\\(mass, height)};
+\node[data] (trc) at (5,2) {마커 궤적\\(.trc)};
+\node[data] (grf) at (10,2) {바닥반력\\(.mot)};
+
+% Arrows
+\draw[arrow] (model) -- (scale);
+\draw[arrow] (anthro) -- (scale);
+\draw[arrow] (scale) -- node[above, font=\scriptsize] {스케일 모델} (ik);
+\draw[arrow] (trc) -- (ik);
+\draw[arrow] (ik) -- node[above, font=\scriptsize] {관절 각도} (id);
+\draw[arrow] (grf) -- (id);
+\draw[arrow] (id) -- node[right, font=\scriptsize] {관절 모멘트} (so);
+
+% Output
+\node[data, fill=lightred] (muscle) at (10,-4.5) {개별 근력\\(N)};
+\draw[arrow] (so) -- (muscle);
+\end{tikzpicture}
+\caption{OpenSim 보행 분석 파이프라인. 각 단계의 출력이 다음 단계의 입력이 됩니다.}
+\label{fig:opensim_pipeline}
+\end{figure}
+
+\subsection{Step 1: 스케일링 (Scaling)}
+
+일반 모델(예: gait2354---23 자유도, 54개 근육)을 피험자의 체형에 맞춥니다.
+
+\begin{itemize}[leftmargin=*]
+  \item 마커 쌍 간 거리 비율로 분절 크기 조정 (예: R.ASIS $\leftrightarrow$ L.ASIS 거리 $\rightarrow$ 골반 너비)
+  \item 체질량으로 분절 질량 조정
+\end{itemize}
+
+\subsection{Step 2: 역운동학 (IK)}
+
+\cref{eq:ik}의 가중 최소자승 문제를 프레임별로 풀어 관절 각도 시계열을 얻습니다.
+
+마커별 가중치 예시: ASIS/Sacrum = 10 (높은 신뢰도), 대퇴 완드 = 1, 두정부 = 0.1.
+
+\subsection{Step 3: 역동역학 (ID)}
+
+\cref{eq:newton,eq:euler}을 말단에서 근위 방향으로 순차 풀어 관절 모멘트를 계산합니다. 운동학 데이터에 6\,Hz 저역통과 필터를 적용합니다.
+
+\subsection{Step 4: 정적 최적화 (Static Optimization)}
+
+관절 모멘트를 개별 근육의 힘으로 분해합니다:
+\begin{equation}
+\min_{\mathbf{a}} \sum_{m=1}^{M} a_m^2 \quad \text{s.t.} \quad \sum_{m=1}^{M} r_m \cdot F_m^{\max} \cdot a_m = \tau_j \quad \forall j
+\label{eq:static_opt}
+\end{equation}
+
+여기서 $a_m$은 근육 $m$의 활성도 ($0 \leq a_m \leq 1$), $r_m$은 모멘트 팔(moment arm), $F_m^{\max}$은 최대 등척성 근력, $\tau_j$는 관절 $j$의 모멘트입니다.
+
+
+\section{전통적 방법의 한계}
+
+\begin{center}
+\renewcommand{\arraystretch}{1.3}
+\begin{tabular}{p{4cm}p{8cm}}
+\toprule
+\textbf{한계} & \textbf{설명} \\
+\midrule
+높은 비용 & 전체 Vicon 랩 구축: \$100K--\$500K \\
+마커 부착 변동성 & 숙련자 간에도 5--10\,mm 차이; 임상 보행 분석 최대 오차 원인 \\
+연조직 아티팩트 & 마커가 뼈 움직임을 정확히 반영하지 못함 (대퇴 $\leq$ 20\,mm) \\
+실험실 제약 & 자연스러운 환경에서의 측정 불가 \\
+긴 준비 시간 & 피험자당 30--60분 (마커 부착 + 정적 시행 + 보정) \\
+전문 인력 필요 & 마커 부착과 데이터 처리에 숙련된 기술자 필요 \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+\begin{summary}
+전통적 보행 분석: 적외선 카메라 + 반사 마커 + 힘 측정판 $\rightarrow$ 마커 3D 궤적 + GRF $\rightarrow$ OpenSim (스케일링 $\rightarrow$ IK $\rightarrow$ ID $\rightarrow$ 정적 최적화) $\rightarrow$ 관절 각도, 모멘트, 근력. 정확하지만 비싸고, 실험실에 제한되며, 마커 부착의 재현성 문제가 있습니다.
+\end{summary}
+
+
+% ====================================================================
+% CHAPTER 2: Markerless Motion Capture
+% ====================================================================
+\chapter{마커리스 모션캡처: 컴퓨터 비전 기반 접근}
+\label{ch:markerless}
+
+\section{왜 마커리스인가?}
+
+전통적 방법의 모든 한계---비용, 마커 부착, 실험실 제약---는 ``마커 없이 영상만으로 동작을 분석할 수 있다면''이라는 질문으로 이어집니다. 컴퓨터 비전과 딥러닝의 발전이 이를 가능하게 하고 있습니다.
+
+\begin{keyidea}
+마커리스 모션캡처의 핵심: 일반 카메라(웹캠, 스마트폰)로 촬영한 \textbf{RGB 영상}에서 딥러닝으로 \textbf{2D/3D 관절 위치}를 추정하고, 이를 생체역학 모델에 연결합니다.
+\end{keyidea}
+
+
+\section{2D 자세 추정 (2D Pose Estimation)}
+
+\subsection{OpenPose}
+
+Cao 등 (2017)이 제안한 실시간 다인물 2D 자세 추정 방법입니다.
+
+\begin{cvbox}[title={OpenPose 작동 원리}]
+\begin{enumerate}[leftmargin=*]
+  \item CNN이 이미지에서 \textbf{관절 히트맵(joint heatmap)}과 \textbf{파트 친화 필드(Part Affinity Field, PAF)}를 동시에 예측
+  \item 히트맵: 각 관절이 존재할 확률의 공간 분포
+  \item PAF: 관절 쌍을 연결하는 2D 벡터 필드 $\rightarrow$ 여러 사람의 관절을 올바르게 연결
+  \item \textbf{Bottom-up 방식}: 먼저 모든 관절을 검출한 후, PAF로 각 사람에게 할당
+\end{enumerate}
+출력: 18개 관절 키포인트 (코, 목, 어깨, 팔꿈치, 손목, 엉덩이, 무릎, 발목 등)
+\end{cvbox}
+
+\subsection{MediaPipe (Google)}
+
+33개 신체 랜드마크를 검출합니다. BlazePose 백본을 사용하며, \textbf{모바일/엣지 디바이스에 최적화}되어 있습니다. FreeMoCap 등 오픈소스 도구에서 주로 사용됩니다.
+
+\subsection{MMPose (OpenMMLab)}
+
+PyTorch 기반 자세 추정 도구 모음으로, HRNet, RTMPose 등 다양한 모델을 지원합니다. 연구 목적으로 가장 유연하고 확장 가능합니다.
+
+\begin{center}
+\renewcommand{\arraystretch}{1.3}
+\small
+\begin{tabular}{lccc}
+\toprule
+& \textbf{OpenPose} & \textbf{MediaPipe} & \textbf{MMPose} \\
+\midrule
+키포인트 수 & 18 & 33 & 모델별 상이 \\
+접근 방식 & Bottom-up & Top-down & 둘 다 지원 \\
+실행 환경 & GPU 필요 & 모바일 가능 & GPU 권장 \\
+속도 & 실시간 & 실시간 & 모델 의존 \\
+용도 & 연구/산업 & 앱/프로토타입 & 연구 \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+
+\section{3D 자세 추정과 SMPL 피팅}
+\label{sec:smpl_fitting}
+
+2D 자세 추정은 깊이(depth) 정보가 없습니다. \textbf{3D 자세 추정}은 단안 영상에서 3D 관절 위치를 복원하며, 더 나아가 Part 1에서 배운 \textbf{SMPL 모델}의 파라미터를 추정합니다.
+
+\subsection{방법의 진화}
+
+\begin{figure}[H]
+\centering
+\begin{tikzpicture}[
+  block/.style={rectangle, draw, rounded corners, minimum width=2.8cm, minimum height=1cm, align=center, font=\small},
+  arrow/.style={-{Stealth[length=2.5mm]}, thick}
+]
+\node[block, fill=lightblue] (smplify) at (0,0) {SMPLify\\(2016)};
+\node[block, fill=lightblue] (hmr) at (4.5,0) {HMR\\(2018)};
+\node[block, fill=lightblue] (spin) at (9,0) {SPIN\\(2019)};
+\node[block, fill=lightgreen] (pymaf) at (4.5,-2) {PyMAF\\(2021)};
+\node[block, fill=lightgreen] (camerhmr) at (9,-2) {CameraHMR\\(2024)};
+
+\draw[arrow] (smplify) -- node[above, font=\scriptsize] {end-to-end} (hmr);
+\draw[arrow] (hmr) -- node[above, font=\scriptsize] {in-the-loop} (spin);
+\draw[arrow] (spin) -- (pymaf);
+\draw[arrow] (pymaf) -- (camerhmr);
+\draw[arrow, dashed, gray] (smplify) -- node[left, font=\scriptsize, text=gray] {최적화 기반} (pymaf);
+
+\node[below, font=\scriptsize, text=gray] at (0,-0.7) {최적화 기반};
+\node[below, font=\scriptsize, text=gray] at (4.5,-0.7) {회귀 기반};
+\node[below, font=\scriptsize, text=gray] at (9,-0.7) {회귀+최적화};
+\end{tikzpicture}
+\caption{SMPL 피팅 방법의 발전. 최적화 기반(SMPLify) $\rightarrow$ 회귀 기반(HMR) $\rightarrow$ 혼합(SPIN, CameraHMR).}
+\end{figure}
+
+\subsection{SMPLify: 최적화 기반 피팅}
+
+2D 키포인트가 주어지면 SMPL 파라미터 $(\vbeta, \vtheta)$를 최적화로 구합니다:
+
+\begin{equation}
+E(\vbeta, \vtheta) = \underbrace{E_J(\vbeta, \vtheta; \mathbf{K}, J_{\text{est}})}_{\text{재투영 오차}} + \lambda_\theta \underbrace{E_\theta(\vtheta)}_{\text{자세 사전}} + \lambda_a \underbrace{E_a(\vtheta)}_{\text{관통 방지}} + \lambda_\beta \underbrace{E_\beta(\vbeta)}_{\text{체형 정규화}}
+\label{eq:smplify}
+\end{equation}
+
+각 항의 의미:
+\begin{itemize}[leftmargin=*]
+  \item $E_J$: SMPL 관절을 2D로 투영했을 때 추정된 2D 키포인트와의 거리
+  \item $E_\theta$: 자세가 자연스러운지 (GMM 사전분포로 학습된 자세 공간에서 벗어나지 않도록)
+  \item $E_a$: 신체 부위 간 관통(interpenetration) 방지
+  \item $E_\beta$: 체형 파라미터가 극단적이지 않도록 정규화
+\end{itemize}
+
+\subsection{HMR: 회귀 기반 피팅}
+
+CNN 인코더가 RGB 이미지에서 직접 SMPL 파라미터를 예측합니다:
+\begin{equation}
+f_\Theta : I_{\text{RGB}} \longrightarrow (\vtheta, \vbeta, \mathbf{K}_{\text{cam}})
+\end{equation}
+
+\textbf{적대적 학습(adversarial training)}: 실제 SMPL 파라미터로 학습된 판별자(discriminator)가 ``자연스러운 인체인가?''를 판단하여 비현실적인 자세를 방지합니다.
+
+\subsection{SPIN: 회귀 + 최적화 루프}
+
+HMR의 예측을 SMPLify로 정제하고, 정제된 결과로 다시 HMR을 지도학습하는 \textbf{자기 개선 순환}:
+\begin{enumerate}[leftmargin=*]
+  \item HMR이 초기 $(\vtheta, \vbeta)$ 예측
+  \item SMPLify가 이를 2D 키포인트에 맞게 정제
+  \item 정제된 결과가 HMR의 새로운 지도 학습 신호
+  \item 반복하면 양쪽 모두 개선
+\end{enumerate}
+
+
+\section{마커 기반 vs 마커리스: 정확도 비교}
+\label{sec:accuracy_comparison}
+
+2024년 체계적 문헌고찰 및 메타분석 결과:
+
+\begin{center}
+\renewcommand{\arraystretch}{1.3}
+\begin{tabular}{p{4cm}cc}
+\toprule
+\textbf{파라미터} & \textbf{일치도 (ICC)} & \textbf{비고} \\
+\midrule
+보행 속도 & 0.81--0.98 & 우수 \\
+보폭 시간 & 0.81--0.98 & 우수 \\
+보폭 길이 & 0.81--0.98 & 우수 \\
+고관절 시상면 각도 & CMC $>$ 0.94 & 우수 \\
+슬관절 시상면 각도 & CMC $>$ 0.94 & 우수 \\
+족관절 시상면 각도 & CMC 0.84--0.93 & 양호 \\
+관상면/횡단면 & 낮음 & \textcolor{darkred}{\textbf{제한적}} \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+\begin{clinicalnote}
+마커리스 시스템은 \textbf{시상면(sagittal plane)} 운동에서는 마커 기반에 근접하는 정확도를 보입니다. 그러나 \textbf{관상면(frontal plane)}과 \textbf{횡단면(transverse plane)} 운동은 아직 임상 의사결정에 충분한 정확도에 도달하지 못했습니다. 이는 단안 영상에서 깊이 방향 움직임을 추정하는 것이 본질적으로 어렵기 때문입니다.
+\end{clinicalnote}
+
+
+% ====================================================================
+% CHAPTER 3: SMPL and Biomechanics Bridge
+% ====================================================================
+\chapter{SMPL과 생체역학의 연결}
+\label{ch:smpl_biomech}
+
+\section{핵심 문제: 표현의 차이}
+
+SMPL과 임상 생체역학은 인체를 서로 다르게 표현합니다:
+
+\begin{center}
+\renewcommand{\arraystretch}{1.3}
+\begin{tabular}{p{3cm}p{5cm}p{5cm}}
+\toprule
+& \textbf{SMPL} & \textbf{임상 생체역학} \\
+\midrule
+관절 각도 표현 & 축-각도(axis-angle) 3개 값 & 해부학적 각도 (굴곡/신전, 내전/외전, 내회전/외회전) \\
+자유도 & 모든 관절 3-DOF & 관절마다 다름 (슬관절 $\approx$ 1 DOF) \\
+좌표계 & 모델 내 좌표계 & ISB 해부학적 좌표계 \\
+기준 자세 & T-pose & 해부학적 중립 위치 \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+\begin{importantnote}
+SMPL은 슬관절(무릎)을 \textbf{3자유도(3-DOF)}로 모델링하지만, 실제 무릎은 주로 \textbf{굴곡/신전(flexion/extension) 1-DOF}로 움직입니다 (약간의 회전 성분 있음). 이 ``자유도 불일치''는 SMPL 기반 분석에서 비현실적인 관절 운동이 나올 수 있는 근본적 원인입니다.
+\end{importantnote}
+
+
+\section{SMPL에서 생체역학적 관절 각도 추출}
+\label{sec:joint_angle_extraction}
+
+SMPL 자세 파라미터 $\vtheta$를 임상적으로 의미 있는 관절 각도로 변환하는 과정입니다.
+
+\subsection{방법 1: 직접 변환}
+
+SMPL의 축-각도 $\vtheta_k$에서 회전행렬 $\mR_k$를 구한 후, 해부학적 각도로 분해합니다.
+
+\textbf{Grood \& Suntay 분해}: 관절 좌표계(Joint Coordinate System)를 정의하고, 세 축에 대한 순차 회전으로 분해:
+
+\begin{align}
+\alpha &= \text{atan2}(-R_{23}, R_{33}) & \text{(굴곡/신전)} \\
+\beta &= \text{asin}(R_{13}) & \text{(내전/외전)} \\
+\gamma &= \text{atan2}(-R_{12}, R_{11}) & \text{(내회전/외회전)}
+\end{align}
+
+여기서 $R_{ij}$는 자식 분절 좌표계에서 부모 분절 좌표계로의 회전행렬 원소입니다.
+
+\begin{remark}
+이 분해는 ISB(International Society of Biomechanics) 권장 순서를 따라야 합니다. 분해 순서가 다르면 같은 회전이 다른 각도로 해석됩니다.
+\end{remark}
+
+\subsection{방법 2: 가상 마커 (Virtual Markers)}
+\label{sec:virtual_markers}
+
+더 정확하고 임상적으로 호환되는 방법입니다.
+
+\begin{keyidea}
+SMPL 메시의 특정 꼭짓점들이 해부학적 랜드마크에 대응된다는 사실을 이용합니다. 이 꼭짓점의 3D 좌표를 ``가상 마커(virtual marker)''로 추출하여, 기존 OpenSim IK 파이프라인에 직접 입력합니다.
+\end{keyidea}
+
+\textbf{주요 가상 마커와 SMPL 꼭짓점 대응}:
+
+\begin{center}
+\renewcommand{\arraystretch}{1.3}
+\small
+\begin{tabular}{lll}
+\toprule
+\textbf{해부학적 랜드마크} & \textbf{영문명} & \textbf{SMPL 위치} \\
+\midrule
+전상장골극 (좌/우) & ASIS (L/R) & 골반 전면 돌출 꼭짓점 \\
+후상장골극 (좌/우) & PSIS (L/R) & 골반 후면 꼭짓점 \\
+외측 대퇴상과 & Lateral Epicondyle & 슬관절 외측 꼭짓점 \\
+내측 대퇴상과 & Medial Epicondyle & 슬관절 내측 꼭짓점 \\
+외과 & Lateral Malleolus & 족관절 외측 꼭짓점 \\
+내과 & Medial Malleolus & 족관절 내측 꼭짓점 \\
+종골 & Calcaneus & 발뒤꿈치 꼭짓점 \\
+제2중족골두 & 2nd Metatarsal Head & 발가락 전면 꼭짓점 \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+\textbf{파이프라인}:
+\begin{equation}
+\text{SMPL 메시} \xrightarrow{\text{꼭짓점 인덱싱}} \text{가상 마커 3D 좌표} \xrightarrow{\text{.trc 형식 저장}} \text{OpenSim IK} \xrightarrow{} \text{관절 각도}
+\end{equation}
+
+
+\section{보행 파라미터 추출}
+\label{sec:gait_param_extraction}
+
+SMPL 자세 시퀀스로부터 보행 파라미터를 계산하는 방법입니다.
+
+\subsection{보행 이벤트 검출}
+
+\textbf{초기 접지(Heel Strike)}와 \textbf{발가락 떼기(Toe Off)}를 검출해야 합니다.
+
+힘 측정판 없이 검출하는 방법:
+\begin{enumerate}[leftmargin=*]
+  \item \textbf{발 높이 기반}: 종골(calcaneus) 또는 발가락 마커의 수직 좌표가 최솟값에 도달하는 시점
+  \item \textbf{발 속도 기반}: 발 마커의 수직 속도가 0을 교차하는 시점 (음$\rightarrow$양: 접지, 양$\rightarrow$음: 떼기)
+  \item \textbf{발-골반 거리 기반}: 발과 골반 사이의 전후방 거리가 최대/최소인 시점
+\end{enumerate}
+
+\subsection{시공간 파라미터 계산}
+
+보행 이벤트가 검출되면:
+\begin{align}
+\text{Stride Length} &= \| \vp_{\text{heel}}^{(n+2)} - \vp_{\text{heel}}^{(n)} \| \\
+\text{Step Length} &= \| \vp_{\text{heel,R}}^{(n+1)} - \vp_{\text{heel,L}}^{(n)} \|_{\text{AP}} \\
+\text{Cadence} &= \frac{N_{\text{steps}}}{\Delta t_{\text{total}}} \times 60 \quad \text{(steps/min)} \\
+\text{Gait Speed} &= \frac{\text{Stride Length} \times \text{Cadence}}{120} \quad \text{(m/s)}
+\end{align}
+
+\subsection{관절 가동범위 (Range of Motion, ROM)}
+
+각 관절의 보행 주기 내 최대-최소 각도:
+\begin{equation}
+\text{ROM} = \max_t \theta(t) - \min_t \theta(t)
+\end{equation}
+
+정상 보행의 시상면 ROM:
+
+\begin{center}
+\renewcommand{\arraystretch}{1.3}
+\begin{tabular}{lcc}
+\toprule
+\textbf{관절} & \textbf{정상 ROM (도)} & \textbf{움직임} \\
+\midrule
+고관절 & $\sim$40 & 신전 $-10^\circ$ $\sim$ 굴곡 $30^\circ$ \\
+슬관절 & $\sim$60 & 신전 $0^\circ$ $\sim$ 굴곡 $60^\circ$ \\
+족관절 & $\sim$30 & 저측굴곡 $-20^\circ$ $\sim$ 배측굴곡 $10^\circ$ \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+
+% ====================================================================
+% CHAPTER 4: Force Estimation from Video
+% ====================================================================
+\chapter{영상 기반 힘과 모멘트 추정}
+\label{ch:force_estimation}
+
+\section{왜 힘을 영상에서 추정하는가?}
+
+역동역학(\cref{sec:ik_id})에는 바닥반력(GRF)이 필수입니다. 그러나 힘 측정판은 실험실에만 설치되어 있고, 비용이 높으며, 보행 패턴을 왜곡할 수 있습니다 (``판 위를 밟으려고'' 부자연스러운 걸음). 영상만으로 GRF를 추정할 수 있다면, 실험실 밖에서도 역동역학 분석이 가능합니다.
+
+
+\section{물리 기반 GRF 추정}
+
+\subsection{질량중심 가속도로부터의 추정}
+
+뉴턴 제2법칙을 전체 인체에 적용:
+\begin{equation}
+\boxed{
+\vF_{\text{GRF}} = m \cdot \va_{\text{CoM}} + m \cdot \vg
+}
+\label{eq:grf_from_com}
+\end{equation}
+
+여기서:
+\begin{itemize}[leftmargin=*]
+  \item $m$: 체질량
+  \item $\va_{\text{CoM}}$: 질량중심(Center of Mass)의 가속도
+  \item $\vg = (0, 0, -9.81)$\,m/s$^2$: 중력 가속도
+\end{itemize}
+
+\begin{biomechbox}[title={질량중심은 어떻게 구하는가?}]
+SMPL 메시에서 질량중심을 구하는 방법:
+\begin{enumerate}[leftmargin=*]
+  \item SMPL 메시를 분절별로 나눔 (머리, 몸통, 상완, 전완, 대퇴, 하퇴, 발 등)
+  \item 각 분절의 질량 비율은 인체측정 데이터에서 결정 (예: 대퇴 = 체질량의 10.0\%)
+  \item 각 분절의 CoM은 근위-원위 보간으로 계산:
+  \begin{equation}
+    \text{CoM}_{\text{seg}} = \vp_{\text{prox}} + \lambda \cdot (\vp_{\text{dist}} - \vp_{\text{prox}})
+  \end{equation}
+  여기서 $\lambda$는 인체측정표의 비율 (예: 대퇴는 근위에서 43.3\%)
+  \item 전체 CoM:
+  \begin{equation}
+    \text{CoM}_{\text{total}} = \sum_{\text{seg}} \frac{m_{\text{seg}}}{m_{\text{total}}} \cdot \text{CoM}_{\text{seg}}
+  \end{equation}
+\end{enumerate}
+\end{biomechbox}
+
+$\va_{\text{CoM}}$은 CoM 위치의 \textbf{이중 수치 미분}으로 구합니다. 미분은 노이즈를 증폭시키므로, 반드시 저역통과 필터링 후 수행합니다.
+
+\subsection{단일 지지기와 양측 지지기}
+
+\cref{eq:grf_from_com}은 \textbf{양발의 합력}을 줍니다. 단일 지지기(한 발만 착지)에서는 이것이 그 발의 GRF이지만, 양측 지지기에서는 좌우 분배가 불확정(indeterminate)입니다. 이를 해결하려면 추가 가정(예: COP 궤적 모델)이 필요합니다.
+
+
+\section{딥러닝 기반 GRF 추정}
+
+물리 기반 방법의 한계를 극복하기 위해, \textbf{모션캡처+힘측정판 쌍 데이터}로 학습된 딥러닝 모델을 사용합니다.
+
+\subsection{입력-출력 구조}
+
+\begin{equation}
+f_\Theta : \underbrace{\text{SMPL 자세 시퀀스}}_{\vtheta_1, \ldots, \vtheta_T} \longrightarrow \underbrace{(\vF_{\text{GRF}}^L, \vF_{\text{GRF}}^R)_{t=1}^{T}}_{\text{좌/우 바닥반력}}
+\end{equation}
+
+\subsection{사용되는 아키텍처}
+
+\begin{center}
+\renewcommand{\arraystretch}{1.3}
+\begin{tabular}{lcc}
+\toprule
+\textbf{아키텍처} & \textbf{GRF MAE (\% BW)} & \textbf{특징} \\
+\midrule
+FCNN (완전연결) & 6--8 & 단순, 시간 정보 미사용 \\
+CNN (합성곱) & 5--6 & 시간 윈도우 내 패턴 학습 \\
+Seq2Seq LSTM & 5--6 & 시퀀스 전체 문맥 활용 \\
+Transformer & 5--7 & 어텐션 기반, 장거리 의존성 \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+최신 결과 (Heliyon 2024, 보정 없는 단안 영상): GRF MAE $\approx$ 5.0\% BW.
+
+
+\section{관절 모멘트 추정}
+
+GRF가 추정되면 역동역학으로 관절 모멘트를 계산할 수 있습니다. 또는 직접 영상에서 모멘트를 예측하는 end-to-end 방법도 있습니다.
+
+\subsection{최신 결과}
+
+\textbf{Calibrationless monocular pipeline} (Heliyon 2024):
+
+\begin{center}
+\renewcommand{\arraystretch}{1.3}
+\begin{tabular}{lc}
+\toprule
+\textbf{추정 대상} & \textbf{MAE} \\
+\midrule
+관절 각도 & 8.4$^\circ$ \\
+바닥반력 & 5.0\% BW \\
+관절 모멘트 & 1.1\% BW$\cdot$Height \\
+근활성도 (16개 근육) & 0.11 (0--1 스케일) \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+\subsection{PhysPT: 물리 인식 트랜스포머 (CVPR 2024)}
+
+물리 법칙을 학습에 직접 반영하는 접근입니다.
+
+\begin{cvbox}[title={PhysPT 핵심 아이디어}]
+\begin{enumerate}[leftmargin=*]
+  \item SMPL 메시에서 체적, 질량, 관성 텐서를 직접 계산
+  \item 접촉 모델 도입: 발-지면 접촉 감지 및 GRF 모델링
+  \item \textbf{오일러-라그랑주 손실}: 물리 법칙 위반을 페널티
+  \begin{equation}
+    \mathcal{L}_{\text{physics}} = \| \mathbf{M}(\mathbf{q})\ddot{\mathbf{q}} + \mathbf{C}(\mathbf{q}, \dot{\mathbf{q}})\dot{\mathbf{q}} + \mathbf{G}(\mathbf{q}) - \bm{\tau}_{\text{ext}} \|^2
+  \end{equation}
+  여기서 $\mathbf{M}$은 질량 행렬, $\mathbf{C}$는 코리올리/원심력, $\mathbf{G}$는 중력, $\bm{\tau}_{\text{ext}}$는 외력
+\end{enumerate}
+결과: 가속도 오차 83.8\% 감소, 발 미끄러짐 68.7\% 감소.
+\end{cvbox}
+
+
+% ====================================================================
+% CHAPTER 5: 3DGS + Motion Analysis Fusion
+% ====================================================================
+\chapter{3DGS 인체 재구성과 동작 분석의 융합}
+\label{ch:fusion}
+
+\section{두 세계의 만남}
+
+지금까지 우리는 두 가지 독립적인 연구 흐름을 살펴보았습니다:
+
+\begin{enumerate}[leftmargin=*]
+  \item \textbf{3DGS 인체 재구성}: GART, GauHuman, ExAvatar 등 $\rightarrow$ 고품질 3D 아바타 렌더링
+  \item \textbf{영상 기반 생체역학}: SMPL 피팅 $\rightarrow$ OpenSim $\rightarrow$ 관절 각도/모멘트/근력
+\end{enumerate}
+
+\begin{keyidea}
+핵심 관찰: 3DGS 인체 재구성 방법들은 학습 과정에서 \textbf{SMPL 자세 파라미터 시퀀스를 부산물(byproduct)로 생성}합니다. 이 자세 파라미터는 생체역학 파이프라인의 입력으로 직접 사용할 수 있습니다. 즉, 3DGS는 ``더 정확한 SMPL 피팅''의 수단이 될 수 있습니다.
+\end{keyidea}
+
+
+\section{3DGS가 기존 SMPL 피팅보다 나은 점}
+
+\subsection{다시점 일관성 (Multi-view Consistency)}
+
+HMR/SPIN 같은 기존 방법은 \textbf{프레임 단위}로 독립적으로 SMPL을 피팅합니다. 이로 인해:
+\begin{itemize}[leftmargin=*]
+  \item 프레임 간 자세가 불연속적으로 변할 수 있음 (떨림, jitter)
+  \item 체형 $\vbeta$가 프레임마다 달라질 수 있음
+  \item 깊이 방향 모호성이 심함
+\end{itemize}
+
+3DGS 기반 방법(GART, GauHuman)은:
+\begin{itemize}[leftmargin=*]
+  \item \textbf{하나의 캐노니컬 모델}을 전체 시퀀스에 걸쳐 최적화
+  \item 모든 프레임의 렌더링이 일관된 3D 모델에서 나와야 하므로 \textbf{자연스러운 시간적 일관성}
+  \item 체형 $\vbeta$는 한 번 결정되고 고정
+  \item 렌더링 품질 기반 최적화로 \textbf{자세 정제(pose refinement)} 가능
+\end{itemize}
+
+\subsection{자세 정제 (Pose Refinement)}
+
+GART와 GauHuman은 초기 SMPL 추정치를 입력받아, 렌더링 결과가 실제 영상과 일치하도록 \textbf{자세 파라미터 $\vtheta$를 함께 최적화}합니다:
+
+\begin{equation}
+\vtheta^* = \arg\min_\vtheta \mathcal{L}_{\text{photo}}(\text{Render}(\mathcal{G}, \vtheta), I_{\text{gt}})
+\end{equation}
+
+이 과정에서 ``렌더링이 사진처럼 보이려면 자세가 정확해야 한다''는 강력한 제약이 자세 추정을 간접적으로 개선합니다.
+
+\begin{importantnote}
+현재 시점(2026)에서 3DGS를 직접 생체역학 분석에 사용한 논문은 아직 없습니다. 그러나 여러 연구가 SMPL 피팅의 정확도를 높이기 위해 렌더링 기반 최적화를 활용하고 있으며, 이는 3DGS 기반 접근의 자연스러운 전단계입니다.
+\end{importantnote}
+
+
+\section{제안 파이프라인: 3DGS + 생체역학}
+\label{sec:proposed_pipeline}
+
+\begin{figure}[H]
+\centering
+\begin{tikzpicture}[
+  block/.style={rectangle, draw, rounded corners, minimum width=3.5cm, minimum height=1cm, align=center, font=\small},
+  data/.style={ellipse, draw, minimum width=2cm, minimum height=0.7cm, align=center, font=\scriptsize},
+  arrow/.style={-{Stealth[length=2.5mm]}, thick},
+  node distance=1.5cm
+]
+% Input
+\node[block, fill=lightorange] (video) at (0,0) {영상 입력\\(단안/다시점)};
+
+% 3DGS Pipeline
+\node[block, fill=lightblue] (pose_init) at (0,-2) {초기 SMPL 추정\\(HMR/SPIN)};
+\node[block, fill=defblue!20] (3dgs) at (0,-4) {3DGS 인체 재구성\\(GART/ExAvatar)};
+
+% Outputs from 3DGS
+\node[block, fill=lightgreen] (pose_ref) at (-4.5,-6) {정제된 SMPL\\자세 $\vtheta^*$};
+\node[block, fill=lightgreen] (mesh) at (0,-6) {3D 메시\\가상 마커};
+\node[block, fill=lightgreen] (render) at (4.5,-6) {포토리얼리스틱\\새 시점 렌더링};
+
+% Biomechanics
+\node[block, fill=biogreen!20] (opensim) at (-4.5,-8) {OpenSim\\IK / ID};
+\node[block, fill=biogreen!20] (grf) at (0,-8) {GRF/모멘트\\추정};
+
+% Clinical output
+\node[block, fill=darkred!15] (clinical) at (-2.25,-10) {임상 보행 지표\\(GDI, GPS, ROM)};
+\node[block, fill=darkred!15] (visual) at (4.5,-8) {시각적 동작\\분석 리포트};
+
+% Arrows
+\draw[arrow] (video) -- (pose_init);
+\draw[arrow] (pose_init) -- (3dgs);
+\draw[arrow] (3dgs) -- (pose_ref);
+\draw[arrow] (3dgs) -- (mesh);
+\draw[arrow] (3dgs) -- (render);
+\draw[arrow] (pose_ref) -- (opensim);
+\draw[arrow] (mesh) -- (opensim);
+\draw[arrow] (mesh) -- (grf);
+\draw[arrow] (opensim) -- (clinical);
+\draw[arrow] (grf) -- (clinical);
+\draw[arrow] (render) -- (visual);
+
+% Labels
+\node[right, font=\scriptsize, text=gray] at (0.5,-1) {2D/3D 자세 추정};
+\node[right, font=\scriptsize, text=gray] at (0.5,-3) {렌더링 기반 자세 정제};
+\node[right, font=\scriptsize, text=gray] at (-2,-5) {부산물로 얻어지는 출력};
+\end{tikzpicture}
+\caption{3DGS 기반 통합 동작 분석 파이프라인. 3DGS 재구성의 부산물(정제된 자세, 메시, 가상 마커)이 생체역학 분석의 입력이 됩니다.}
+\label{fig:proposed_pipeline}
+\end{figure}
+
+\subsection{파이프라인 단계별 설명}
+
+\begin{enumerate}[leftmargin=*]
+  \item \textbf{영상 입력}: 단안 또는 다시점 RGB 영상 (스마트폰, 웹캠, GoPro 등)
+  \item \textbf{초기 SMPL 추정}: HMR, SPIN, PyMAF 등으로 프레임별 SMPL 파라미터 초기값
+  \item \textbf{3DGS 인체 재구성}: GART/GauHuman/ExAvatar로 캐노니컬 가우시안 + 자세 정제
+  \item \textbf{정제된 SMPL 자세}: 렌더링 품질 기반으로 최적화된 더 정확한 $\vtheta^*$ 시퀀스
+  \item \textbf{가상 마커 추출}: SMPL 메시 꼭짓점에서 해부학적 랜드마크 추출
+  \item \textbf{OpenSim IK/ID}: 가상 마커 $\rightarrow$ 관절 각도 $\rightarrow$ 관절 모멘트
+  \item \textbf{GRF/모멘트 추정}: 물리 기반 또는 딥러닝 기반
+  \item \textbf{임상 지표}: GDI, GPS, ROM, 보행 속도 등
+  \item \textbf{시각적 리포트}: 임의 시점에서의 포토리얼리스틱 렌더링으로 동작을 시각적으로 평가
+\end{enumerate}
+
+
+\section{3DGS의 추가적 이점: 시각적 분석}
+
+3DGS가 기존 SMPL 피팅 방법에 없는 고유한 가치를 제공하는 부분입니다.
+
+\begin{enumerate}[leftmargin=*]
+  \item \textbf{임의 시점 렌더링}: 환자의 보행을 전면, 후면, 측면에서 고품질로 관찰 가능. 단일 카메라로 촬영해도 다시점 분석 효과
+  \item \textbf{치료 전후 비교}: 같은 시점에서 수술/재활 전후의 3D 모습을 나란히 렌더링
+  \item \textbf{교육용 시각화}: 운동선수나 환자에게 자신의 동작을 3D로 보여주며 피드백
+  \item \textbf{텔레메디신}: 원격 진료에서 고품질 3D 동작 정보 전송
+\end{enumerate}
+
+
+\section{최신 통합 연구 (2024--2026)}
+\label{sec:recent_papers}
+
+\begin{center}
+\renewcommand{\arraystretch}{1.3}
+\small
+\begin{tabular}{p{3cm}p{2.5cm}p{7cm}}
+\toprule
+\textbf{논문} & \textbf{발표} & \textbf{파이프라인} \\
+\midrule
+Biomechanically Accurate Gait Analysis & ISBI 2026 & 다시점 영상 $\rightarrow$ EasyMoCap/SMPL $\rightarrow$ 가상 마커 $\rightarrow$ OpenSim IK $\rightarrow$ 관절 각도 \\
+\addlinespace
+Calibrationless Monocular Pipeline & Heliyon 2024 & 단안 영상 $\rightarrow$ CameraHMR/SMPL $\rightarrow$ 가상 마커 $\rightarrow$ OpenSim IK/ID $\rightarrow$ GRF $\rightarrow$ 근활성도 \\
+\addlinespace
+SAM4Dcap & arXiv 2026 & SAM-Body4D (시간 일관 4D 메시) $\rightarrow$ OpenSim $\rightarrow$ 생체역학 \\
+\addlinespace
+OpenCap Monocular & arXiv 2026 & 단일 스마트폰 $\rightarrow$ WHAM $\rightarrow$ 생체역학 제약 스켈레톤 \\
+\addlinespace
+PhysPT & CVPR 2024 & 단안 영상 $\rightarrow$ 물리 인식 트랜스포머 $\rightarrow$ 역학적으로 일관된 자세 \\
+\addlinespace
+AddBiomechanics & ECCV 2024 & 273명, 70+시간 모캡+힘 데이터셋. 학습 데이터 병목 해소 \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+\begin{summary}
+3DGS 인체 재구성은 (1) SMPL 자세 정제로 더 정확한 운동학 입력 제공, (2) 메시에서 가상 마커 추출로 OpenSim 직접 연결, (3) 포토리얼리스틱 렌더링으로 시각적 분석 지원이라는 세 가지 경로로 동작 분석에 기여할 수 있습니다. 아직 직접 결합한 연구는 없지만, 모든 구성요소가 준비되어 있어 가까운 미래에 등장할 것으로 예상됩니다.
+\end{summary}
+
+
+% ====================================================================
+% CHAPTER 6: Open-Source Tools
+% ====================================================================
+\chapter{오픈소스 도구: FreeMoCap, OpenCap, Pose2Sim}
+\label{ch:tools}
+
+\section{개요}
+
+컴퓨터 비전과 생체역학을 연결하는 오픈소스 도구들이 등장하여, 고가 장비 없이도 동작 분석을 수행할 수 있게 되었습니다.
+
+\begin{center}
+\renewcommand{\arraystretch}{1.3}
+\begin{tabular}{p{2.5cm}p{3cm}p{3.5cm}p{3.5cm}}
+\toprule
+\textbf{도구} & \textbf{입력} & \textbf{자세 추정} & \textbf{출력} \\
+\midrule
+FreeMoCap & 웹캠 2+대 & MediaPipe/YOLO & 3D 키포인트, COM \\
+OpenCap & 스마트폰 2+대 & HRNet/DeepLabCut & OpenSim 관절 각도 \\
+Pose2Sim & 카메라 2+대 & RTMPose/OpenPose & OpenSim 관절 각도 \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+
+\section{FreeMoCap}
+
+\begin{cvbox}[title={FreeMoCap 파이프라인}]
+\begin{enumerate}[leftmargin=*]
+  \item \textbf{카메라 보정}: CharuCo 보드 + Anipose 보정 $\rightarrow$ 카메라 내부/외부 파라미터
+  \item \textbf{2D 자세 추정}: SkellyTracker (MediaPipe, YOLO, DeepLabCut 래핑)
+  \item \textbf{3D 삼각측량}: 다시점 2D $\rightarrow$ 3D 좌표 (RANSAC 또는 DLT)
+  \begin{equation}
+    \mathbf{X}^* = \arg\min_{\mathbf{X}} \sum_{j=1}^{N_{\text{cam}}} \| \mathbf{u}_j - \pi_j(\mathbf{X}) \|^2
+  \end{equation}
+  재투영 오차(reprojection error)로 품질 평가
+  \item \textbf{후처리}: 강체 뼈 길이 제약(rigid bone enforcement), 필터링
+  \item \textbf{질량중심 계산}: 분절별 인체측정 비율 사용:
+  \begin{equation}
+    \text{CoM}_{\text{total}} = \sum_{\text{seg}} w_{\text{seg}} \cdot \big( \vp_{\text{prox}} + \lambda_{\text{seg}} \cdot (\vp_{\text{dist}} - \vp_{\text{prox}}) \big)
+  \end{equation}
+  \item \textbf{내보내기}: Blender, CSV, FBX
+\end{enumerate}
+\end{cvbox}
+
+\textbf{장점}: 완전 무료, 웹캠으로 동작, 설치 간편
+
+\textbf{한계}: OpenSim 직접 연결 없음 (별도 변환 필요), 정확도는 카메라 수와 해상도에 의존
+
+
+\section{OpenCap}
+
+Stanford Biomechanics 그룹이 개발한 웹 기반 플랫폼입니다.
+
+\subsection{파이프라인}
+
+\begin{enumerate}[leftmargin=*]
+  \item \textbf{촬영}: 스마트폰 2대로 피험자 촬영 (웹앱을 통해 동기화)
+  \item \textbf{2D 자세 추정}: HRNet 기반
+  \item \textbf{마커 증강(Marker Augmentation)}: 검출된 키포인트에서 가상 해부학적 마커를 ML로 증강
+  \item \textbf{OpenSim IK}: 증강된 마커로 역운동학 $\rightarrow$ 관절 각도
+  \item \textbf{근골격 역학}: 물리 시뮬레이션 + ML로 관절 모멘트, 근력 추정
+\end{enumerate}
+
+\subsection{검증 결과 (2024)}
+
+\begin{center}
+\renewcommand{\arraystretch}{1.3}
+\begin{tabular}{lcc}
+\toprule
+\textbf{파라미터} & \textbf{MAE} & \textbf{RMSE} \\
+\midrule
+전체 관절 각도 평균 & 3.85$^\circ$ & 4.34$^\circ$ \\
+고관절 시상면 & CMC $>$ 0.94 & -- \\
+슬관절 시상면 & CMC $>$ 0.94 & -- \\
+족관절 시상면 & CMC 0.84--0.93 & -- \\
+관상면/횡단면 & 낮은 일치도 & -- \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+\subsection{OpenCap Monocular (2026)}
+
+최신 확장으로, \textbf{단일 스마트폰}만으로 분석 가능:
+\begin{itemize}[leftmargin=*]
+  \item WHAM (World-grounded Human Mesh recovery) 기반 자세 추정
+  \item 생체역학적 관절 제약 적용 (예: 슬관절 1-DOF 제약)
+  \item 물리 시뮬레이션 + ML로 운동역학 추정
+\end{itemize}
+
+
+\section{Pose2Sim}
+
+``OpenPose to OpenSim'' --- 컴퓨터 비전 출력을 근골격 모델링으로 직접 연결합니다.
+
+\subsection{파이프라인}
+
+\begin{enumerate}[leftmargin=*]
+  \item \textbf{2D 자세 추정}: RTMPose, OpenPose, DeepLabCut, 또는 기타 지원 모델
+  \item \textbf{카메라 보정}: 내부/외부 파라미터
+  \item \textbf{인물 연관(Person Association)}: 다시점에서 같은 사람 매칭
+  \item \textbf{3D 삼각측량}: 2D $\rightarrow$ 3D
+  \item \textbf{필터링}: 버터워스 등 저역통과 필터
+  \item \textbf{마커 증강}: 키포인트에서 마커 세트로 확장
+  \item \textbf{OpenSim 스케일링 + IK}: 정적 시행 없이도 가능 (v0.10.0+)
+\end{enumerate}
+
+\begin{importantnote}
+Pose2Sim v0.10.0 (2024)부터 \textbf{정적 시행(static trial) 없이} OpenSim 스케일링과 IK를 수행할 수 있습니다. 이전에는 T-pose로 선 정적 시행이 필수였으나, 동적 시행에서 자동으로 분절 길이를 추정합니다.
+\end{importantnote}
+
+
+\section{도구 비교}
+
+\begin{center}
+\renewcommand{\arraystretch}{1.3}
+\small
+\begin{tabular}{p{2.5cm}ccccc}
+\toprule
+\textbf{도구} & \textbf{최소 카메라} & \textbf{비용} & \textbf{OpenSim} & \textbf{GRF} & \textbf{사용 난이도} \\
+\midrule
+FreeMoCap & 2 (웹캠) & 무료 & 간접 & $\times$ & 낮음 \\
+OpenCap & 2 (스마트폰) & 무료 & 직접 & $\bigcirc$ & 매우 낮음 \\
+Pose2Sim & 2+ & 무료 & 직접 & $\times$ & 중간 \\
+OpenCap Mono & 1 (스마트폰) & 무료 & 직접 & $\bigcirc$ & 매우 낮음 \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+
+% ====================================================================
+% CHAPTER 7: Clinical Gait Metrics
+% ====================================================================
+\chapter{임상 보행 지표와 검증}
+\label{ch:clinical}
+
+\section{왜 표준화된 지표가 필요한가?}
+
+관절 각도 그래프만으로는 보행의 ``정상''과 ``비정상''을 객관적으로 판단하기 어렵습니다. 임상에서는 정상 보행과의 차이를 \textbf{단일 숫자}로 요약하는 지표를 사용합니다.
+
+
+\section{Gait Profile Score (GPS)}
+
+\begin{definition}[Gait Profile Score]
+피험자의 운동학 데이터와 정상 대조군 평균 사이의 \textbf{RMS 차이}입니다.
+\end{definition}
+
+\subsection{계산 과정}
+
+\textbf{Step 1}: 각 운동학 변수 $v$에 대해 \textbf{Gait Variable Score (GVS)} 계산:
+\begin{equation}
+\text{GVS}_v = \sqrt{\frac{1}{T} \sum_{t=1}^{T} \big( \theta_v^{\text{subject}}(t) - \theta_v^{\text{control}}(t) \big)^2}
+\label{eq:gvs}
+\end{equation}
+
+$T$는 보행 주기의 샘플 수 (보통 51점, 0\%$\sim$100\% 2\% 간격).
+
+\textbf{Step 2}: 모든 변수의 GVS로부터 GPS 계산:
+\begin{equation}
+\boxed{
+\text{GPS} = \sqrt{\frac{1}{N_v} \sum_{v=1}^{N_v} \text{GVS}_v^2}
+}
+\label{eq:gps}
+\end{equation}
+
+$N_v$는 변수 수 (보통 9개 또는 15개).
+
+\begin{biomechbox}[title={표준 GPS 변수 (9개)}]
+\begin{enumerate}[leftmargin=*]
+  \item 골반 기울기 (Pelvic Tilt) --- 시상면
+  \item 골반 경사 (Pelvic Obliquity) --- 관상면
+  \item 골반 회전 (Pelvic Rotation) --- 횡단면
+  \item 고관절 굴곡/신전 (Hip Flex/Ext)
+  \item 고관절 내전/외전 (Hip Ad/Abduction)
+  \item 고관절 내회전/외회전 (Hip Rotation)
+  \item 슬관절 굴곡/신전 (Knee Flex/Ext)
+  \item 족관절 배측/저측 굴곡 (Ankle Dorsi/Plantarflex)
+  \item 족부 진행각 (Foot Progression Angle)
+\end{enumerate}
+\end{biomechbox}
+
+\subsection{Movement Analysis Profile (MAP)}
+
+GVS 값을 막대 그래프로 시각화한 것이 MAP입니다. 어떤 관절/평면에서 정상과 가장 크게 벗어나는지 한눈에 파악할 수 있습니다.
+
+\subsection{해석}
+
+\begin{center}
+\renewcommand{\arraystretch}{1.3}
+\begin{tabular}{ll}
+\toprule
+\textbf{GPS 값} & \textbf{해석} \\
+\midrule
+$< 5^\circ$ & 정상 범위 \\
+$5^\circ$--$7^\circ$ & 경미한 이상 \\
+$7^\circ$--$10^\circ$ & 중등도 이상 \\
+$> 10^\circ$ & 심한 이상 \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+
+\section{Gait Deviation Index (GDI)}
+
+\begin{definition}[Gait Deviation Index]
+정상 보행 데이터베이스를 기반으로 SVD(특이값 분해)로 추출한 독립 보행 특징 공간에서의 거리를 점수화한 것입니다.
+\end{definition}
+
+\subsection{계산 과정}
+
+\textbf{Step 1}: 정상 대조군의 운동학 데이터 ($N_v$ 변수 $\times$ $T$ 시점 = $N_v \times T$ 차원 벡터)에 SVD를 적용하여 독립 특징(gait feature) 추출.
+
+\textbf{Step 2}: 처음 15개 특징으로 차원 축소.
+
+\textbf{Step 3}: 피험자의 운동학 데이터를 이 특징 공간에 투영.
+
+\textbf{Step 4}: 정상군 평균과의 유클리드 거리를 정규화:
+\begin{equation}
+\text{GDI} = 100 - \frac{10}{\sigma_{\text{control}}} \cdot d(\mathbf{z}_{\text{subject}}, \bar{\mathbf{z}}_{\text{control}})
+\label{eq:gdi}
+\end{equation}
+
+\subsection{해석}
+
+\begin{itemize}[leftmargin=*]
+  \item $\text{GDI} \geq 100$: 정상 보행
+  \item $\text{GDI} = 90$: 정상 평균에서 1 표준편차
+  \item $\text{GDI} = 80$: 정상 평균에서 2 표준편차
+  \item 10점 감소 $=$ 정상에서 1 SD 이탈
+\end{itemize}
+
+\begin{clinicalnote}
+GPS는 \textbf{각 관절별 기여}를 MAP으로 볼 수 있어 ``어디가 문제인가''에 답합니다. GDI는 \textbf{전체 보행 패턴의 정상도}를 단일 숫자로 요약하여 ``전체적으로 얼마나 비정상인가''에 답합니다. 둘은 상호보완적이며, 둘 사이의 관계: $\text{GDI}^* \approx -6.6 + 1.1 \times \text{GDI}$ ($r^2 = 0.996$).
+\end{clinicalnote}
+
+
+\section{마커리스 시스템의 임상 검증 현황}
+
+\begin{center}
+\renewcommand{\arraystretch}{1.3}
+\small
+\begin{tabular}{p{3cm}p{2cm}p{2.5cm}p{4.5cm}}
+\toprule
+\textbf{방법} & \textbf{관절 각도 MAE} & \textbf{GRF MAE} & \textbf{임상 적용 가능성} \\
+\midrule
+Vicon (골드 스탠다드) & $<2^\circ$ & $<1$\% BW & 완전 (현재 표준) \\
+Theia3D (마커리스) & $2$--$5^\circ$ & -- & 높음 (상용, 검증 다수) \\
+OpenCap (다시점) & $3.85^\circ$ & 추정 가능 & 중간--높음 (연구 검증 중) \\
+단안 SMPL & $8.4^\circ$ & $5.0$\% BW & 스크리닝용 가능 \\
+3DGS 정제 SMPL & 미검증 & 미검증 & \textbf{연구 기회} \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+
+% ====================================================================
+% CHAPTER 8: Future Directions
+% ====================================================================
+\chapter{미래 방향과 연구 기회}
+\label{ch:future}
+
+\section{현재 기술의 한계}
+
+\begin{enumerate}[leftmargin=*]
+  \item \textbf{관상면/횡단면 정확도}: 단안 영상에서 깊이 방향 움직임 추정이 근본적으로 어려움
+  \item \textbf{GRF 추정 정확도}: 5\% BW는 임상 의사결정에 아직 부족
+  \item \textbf{실시간 처리}: 3DGS 렌더링은 실시간이지만, SMPL 피팅 + 3DGS 학습은 오프라인
+  \item \textbf{임상 검증 부족}: 마커리스 시스템의 대규모 임상 시험 부족
+  \item \textbf{표준화}: 마커리스 보행 분석의 표준 프로토콜 미확립
+\end{enumerate}
+
+
+\section{연구 기회}
+
+\subsection{기회 1: 3DGS 자세 정제의 생체역학적 검증}
+
+\begin{keyidea}
+GART/GauHuman의 자세 정제가 실제로 생체역학적 정확도를 향상시키는지 검증. Vicon 데이터와 동시 촬영된 영상으로 비교 실험 설계.
+\end{keyidea}
+
+\textbf{가설}: 렌더링 기반 자세 정제는 2D 재투영 오차만 최소화하는 기존 방법보다 3D 자세가 더 정확할 것이다.
+
+\textbf{실험}: Vicon + RGB 동시 촬영 $\rightarrow$ (a) HMR만, (b) HMR + 3DGS 정제 $\rightarrow$ 두 방법의 관절 각도를 Vicon 결과와 비교.
+
+\subsection{기회 2: 물리 인식 3DGS}
+
+3DGS 학습에 \textbf{물리 법칙 제약}을 추가:
+\begin{equation}
+\mathcal{L}_{\text{total}} = \underbrace{\mathcal{L}_{\text{photo}}}_{\text{렌더링 품질}} + \lambda_{\text{phys}} \underbrace{\mathcal{L}_{\text{physics}}}_{\text{물리 법칙}} + \lambda_{\text{bio}} \underbrace{\mathcal{L}_{\text{bio}}}_{\text{생체역학 제약}}
+\end{equation}
+
+\begin{itemize}[leftmargin=*]
+  \item $\mathcal{L}_{\text{physics}}$: 뉴턴-오일러 방정식 만족 (PhysPT 스타일)
+  \item $\mathcal{L}_{\text{bio}}$: 관절 가동범위 제한, 슬관절 1-DOF 제약 등
+\end{itemize}
+
+\subsection{기회 3: 단일 스마트폰 end-to-end 파이프라인}
+
+\begin{equation}
+\text{스마트폰 영상} \xrightarrow{\text{SMPL 추정}} \xrightarrow{\text{경량 3DGS}} \xrightarrow{\text{OpenSim}} \text{임상 보고서}
+\end{equation}
+
+개발도상국이나 원격 지역에서 접근 가능한 보행 분석 시스템. OpenCap Monocular (2026)가 이 방향의 첫 걸음.
+
+\subsection{기회 4: 시계열 3DGS + 종단 연구}
+
+동일 환자의 재활 과정을 주기적으로 촬영하여:
+\begin{itemize}[leftmargin=*]
+  \item 시간에 따른 보행 패턴 변화를 3D로 시각화
+  \item GDI/GPS 추이를 자동으로 추적
+  \item 치료 효과를 포토리얼리스틱 비교 영상으로 제시
+\end{itemize}
+
+\subsection{기회 5: 스포츠 특화 분석}
+
+\begin{itemize}[leftmargin=*]
+  \item \textbf{러닝 폼 분석}: 착지 패턴(전족, 중족, 후족), 접지 시간, 수직 진동
+  \item \textbf{ACL 부상 위험}: 착지 시 동적 슬관절 외반각(knee valgus)
+  \item \textbf{투구/스윙 분석}: 관절 부하 추정으로 부상 예방
+\end{itemize}
+
+
+\section{골드 스탠다드와의 정확도 비교 종합}
+
+\begin{center}
+\renewcommand{\arraystretch}{1.3}
+\begin{tabular}{p{3cm}cccc}
+\toprule
+\textbf{방법} & \textbf{관절 각도} & \textbf{GRF} & \textbf{준비 시간} & \textbf{비용} \\
+\midrule
+Vicon (마커 기반) & $<2^\circ$ & $<1$\% BW & 30--60분 & \$100K+ \\
+Theia3D (마커리스) & $2$--$5^\circ$ & -- & 5분 & \$30K+ \\
+OpenCap (다시점) & $3.85^\circ$ & 추정 가능 & 5--10분 & $\sim$\$0 \\
+단안 SMPL & $8.4^\circ$ & $5.0$\% BW & 0분 & $\sim$\$0 \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+기술이 발전함에 따라 ``비용 $\downarrow$, 정확도 $\uparrow$'' 추세가 뚜렷합니다. 3DGS 기반 자세 정제는 이 격차를 더 줄일 잠재력이 있습니다.
+
+\begin{summary}
+3DGS와 동작 분석의 융합은 아직 초기 단계이지만, 모든 구성요소---3DGS 인체 재구성, SMPL 기반 자세 추정, 가상 마커 추출, OpenSim 생체역학, 물리 기반 힘 추정---가 이미 준비되어 있습니다. 핵심 연구 기회는 이 조각들을 \textbf{하나의 통합된 파이프라인}으로 연결하고, \textbf{임상적으로 검증}하는 것입니다.
+\end{summary}
+
+
+% ====================================================================
+% Appendix: Key Equations
+% ====================================================================
+\chapter{수학적 부록}
+\label{ch:appendix}
+
+\section{뉴턴-오일러 방정식의 재귀적 풀이}
+\label{sec:newton_euler_recursive}
+
+역동역학에서 말단 분절(발)부터 근위(골반)로 올라가며 재귀적으로 풉니다.
+
+분절 $i$에 대해 ($i+1$은 원위 분절):
+
+\textbf{병진 (Newton)}:
+\begin{equation}
+\vF_i^{\text{prox}} = m_i \va_i^{\text{CoM}} + \vF_i^{\text{dist}} - m_i \vg - \vF_i^{\text{ext}}
+\end{equation}
+
+\textbf{회전 (Euler)}:
+\begin{equation}
+\vM_i^{\text{prox}} = \mathbf{I}_i \bm{\alpha}_i + \bm{\omega}_i \times (\mathbf{I}_i \bm{\omega}_i) + \vM_i^{\text{dist}} + \vr_i^{\text{dist}} \times \vF_i^{\text{dist}} - \vr_i^{\text{prox}} \times \vF_i^{\text{prox}} - \vM_i^{\text{ext}}
+\end{equation}
+
+여기서:
+\begin{itemize}[leftmargin=*]
+  \item $\vF_i^{\text{prox}}$, $\vF_i^{\text{dist}}$: 근위/원위 관절력
+  \item $\vM_i^{\text{prox}}$, $\vM_i^{\text{dist}}$: 근위/원위 관절 모멘트
+  \item $\vr_i^{\text{prox}}$, $\vr_i^{\text{dist}}$: CoM에서 근위/원위 관절까지의 벡터
+  \item $\vF_i^{\text{ext}}$, $\vM_i^{\text{ext}}$: 외력/외부 모멘트 (GRF 등)
+\end{itemize}
+
+시작점(발): $\vF_{\text{foot}}^{\text{dist}} = \vF_{\text{GRF}}$, $\vM_{\text{foot}}^{\text{dist}} = \vr_{\text{COP}} \times \vF_{\text{GRF}}$.
+
+
+\section{Grood \& Suntay 관절 좌표계}
+\label{sec:grood_suntay}
+
+두 분절(근위 $P$, 원위 $D$)의 해부학적 좌표계로부터 관절 각도를 정의합니다.
+
+\textbf{세 축 정의}:
+\begin{align}
+\hat{\mathbf{e}}_1 &= \hat{\mathbf{e}}_P^{\text{mediolateral}} & \text{(근위 분절 고정축)} \\
+\hat{\mathbf{e}}_3 &= \hat{\mathbf{e}}_D^{\text{longitudinal}} & \text{(원위 분절 고정축)} \\
+\hat{\mathbf{e}}_2 &= \hat{\mathbf{e}}_3 \times \hat{\mathbf{e}}_1 / \| \hat{\mathbf{e}}_3 \times \hat{\mathbf{e}}_1 \| & \text{(부유축, floating axis)}
+\end{align}
+
+\textbf{관절 각도}:
+\begin{align}
+\alpha &= \arccos(\hat{\mathbf{e}}_1 \cdot \hat{\mathbf{e}}_2) - \pi/2 & \text{(굴곡/신전)} \\
+\beta &= \arccos(\hat{\mathbf{e}}_1 \cdot \hat{\mathbf{e}}_3) - \pi/2 & \text{(내전/외전)} \\
+\gamma &= \arccos(\hat{\mathbf{e}}_2 \cdot \hat{\mathbf{e}}_3) - \pi/2 & \text{(내회전/외회전)}
+\end{align}
+
+이 분해는 짐벌 락(gimbal lock)에 취약하지만, 보행의 일반적인 관절 각도 범위에서는 문제가 되지 않습니다.
+
+
+\section{인체측정 데이터 (Anthropometric Data)}
+\label{sec:anthropometric}
+
+분절 질량 비율 및 CoM 위치 (Dempster, 1955; Winter, 2009):
+
+\begin{center}
+\renewcommand{\arraystretch}{1.3}
+\begin{tabular}{lccc}
+\toprule
+\textbf{분절} & \textbf{질량 비율 (\%)} & \textbf{CoM 위치 (\%)} & \textbf{기준} \\
+\midrule
+머리+목 & 8.1 & 50.0 & 두정$\rightarrow$C7/T1 \\
+몸통 & 49.7 & 50.0 & C7/T1$\rightarrow$L5/S1 \\
+상완 & 2.8 & 43.6 & 근위(어깨)$\rightarrow$원위(팔꿈치) \\
+전완 & 1.6 & 43.0 & 근위$\rightarrow$원위 \\
+손 & 0.6 & 50.6 & 근위$\rightarrow$원위 \\
+대퇴 & 10.0 & 43.3 & 근위(고관절)$\rightarrow$원위(슬관절) \\
+하퇴 & 4.7 & 43.3 & 근위$\rightarrow$원위 \\
+발 & 1.4 & 50.0 & 종골$\rightarrow$발가락 \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+CoM 위치 \%는 근위점에서 원위점 방향으로의 비율입니다.
+
+
+\section{SVD 기반 GDI 특징 추출}
+\label{sec:svd_gdi}
+
+$M$명의 정상 대조군 데이터 행렬 $\mathbf{D} \in \RR^{M \times (N_v \cdot T)}$:
+
+\begin{equation}
+\mathbf{D} = \mathbf{U} \bm{\Sigma} \mathbf{V}^\top
+\end{equation}
+
+처음 15개 특이벡터 $\mathbf{V}_{:,1:15}$를 보행 특징 기저로 사용. 피험자 데이터 $\mathbf{d} \in \RR^{N_v \cdot T}$의 특징 공간 투영:
+
+\begin{equation}
+\mathbf{z} = \mathbf{V}_{:,1:15}^\top \mathbf{d} \in \RR^{15}
+\end{equation}
+
+GDI:
+\begin{equation}
+\text{GDI} = 100 - \frac{10}{\sigma_{\text{ref}}} \| \mathbf{z} - \bar{\mathbf{z}}_{\text{ref}} \|_2
+\end{equation}
+
+
+% ==================== REFERENCES ====================
+\chapter*{참고 문헌}
+\addcontentsline{toc}{chapter}{참고 문헌}
+
+\begin{enumerate}[leftmargin=*, label={[\arabic*]}]
+  \item Perry, J. \& Burnfield, J.M. ``Gait Analysis: Normal and Pathological Function.'' 2nd ed., SLACK, 2010.
+
+  \item Winter, D.A. ``Biomechanics and Motor Control of Human Movement.'' 4th ed., Wiley, 2009.
+
+  \item Delp, S.L. et al. ``OpenSim: Open-Source Software to Create and Analyze Dynamic Simulations of Movement.'' \textit{IEEE Trans. Biomed. Eng.}, 2007.
+
+  \item Schwartz, M.H. \& Rozumalski, A. ``The Gait Deviation Index: A New Comprehensive Index of Gait Pathology.'' \textit{Gait \& Posture}, 2008.
+
+  \item Baker, R. et al. ``The Gait Profile Score and Movement Analysis Profile.'' \textit{Gait \& Posture}, 2009.
+
+  \item Cao, Z. et al. ``Realtime Multi-Person 2D Pose Estimation using Part Affinity Fields.'' \textit{CVPR}, 2017.
+
+  \item Bogo, F. et al. ``Keep it SMPL: Automatic Estimation of 3D Human Pose and Shape from a Single Image.'' (SMPLify) \textit{ECCV}, 2016.
+
+  \item Kanazawa, A. et al. ``End-to-end Recovery of Human Shape and Pose.'' (HMR) \textit{CVPR}, 2018.
+
+  \item Kolotouros, N. et al. ``Learning to Reconstruct 3D Human Pose and Shape via Model-fitting in the Loop.'' (SPIN) \textit{ICCV}, 2019.
+
+  \item Uhlrich, S.D. et al. ``OpenCap: Human Movement Dynamics from Smartphone Videos.'' \textit{PLoS Comp. Biol.}, 2023.
+
+  \item Pagnon, D. et al. ``Pose2Sim: An End-to-End Workflow for 3D Markerless Kinematics.'' \textit{J. Open Source Software}, 2022.
+
+  \item Cherian, J. et al. ``Biomechanically Accurate Gait Analysis from Multi-view Video.'' \textit{ISBI}, 2026. arXiv:2603.02499.
+
+  \item Ito, K. et al. ``Calibrationless Monocular Vision Musculoskeletal Simulation During Gait.'' \textit{Heliyon}, 2024.
+
+  \item Zhang, J. et al. ``PhysPT: Physics-aware Pretrained Transformer for Estimating Human Dynamics from Monocular Videos.'' \textit{CVPR}, 2024.
+
+  \item Werling, K. et al. ``AddBiomechanics Dataset.'' \textit{ECCV}, 2024.
+
+  \item Werling, K. et al. ``OpenCap Monocular: Markerless Motion Capture and Musculoskeletal Dynamics from a Single Smartphone Video.'' arXiv:2603.24733, 2026.
+
+  \item Wang, C. et al. ``SAM4Dcap: End-to-End Optical Markerless Motion Capture and Biomechanical Analysis.'' arXiv:2602.13760, 2026.
+
+  \item Lei, J. et al. ``GART: Gaussian Articulated Template Models.'' \textit{CVPR}, 2024.
+
+  \item Hu, S. et al. ``GauHuman: Articulated Gaussian Splatting from Monocular Human Videos.'' \textit{CVPR}, 2024.
+
+  \item Moon, G. et al. ``ExAvatar: Expressive Whole-Body 3D Gaussian Avatar.'' \textit{ECCV}, 2024.
+
+  \item Kocabas, M. et al. ``HUGS: Human Gaussian Splats.'' \textit{CVPR}, 2024.
+
+  \item Loper, M. et al. ``SMPL: A Skinned Multi-Person Linear Model.'' \textit{ACM Trans. Graphics}, 2015.
+
+  \item Pavlakos, G. et al. ``Expressive Body Capture: 3D Hands, Face, and Body from a Single Image.'' (SMPL-X) \textit{CVPR}, 2019.
+
+  \item Dempster, W.T. ``Space Requirements of the Seated Operator.'' WADC Technical Report 55-159, 1955.
+
+  \item Grood, E.S. \& Suntay, W.J. ``A Joint Coordinate System for the Clinical Description of Three-Dimensional Motions.'' \textit{J. Biomech. Eng.}, 1983.
+\end{enumerate}
+
+
+% ==================== GLOSSARY ====================
+\chapter*{용어집}
+\addcontentsline{toc}{chapter}{용어집}
+
+\begin{description}[leftmargin=!, labelwidth=4.5cm, font=\normalfont\bfseries]
+  \item[Cadence] 분속수. 분당 걸음 수 (steps/min).
+
+  \item[CMC] Coefficient of Multiple Correlation. 다중상관계수. 두 시계열 파형의 유사도를 0--1로 표현.
+
+  \item[COP] Center of Pressure. 압력 중심. 바닥반력의 작용점.
+
+  \item[Double Support] 양하지 지지기. 양발이 동시에 지면에 닿아 있는 보행 주기의 구간.
+
+  \item[EMG] Electromyography. 근전도. 근육의 전기적 활성을 측정.
+
+  \item[Force Plate] 힘 측정판. 6성분 (3축 힘 + 3축 모멘트)을 측정하는 장비.
+
+  \item[Forward Kinematics] 순방향 운동학. 관절 각도로부터 말단 위치를 계산.
+
+  \item[Gait Cycle] 보행 주기. 한 발의 접지부터 같은 발의 다음 접지까지.
+
+  \item[GDI] Gait Deviation Index. 보행 편차 지수. 정상 보행과의 전체적 차이를 100점 기준으로 표현.
+
+  \item[GPS] Gait Profile Score. 보행 프로파일 점수. 관절별 RMS 차이의 종합.
+
+  \item[GRF] Ground Reaction Force. 바닥반력. 지면이 발에 가하는 반작용력.
+
+  \item[GVS] Gait Variable Score. 보행 변수 점수. 특정 관절/평면의 정상 대비 RMS 차이.
+
+  \item[HMR] Human Mesh Recovery. 단안 영상에서 SMPL 메시를 회귀로 추정하는 방법.
+
+  \item[ICC] Intraclass Correlation Coefficient. 급내상관계수. 측정 신뢰도/일치도 지표.
+
+  \item[Inverse Dynamics] 역동역학. 운동학 + 외력으로부터 관절 내부 모멘트를 계산.
+
+  \item[Inverse Kinematics] 역운동학. 관측된 마커/키포인트 위치로부터 관절 각도를 추정.
+
+  \item[LBS] Linear Blend Skinning. 선형 혼합 스키닝.
+
+  \item[MAP] Movement Analysis Profile. 운동 분석 프로파일. GVS의 시각적 막대 그래프.
+
+  \item[Moment Arm] 모멘트 팔. 근육의 힘 작용선과 관절 중심 사이의 수직 거리.
+
+  \item[OpenSim] Stanford 개발 오픈소스 근골격 시뮬레이션 소프트웨어.
+
+  \item[Pose Estimation] 자세 추정. 이미지/영상에서 인체 관절 위치를 검출.
+
+  \item[ROM] Range of Motion. 관절 가동범위.
+
+  \item[SMPL] Skinned Multi-Person Linear Model. 파라메트릭 인체 모델.
+
+  \item[Stance Phase] 입각기. 발이 지면에 닿아 있는 보행 주기 구간 ($\approx$ 60\%).
+
+  \item[Stride Length] 보폭. 같은 발의 연속 접지 간 거리.
+
+  \item[Swing Phase] 유각기. 발이 공중에 있는 보행 주기 구간 ($\approx$ 40\%).
+
+  \item[Triangulation] 삼각측량. 다시점 2D 좌표로부터 3D 좌표를 역산.
+
+  \item[Virtual Marker] 가상 마커. SMPL 메시의 특정 꼭짓점에서 추출한 해부학적 랜드마크 좌표.
+\end{description}
+
+
+\end{document}
