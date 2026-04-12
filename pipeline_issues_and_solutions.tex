@@ -1,0 +1,575 @@
+\documentclass[11pt, a4paper]{report}
+
+\input{preamble/packages}
+\usepackage{multirow}
+\usepackage{siunitx}
+\input{preamble/colors}
+\input{preamble/tcolorboxes}
+\input{preamble/commands}
+\input{preamble/formatting}
+
+\definecolor{solvable}{RGB}{30, 140, 60}
+\definecolor{partial}{RGB}{200, 140, 0}
+\definecolor{hard}{RGB}{200, 40, 40}
+
+\newtcolorbox{devbox}[1][]{colback=solvable!8, colframe=solvable, fonttitle=\bfseries, title={Development Solution}, #1}
+\newtcolorbox{mathbox}[1][]{colback=defblue!8, colframe=defblue, fonttitle=\bfseries, title={Mathematical/Algorithmic Solution}, #1}
+\newtcolorbox{ossbox}[1][]{colback=cvpurple!8, colframe=cvpurple, fonttitle=\bfseries, title={Open-Source Solution}, #1}
+\newtcolorbox{dataneedbox}[1][]{colback=pipeblue!5, colframe=pipeblue, fonttitle=\bfseries, title={Data Required}, #1}
+\newtcolorbox{limitbox}[1][]{colback=hard!8, colframe=hard, fonttitle=\bfseries, title={Current Limitation}, #1}
+
+\begin{document}
+
+\begin{titlepage}
+\centering
+\vspace*{1.5cm}
+{\Large\color{gray} Comprehensive Issue Analysis}
+\vspace{0.5cm}
+
+{\Huge\bfseries\color{defblue} 파이프라인 문제점 종합 분석\\[0.3cm]
+및 현실적 해결 방안}
+
+\vspace{1cm}
+
+{\LARGE\color{defblue!70!black} 캘리브레이션부터 GART까지\\
+12개 문제의 해결 가능성 평가}
+
+\vspace{1.5cm}
+
+\begin{tikzpicture}
+\fill[solvable!20] (0,0) rectangle (4, 0.6);
+\node[font=\small\bfseries, text=solvable] at (2, 0.3) {해결 가능 (7개)};
+
+\fill[partial!20] (5,0) rectangle (9, 0.6);
+\node[font=\small\bfseries, text=partial] at (7, 0.3) {부분 해결 (3개)};
+
+\fill[hard!20] (10,0) rectangle (14, 0.6);
+\node[font=\small\bfseries, text=hard] at (12, 0.3) {근본적 한계 (2개)};
+\end{tikzpicture}
+
+\vspace{2cm}
+{\large 2026년 4월 12일}
+
+\vspace{\fill}
+{\small\color{gray} VGGT vs DA3 비교 분석 및 VGGT+EasyMocap 통합 문서에서\\
+도출된 모든 문제점을 종합하여, 각각의 현실적 해결 경로를 제시합니다.}
+\end{titlepage}
+
+\tableofcontents
+\newpage
+
+
+% ====================================================================
+\chapter{문제 목록 및 심각도 분류}
+% ====================================================================
+
+\begin{table}[H]
+\centering
+\caption{전체 문제 목록 --- 파이프라인 단계별}
+\renewcommand{\arraystretch}{1.4}
+\small
+\begin{tabular}{c p{6.5cm} c c}
+\toprule
+\textbf{\#} & \textbf{문제} & \textbf{단계} & \textbf{심각도} \\
+\midrule
+1 & 왜곡 계수 미제공 (VGGT, DA3 모두) & Calibration & \textcolor{partial}{중} \\
+2 & 비메트릭 스케일 (translation 정규화) & Calibration & \textcolor{partial}{중} \\
+3 & $f_x/f_y$ 비율 미세 편차 (0.6\%) & Calibration & \textcolor{solvable}{저} \\
+4 & Portrait/Landscape 혼재 처리 & Calibration & \textcolor{solvable}{해결됨} \\
+5 & SMPL 모델 파일 경량 버전 사용 & SMPL Fitting & \textcolor{solvable}{저} \\
+6 & Pose prior가 극단 포즈 억제 & SMPL Fitting & \textcolor{solvable}{저} \\
+7 & OpenPose 키포인트 노이즈 ($\sim$5--10px) & Pose Est. & \textcolor{partial}{중} \\
+8 & VGGT 초점 거리 절대 정확도 미검증 & Calibration & \textcolor{partial}{중} \\
+9 & 고속 투구 동작 (7,000 deg/s, 7프레임) & 전체 & \textcolor{hard}{고} \\
+10 & GART$\rightarrow$OpenSim 파이프라인 미존재 & Biomech & \textcolor{partial}{중} \\
+11 & 힘판 데이터 없음 (역동역학 불가) & Biomech & \textcolor{hard}{고} \\
+12 & 야구복 루즈핏으로 인한 외형 모호성 & 3DGS/GART & \textcolor{partial}{중} \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+
+% ====================================================================
+\chapter{해결 가능한 문제 (7개)}
+\label{ch:solvable}
+% ====================================================================
+
+
+% ---- ISSUE 3 ----
+\section{Issue \#3: $f_x/f_y$ 비율 미세 편차 (0.6\%)}
+
+\subsection{문제}
+VGGT crop mode에서 원본 해상도로 역변환 시 $s_x = 1920/518 = 3.707$, $s_y = 1080/294 = 3.673$으로 $s_x \neq s_y$ ($\sim$0.9\% 차이). 결과적으로 $f_x/f_y$가 정확히 1.0이 아님 (0.994--1.005).
+
+\subsection{해결}
+
+\begin{mathbox}
+\textbf{평균 focal length 사용}:
+\begin{equation}
+f = \frac{f_x + f_y}{2}, \quad f_x \leftarrow f, \quad f_y \leftarrow f
+\end{equation}
+같은 카메라 모델이므로 $f_x = f_y$가 물리적으로 맞다. 0.6\% 차이는 모델의 추정 노이즈이므로 평균이 더 정확한 추정.
+\end{mathbox}
+
+\begin{devbox}
+\textbf{1줄 코드}:
+\begin{verbatim}
+f = (fx + fy) / 2; K[0,0] = K[1,1] = f
+\end{verbatim}
+\textbf{난이도}: 매우 쉬움. 변환 스크립트에 추가하면 됨.
+\end{devbox}
+
+
+% ---- ISSUE 4 ----
+\section{Issue \#4: Portrait/Landscape 혼재}
+
+\subsection{문제}
+cam1이 세로(1080$\times$1920), cam2--7이 가로(1920$\times$1080). DA3에서는 배치 내 center crop 방향이 달라 역변환이 카메라별로 분기.
+
+\subsection{해결}
+
+\begin{devbox}
+\textbf{이미 해결됨}: VGGT에 넣기 전 portrait을 90\textdegree{} 회전 $\rightarrow$ 모든 이미지 landscape $\rightarrow$ 추론 후 K, R을 역회전.
+\texttt{vggt\_calibrate.py}에 구현 완료.
+\end{devbox}
+
+
+% ---- ISSUE 5 ----
+\section{Issue \#5: SMPL 경량 모델 파일 (304KB)}
+
+\subsection{문제}
+EasyMocap이 \texttt{SMPL\_NEUTRAL.pkl} (304KB)를 사용. 이 파일은 blend shape 계수가 잘려있어 뼈 길이와 체형 표현이 부정확. 이전 피팅에서 MPJPE 219.6mm의 원인 중 하나.
+
+\subsection{해결}
+
+\begin{ossbox}
+\textbf{Full SMPL 모델 교체}:
+\begin{itemize}[leftmargin=*]
+  \item \texttt{SMPL\_NEUTRAL.pkl} ($\sim$21MB, full blend shapes) 다운로드
+  \item 출처: \texttt{https://smpl.is.tue.mpg.de/} (학술 라이선스)
+  \item 서버에 \texttt{SMPL\_NEUTRAL\_pristine.pkl} 이미 존재 --- 확인 필요
+\end{itemize}
+\end{ossbox}
+
+\begin{devbox}
+EasyMocap config에서 모델 경로만 변경:
+\begin{verbatim}
+# config/exp/mv1p/detect_triangulate_fitSMPL.yml
+load_body_model:
+  args:
+    model_path: models/SMPL_NEUTRAL.pkl  # <- full version
+\end{verbatim}
+\textbf{난이도}: config 1줄 수정.
+\end{devbox}
+
+
+% ---- ISSUE 6 ----
+\section{Issue \#6: Pose Prior가 극단 포즈 억제}
+
+\subsection{문제}
+EasyMocap의 pose regularization $\lambda_\theta \|\vtheta\|^2$가 T-pose 방향으로 당기므로, 어깨 내회전 7,000\degps{} 같은 극단적 투구 자세에서 수렴 실패.
+
+\subsection{해결}
+
+\begin{mathbox}
+\textbf{Phase-adaptive regularization}:
+\begin{equation}
+\lambda_\theta(t) = \begin{cases}
+0.01 & \text{if } t \in [\text{wind-up, stride}] \\
+0.0001 & \text{if } t \in [\text{arm cocking, acceleration}] \\
+0.001 & \text{if } t \in [\text{deceleration, follow-through}]
+\end{cases}
+\end{equation}
+가속 단계에서 prior를 100배 약화시켜 극단 포즈 허용.
+\end{mathbox}
+
+\begin{devbox}
+EasyMocap 코드 수정 또는 외부에서 2-pass 전략:
+\begin{enumerate}[leftmargin=*]
+  \item Pass 1: $\lambda_\theta = 0.01$로 coarse fitting (모든 프레임)
+  \item Pass 2: 가속 구간만 $\lambda_\theta = 0.0001$로 refine
+\end{enumerate}
+\textbf{난이도}: 중간. EasyMocap 소스 또는 config 수정 필요.
+\end{devbox}
+
+\begin{ossbox}
+대안: \textbf{VPoser} (Max Planck, SMPL-X 전용 VAE pose prior) 사용 시 $\lambda_\theta$ 대신 learned latent space에서 regularize. 단, VPoser도 일상 동작 기반 학습이라 투구에 최적은 아님.
+\end{ossbox}
+
+
+% ---- ISSUE 1 ----
+\section{Issue \#1: 왜곡 계수 미제공}
+
+\subsection{문제}
+VGGT, DA3 모두 pinhole 모델만 출력. 렌즈 왜곡 (barrel/pincushion) 미보정 시 이미지 가장자리에서 5--20px 투영 오차.
+
+\subsection{현실 평가}
+
+\begin{table}[H]
+\centering
+\renewcommand{\arraystretch}{1.3}
+\begin{tabular}{l c c}
+\toprule
+\textbf{피사체 위치} & \textbf{왜곡 영향} & \textbf{OpenPose 노이즈} \\
+\midrule
+이미지 중심 & $< 2$ px & $\sim$5--10 px \\
+이미지 1/4 지점 & $\sim$5 px & $\sim$5--10 px \\
+이미지 가장자리 & $\sim$10--20 px & $\sim$5--10 px \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+투수가 이미지 중앙 근처에 있으면 왜곡 영향이 OpenPose 노이즈 이하.
+
+\subsection{해결}
+
+\begin{ossbox}
+\textbf{사후 왜곡 추정} (필요시):
+\begin{itemize}[leftmargin=*]
+  \item OpenCV \texttt{calibrateCamera}: 체커보드 없이도 3D-2D 대응점으로 왜곡 추정 가능
+  \item VGGT의 K, R, t + 삼각측량된 3D 점 + OpenPose 2D $\rightarrow$ \texttt{solvePnP} + \texttt{calibrateCamera}로 왜곡 계수 추정
+  \item 또는 \textbf{RealityCapture}, \textbf{COLMAP}의 bundle adjustment에서 왜곡만 최적화
+\end{itemize}
+\end{ossbox}
+
+\begin{mathbox}
+\textbf{Self-calibration via reprojection}:
+\begin{equation}
+\min_{k_1, k_2} \sum_{i,j} \| \pi_\text{distorted}(\mK_i, k_1, k_2, \mR_i, \vt_i, \vp_j) - (u_j^i, v_j^i) \|^2
+\end{equation}
+VGGT의 K, R, t를 고정하고 왜곡 계수 $k_1, k_2$만 최적화. 2D 키포인트가 충분하면 수렴.
+\end{mathbox}
+
+\begin{devbox}
+\textbf{구현 난이도}: 중간. OpenCV 함수로 가능하나, 수렴성 확인 필요.\\
+\textbf{우선순위}: 낮음. 먼저 왜곡 없이 SMPL 피팅 시도 후, reprojection error가 큰 경우에만 추가.
+\end{devbox}
+
+
+% ---- ISSUE 2 ----
+\section{Issue \#2: 비메트릭 스케일}
+
+\subsection{문제}
+VGGT의 translation이 정규화된 좌표 ($\|t\| \sim 0$--$1.3$). 실제 카메라 간 거리(미터)와 무관. SMPL의 신체 크기가 현실과 다를 수 있음.
+
+\subsection{해결}
+
+\begin{mathbox}
+\textbf{신체 비례를 이용한 스케일 복원}:
+\begin{equation}
+s = \frac{h_\text{known}}{h_\text{reconstructed}}
+\end{equation}
+여기서 $h_\text{known}$은 피사체의 실제 신장(cm), $h_\text{reconstructed}$는 삼각측량된 머리--발목 거리.
+
+또는 SMPL의 $\vbeta$ 파라미터에서 추정된 신장으로:
+\begin{equation}
+s = \frac{h_\text{SMPL}(\vbeta)}{h_\text{triangulated}}
+\end{equation}
+\end{mathbox}
+
+\begin{devbox}
+\begin{verbatim}
+# 삼각측량된 pelvis-head 거리로 스케일 계산
+h_tri = np.linalg.norm(kp3d[0] - kp3d[8])  # nose - midhip
+h_real = 1.75  # 피사체 실제 키 (m)
+scale = h_real / h_tri
+t_scaled = t * scale  # 모든 카메라 translation에 적용
+\end{verbatim}
+\textbf{난이도}: 쉬움. 피사체 키를 알아야 함.
+\end{devbox}
+
+\begin{dataneedbox}
+\textbf{필요 데이터}: 피사체의 실제 신장 (cm). 또는 알려진 거리 (마운드--홈플레이트 = 18.44m 등).
+\end{dataneedbox}
+
+
+% ====================================================================
+\chapter{부분 해결 가능한 문제 (3개)}
+\label{ch:partial}
+% ====================================================================
+
+
+% ---- ISSUE 7 ----
+\section{Issue \#7: OpenPose 키포인트 노이즈 ($\sim$5--10px)}
+
+\subsection{문제}
+OpenPose Body25의 2D 키포인트 정밀도는 $\sim$5--10px. 7대 카메라로 삼각측량해도 3D 오차 $\sim$20--40mm. 이는 SMPL 피팅의 하한선.
+
+\subsection{해결 경로}
+
+\begin{ossbox}
+\textbf{더 정밀한 2D 포즈 추정기 사용}:
+\begin{itemize}[leftmargin=*]
+  \item \textbf{ViTPose-H} (COCO AP 79.1): OpenPose (AP 65) 대비 $\sim$20\% 정밀. 단, person tracking 필요 (이전에 cam3에서 실패 경험).
+  \item \textbf{RTMPose-X} (COCO AP 78.5): 빠르고 정밀. mmpose 기반.
+  \item \textbf{Sapiens} (Meta, 2024): 2B param, AP 82+. 가장 정밀하나 무거움.
+\end{itemize}
+\end{ossbox}
+
+\begin{mathbox}
+\textbf{다시점 일관성 강제 (multi-view refinement)}:
+\begin{equation}
+\hat{\vu}_j^i = \arg\min_{\vu} \sum_{i=1}^{7} w_j^i \|\vu - \vu_j^i\|^2 \quad \text{s.t.} \quad \vu = \pi(\mK_i, \mR_i, \vt_i, \vp_j)
+\end{equation}
+삼각측량 후 3D 점을 각 카메라에 재투영하여 2D 키포인트를 정제. Outlier 카메라의 키포인트를 보정.
+\end{mathbox}
+
+\begin{limitbox}
+\textbf{한계}: 2D 포즈 추정기의 정밀도가 근본적 상한. 7대 카메라가 주는 중복성으로 노이즈를 줄일 수 있지만, 모든 카메라에서 일관되게 틀리는 키포인트(예: 엉덩이-무릎 구분 오류)는 보정 불가. 궁극적으로 \textbf{$\sim$20mm 3D 오차}가 하한선.
+\end{limitbox}
+
+
+% ---- ISSUE 8 ----
+\section{Issue \#8: VGGT 초점 거리 절대 정확도 미검증}
+
+\subsection{문제}
+VGGT가 추정한 $f \approx 735$ px와 DA3가 추정한 $f \approx 790$ px 사이에 7.5\% 차이. 체커보드 GT 없이 어느 것이 맞는지 판단 불가.
+
+\subsection{해결 경로}
+
+\begin{mathbox}
+\textbf{Reprojection error 기반 간접 검증}:
+\begin{enumerate}[leftmargin=*]
+  \item VGGT K로 삼각측량 $\rightarrow$ 재투영 오차 $e_\text{VGGT}$ 계산
+  \item DA3 K로 삼각측량 $\rightarrow$ 재투영 오차 $e_\text{DA3}$ 계산
+  \item $e_\text{VGGT} < e_\text{DA3}$이면 VGGT가 더 정확
+\end{enumerate}
+이 방법은 ``어느 K가 더 자기 일관적인가''를 측정. 절대 정확도는 아니지만 실용적.
+\end{mathbox}
+
+\begin{devbox}
+\begin{verbatim}
+# 삼각측량 + 재투영 비교
+for K_source in [K_vggt, K_da3]:
+    pts3d = triangulate(K_source, R, t, kp2d)
+    reproj_err = compute_reprojection(K_source, R, t, pts3d, kp2d)
+    print(f"{K_source}: mean reproj err = {reproj_err:.2f} px")
+\end{verbatim}
+\textbf{난이도}: 쉬움. 이미 두 K 셋이 있으므로 비교만 하면 됨.
+\end{devbox}
+
+\begin{dataneedbox}
+\textbf{GT 확보 방법} (선택):
+\begin{itemize}[leftmargin=*]
+  \item 체커보드 촬영 1회 $\rightarrow$ OpenCV \texttt{calibrateCamera} $\rightarrow$ GT $f$
+  \item EXIF 메타데이터에서 focal length (mm) 추출 $\rightarrow$ $f_{px} = f_{mm} \times w_{px} / \text{sensor\_width\_mm}$
+  \item 알려진 물체 크기 (야구공 지름 73mm)를 이용한 reverse calibration
+\end{itemize}
+\end{dataneedbox}
+
+
+% ---- ISSUE 10 ----
+\section{Issue \#10: GART$\rightarrow$OpenSim 파이프라인 미존재}
+
+\subsection{문제}
+GART가 출력하는 SMPL 포즈 파라미터를 OpenSim의 역운동학/역동역학에 연결하는 파이프라인이 논문/코드로 발표된 적 없음. 개별 블록은 존재:
+\begin{itemize}[leftmargin=*]
+  \item SMPL $\rightarrow$ 가상 마커: \textbf{SMPL2AddBiomechanics} (SIGGRAPH Asia 2023)
+  \item 마커 $\rightarrow$ OpenSim IK/ID: \textbf{AddBiomechanics} (PLOS ONE 2023)
+\end{itemize}
+
+\subsection{해결 경로}
+
+\begin{ossbox}
+\textbf{기존 오픈소스 연결}:
+\begin{enumerate}[leftmargin=*]
+  \item GART 출력 ($\vtheta, \vbeta$ per frame) $\rightarrow$ smplx FK $\rightarrow$ 메시 정점
+  \item \texttt{SMPL2AddBiomechanics}: 메시 정점에서 BSM 가상 마커 추출 $\rightarrow$ TRC 파일
+  \item \texttt{AddBiomechanics} (웹 서비스): TRC $\rightarrow$ 스케일링된 .osim + IK .mot
+\end{enumerate}
+\end{ossbox}
+
+\begin{devbox}
+\textbf{구현 필요}:
+\begin{enumerate}[leftmargin=*]
+  \item GART SMPL 출력 $\rightarrow$ smplx 포맷 변환 (관절 순서 매핑)
+  \item 프레임별 가상 마커 좌표 $\rightarrow$ C3D/TRC 포맷 쓰기
+  \item TRC를 AddBiomechanics API에 업로드
+\end{enumerate}
+\textbf{난이도}: 중간. 각 블록은 존재하지만 통합 경험이 없으므로 디버깅 필요.
+\end{devbox}
+
+\begin{limitbox}
+\textbf{한계}: SMPL의 관절 자유도(ball-and-socket)와 OpenSim의 해부학적 자유도(hinge, universal 등)가 다름. SKEL 모델을 사용하면 해결되지만, GART는 SMPL 기반이라 SKEL과 직접 호환 안 됨. SMPL$\rightarrow$SKEL 변환 레이어가 추가로 필요.
+\end{limitbox}
+
+
+% ---- ISSUE 12 ----
+\section{Issue \#12: 야구복 루즈핏 외형 모호성}
+
+\subsection{문제}
+GART는 photometric loss로 포즈를 정제하는데, 루즈한 야구 유니폼은 ``같은 외형이 다른 포즈에서 나올 수 있음'' (ambiguity). 특히 팔꿈치 각도가 옷 주름에 가려져 구분 불가.
+
+\subsection{해결 경로}
+
+\begin{mathbox}
+\textbf{Multi-cue loss}:
+\begin{equation}
+\mathcal{L} = \underbrace{\mathcal{L}_\text{photo}}_{\text{외형 (약)}} + \underbrace{\lambda_\text{kp} \mathcal{L}_\text{keypoint}}_{\text{2D 키포인트}} + \underbrace{\lambda_\text{sil} \mathcal{L}_\text{silhouette}}_{\text{실루엣 (SAM)}}
+\end{equation}
+외형만으로 부족하면, 2D 키포인트와 실루엣 정보를 추가 loss로 사용. 옷이 가려도 관절 위치는 키포인트가 잡아줌.
+\end{mathbox}
+
+\begin{ossbox}
+\textbf{참고 구현}: ExAvatar, GauHuman은 keypoint loss + silhouette loss를 이미 사용.
+GART 코드를 수정하여 추가 가능.
+\end{ossbox}
+
+\begin{limitbox}
+\textbf{한계}: 키포인트 자체가 가려지면 (자기 가림, self-occlusion) 모든 cue가 실패. 7대 카메라의 다시점 중복성이 이를 완화하지만, 가속 단계의 팔 움직임은 여전히 어려움.
+\end{limitbox}
+
+
+% ====================================================================
+\chapter{근본적 한계 (2개)}
+\label{ch:hard}
+% ====================================================================
+
+
+% ---- ISSUE 9 ----
+\section{Issue \#9: 고속 투구 동작 (7,000 deg/s, 7프레임)}
+
+\subsection{문제}
+투구 가속 단계는 $\sim$30ms. 240Hz에서 7프레임. 이 구간에서:
+\begin{itemize}[leftmargin=*]
+  \item 프레임 간 어깨 각도 변화: $\sim$29\textdegree/frame
+  \item 모션 블러로 2D 키포인트 정밀도 하락
+  \item temporal smoothing을 강하게 하면 실제 angular velocity를 억제
+  \item 약하게 하면 프레임 간 jitter
+\end{itemize}
+
+\subsection{현실 평가}
+
+\begin{limitbox}
+\textbf{이것은 근본적 한계이다.}
+
+프로 마커 기반 시스템(Vicon, 300--500Hz)도 이 구간에서 소프트 조직 아티팩트(STA)로 어깨 내회전 측정에 한계가 있음. 240Hz 마커리스 RGB 시스템이 이를 초과하기는 물리적으로 불가능.
+
+\textbf{Theia3D} (프로 마커리스 시스템, 300fps, 전문 카메라 12대): 어깨 내회전 속도 오차 50--400+ deg/s.
+
+우리 시스템 (240Hz, 7대): 이보다 나을 수 없음.
+\end{limitbox}
+
+\subsection{현실적 접근}
+
+\begin{enumerate}[leftmargin=*]
+  \item \textbf{목표 조정}: 가속 단계의 peak angular velocity를 정확히 측정하는 것은 포기.
+        대신 \textbf{MER (Maximum External Rotation) 시점}과 \textbf{ball release 시점}의 정적 포즈를 정확히 잡는 데 집중.
+
+  \item \textbf{Phase-adaptive temporal regularization}:
+  \begin{equation}
+  \lambda_\text{temp}(t) = \begin{cases}
+  1.0 & \text{wind-up (느림)} \\
+  0.01 & \text{acceleration (빠름)} \\
+  0.5 & \text{follow-through (감속)}
+  \end{cases}
+  \end{equation}
+
+  \item \textbf{Physics-informed interpolation}: 7프레임 사이를 단순 선형 보간이 아닌, 강체 역학(rigid body dynamics) 기반 보간으로 angular velocity 프로파일을 물리적으로 합리적인 범위 내에서 추정.
+\end{enumerate}
+
+\begin{ossbox}
+\textbf{참고}: Event camera (E-3DGS, CVPR 2025) 방식은 $\mu$s 단위 시간 해상도로 이 문제를 우회하지만, 현재 장비와 호환 불가.
+\end{ossbox}
+
+
+% ---- ISSUE 11 ----
+\section{Issue \#11: 힘판 데이터 없음 (역동역학 불가)}
+
+\subsection{문제}
+OpenSim의 inverse dynamics는 ground reaction force (GRF)가 필수 입력. 현재 데이터에 힘판이 없음.
+\begin{equation}
+\underbrace{\bm{\tau}}_{\text{관절 토크}} = \mI \ddot{\vtheta} + \text{Coriolis} + \text{Gravity} - \underbrace{\bm{J}^\top \bm{F}_\text{GRF}}_{\text{이거 없음}}
+\end{equation}
+
+\subsection{현실 평가}
+
+\begin{limitbox}
+\textbf{이것은 데이터의 근본적 부재이다.}
+
+GRF 없이는 정확한 관절 토크 계산이 불가능. 투구 생체역학에서 가장 중요한 지표 중 하나인 \textbf{elbow valgus torque}는 GRF 없이 추정할 수 없음.
+\end{limitbox}
+
+\subsection{현실적 접근}
+
+\begin{enumerate}[leftmargin=*]
+  \item \textbf{목표 조정}: 역동역학(torque) 대신 \textbf{역운동학(kinematics)}만 목표.
+  관절 각도, angular velocity, MER은 GRF 없이 가능.
+
+  \item \textbf{GRF 추정 (연구 수준)}:
+  \begin{ossbox}
+  \begin{itemize}[leftmargin=*]
+    \item \textbf{OpenCap}: 2D 자세에서 GRF를 추정하는 기능 포함 (MAE $\sim$6.2\% BW). 단, 보행 기준이라 투구에 적용 가능성 미검증.
+    \item \textbf{ImDy} (ICLR 2025): SMPL 모션에서 물리 시뮬레이션으로 GRF + 토크 추정. IsaacGym 기반.
+    \item \textbf{Physics-based estimation}: SMPL 포즈 시퀀스 $\rightarrow$ MuJoCo/IsaacGym에서 물리 시뮬 $\rightarrow$ GRF 추정. 정확도 미검증.
+  \end{itemize}
+  \end{ossbox}
+
+  \item \textbf{Vicon 데이터 활용}: 서버에 Vicon 동기 촬영 데이터가 있으나, RGB와 시간 동기화 미완료. 동기화하면 Vicon의 마커 기반 역동역학과 비교 가능.
+\end{enumerate}
+
+\begin{dataneedbox}
+\textbf{필요 데이터}:
+\begin{itemize}[leftmargin=*]
+  \item Vicon $\leftrightarrow$ RGB 시간 동기화 정보 (LED 깜빡임 등)
+  \item 힘판 데이터 (있다면)
+  \item 피사체의 체중 (역동역학 계산에 필수)
+\end{itemize}
+\end{dataneedbox}
+
+
+% ====================================================================
+\chapter{종합 로드맵}
+% ====================================================================
+
+\begin{table}[H]
+\centering
+\caption{전체 문제 해결 로드맵 --- 우선순위별}
+\renewcommand{\arraystretch}{1.5}
+\small
+\begin{tabular}{c c p{5cm} p{3cm} c}
+\toprule
+\textbf{순위} & \textbf{Issue} & \textbf{해결 방법} & \textbf{유형} & \textbf{난이도} \\
+\midrule
+\rowcolor{solvable!10}
+1 & \#4 & Portrait 90\textdegree{} 회전 & 코드 & {\color{solvable}\textbf{완료}} \\
+\rowcolor{solvable!10}
+2 & \#3 & $f = (f_x+f_y)/2$ 평균 & 수학 1줄 & {\color{solvable}\textbf{쉬움}} \\
+\rowcolor{solvable!10}
+3 & \#5 & Full SMPL 모델 교체 & config 수정 & {\color{solvable}\textbf{쉬움}} \\
+\rowcolor{solvable!10}
+4 & \#2 & 신장 기반 스케일 보정 & 수학 + 데이터 & {\color{solvable}\textbf{쉬움}} \\
+\rowcolor{solvable!10}
+5 & \#6 & Phase-adaptive $\lambda_\theta$ & 코드 수정 & {\color{solvable}\textbf{중간}} \\
+\rowcolor{solvable!10}
+6 & \#8 & Reproj error로 K 비교 & 코드 & {\color{solvable}\textbf{쉬움}} \\
+\rowcolor{solvable!10}
+7 & \#1 & 사후 왜곡 추정 (필요시) & 수학 + OpenCV & {\color{solvable}\textbf{중간}} \\
+\midrule
+\rowcolor{partial!10}
+8 & \#7 & ViTPose-H 또는 RTMPose 교체 & 오픈소스 & {\color{partial}\textbf{중간}} \\
+\rowcolor{partial!10}
+9 & \#10 & SMPL2AddBiomechanics 연결 & 개발 & {\color{partial}\textbf{중간}} \\
+\rowcolor{partial!10}
+10 & \#12 & Multi-cue loss (kp + sil) & 코드 수정 & {\color{partial}\textbf{높음}} \\
+\midrule
+\rowcolor{hard!10}
+11 & \#9 & 목표 조정 (peak velocity 포기) & 전략 & {\color{hard}\textbf{한계}} \\
+\rowcolor{hard!10}
+12 & \#11 & kinematics만 목표 / GRF 추정 & 전략 + 연구 & {\color{hard}\textbf{한계}} \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\begin{summary}
+\textbf{핵심 메시지}:
+\begin{enumerate}[leftmargin=*]
+  \item \textbf{7개 문제는 코드/수학/오픈소스로 해결 가능}하며, 대부분 난이도가 낮다. 이들을 먼저 처리하면 SMPL 피팅이 작동할 가능성이 높다.
+  \item \textbf{3개 문제는 부분적으로 해결 가능}하다. 더 정밀한 2D 포즈 추정기(ViTPose-H), GART$\rightarrow$OpenSim 연결(SMPL2AddBiomechanics), multi-cue loss 등으로 개선할 수 있지만 완벽하지는 않다.
+  \item \textbf{2개 문제는 근본적 한계}이다. 240Hz에서 7,000 deg/s를 정확히 측정하는 것, GRF 없이 역동역학을 수행하는 것은 현재 데이터와 기술로 불가능하다. 목표를 조정하여 \textbf{kinematics + 정적 포즈(MER, ball release)}에 집중하는 것이 현실적이다.
+  \item \textbf{즉시 실행 가능한 다음 단계}: VGGT K $\rightarrow$ EasyMocap 변환 $\rightarrow$ 삼각측량 + SMPL 피팅 $\rightarrow$ reprojection error로 검증. 이 과정에서 추가 문제가 드러나면 Phase-adaptive prior, 왜곡 보정 등을 순차 적용.
+\end{enumerate}
+\end{summary}
+
+
+\end{document}

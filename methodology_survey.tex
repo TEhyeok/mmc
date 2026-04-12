@@ -1,0 +1,422 @@
+\documentclass[11pt, a4paper]{report}
+\usepackage{fontspec}
+\usepackage{kotex}
+\usepackage{amsmath, amssymb}
+\usepackage{booktabs}
+\usepackage{tabularx}
+\usepackage{longtable}
+\usepackage{hyperref}
+\usepackage{geometry}
+\usepackage{fancyhdr}
+\usepackage{titlesec}
+\usepackage{enumitem}
+\usepackage{xcolor}
+\usepackage{tcolorbox}
+\usepackage{tikz}
+\usetikzlibrary{arrows.meta, positioning}
+\usepackage{float}
+\usepackage{multirow}
+
+\geometry{margin=2cm, top=2.5cm, bottom=2.5cm}
+
+\definecolor{defblue}{RGB}{30, 80, 150}
+\definecolor{thmgreen}{RGB}{20, 110, 60}
+\definecolor{noteorange}{RGB}{200, 100, 0}
+\definecolor{lightblue}{RGB}{230, 240, 255}
+\definecolor{lightgreen}{RGB}{230, 255, 235}
+\definecolor{lightorange}{RGB}{255, 245, 230}
+\definecolor{lightred}{RGB}{255, 235, 235}
+\definecolor{darkred}{RGB}{180, 30, 30}
+
+\newtcolorbox{keyidea}[1][]{colback=lightblue, colframe=defblue, fonttitle=\bfseries, title={Key Idea}, #1}
+\newtcolorbox{noveltybox}[1][]{colback=lightgreen, colframe=thmgreen, fonttitle=\bfseries, title={Novelty}, #1}
+\newtcolorbox{gapbox}[1][]{colback=lightred, colframe=darkred, fonttitle=\bfseries, title={Research Gap}, #1}
+\newtcolorbox{searchbox}[1][]{colback=lightorange, colframe=noteorange, fonttitle=\bfseries, title={Linear AI Search}, #1}
+
+\pagestyle{fancy}
+\fancyhf{}
+\fancyhead[L]{\leftmark}
+\fancyhead[R]{\thepage}
+\renewcommand{\headrulewidth}{0.4pt}
+
+\titleformat{\chapter}[display]
+  {\normalfont\huge\bfseries\color{defblue}}{\chaptertitlename\ \thechapter}{20pt}{\Huge}
+\titleformat{\section}{\normalfont\Large\bfseries\color{defblue!80!black}}{\thesection}{1em}{}
+\titleformat{\subsection}{\normalfont\large\bfseries\color{defblue!60!black}}{\thesubsection}{1em}{}
+
+\begin{document}
+
+\begin{titlepage}
+\centering
+\vspace*{1.5cm}
+{\Large\color{gray} Research Survey \& Proposal}
+\vspace{0.5cm}
+
+{\Huge\bfseries\color{defblue} 초기 SMPL 없이\\[0.3cm]
+3DGS 인체 재구성하기:\\[0.3cm]
+방법론 서베이 \& 논문 기회}
+
+\vspace{1cm}
+
+{\LARGE\color{defblue!70!black} SMPL-free / Joint Optimization / Photometric Refinement\\
+최신 연구 동향과 투구 동작 분석에의 적용 가능성}
+
+\vspace{3cm}
+{\large 2026년 4월}
+
+\vspace{\fill}
+{\small\color{gray} 3DGS 기반 인체 재구성에서 SMPL 초기값 의존성을 줄이거나 제거하는\\
+최신 방법론을 조사하고, 고속 투구 동작 분석에의 적용 가능성과 논문 기회를 분석합니다.}
+\end{titlepage}
+
+\tableofcontents
+\newpage
+
+
+% ====================================================================
+\chapter{문제 정의: 왜 이 서베이가 필요한가}
+% ====================================================================
+
+\section{현재 직면한 병목}
+
+\begin{enumerate}[leftmargin=*]
+  \item \textbf{SMPL 초기 피팅의 어려움}: 카메라 보정(K) 좌표계와 OpenPose 키포인트 좌표계의 불일치로 EasyMocap SMPL 피팅 실패
+  \item \textbf{3D 직접 피팅의 구조적 한계}: OpenPose 3D $\rightarrow$ SMPL 직접 피팅은 관절 정의 오프셋으로 인해 수렴 불가
+  \item \textbf{GART의 SMPL 의존성}: GART는 프레임별 SMPL $(\vartheta, \beta)$를 입력으로 요구하며, 자체적으로 SMPL을 추정하지 않음
+  \item \textbf{고속 동작의 특수성}: 투구 가속 단계(30ms, 7000$^\circ$/s)에서 기존 자세 사전(GMM)이 부적합
+\end{enumerate}
+
+\begin{gapbox}
+\textbf{핵심 질문}: SMPL 초기값 없이, 또는 매우 약한 초기값으로,
+다시점 RGB 영상만으로 3DGS 인체 재구성이 가능한가?
+특히 \textbf{고속 스포츠 동작}에서?
+\end{gapbox}
+
+
+% ====================================================================
+\chapter{최신 방법론 서베이 (2024--2026)}
+% ====================================================================
+
+\section{분류 체계}
+
+\begin{figure}[H]
+\centering
+\begin{tikzpicture}[
+  cat/.style={rectangle, rounded corners=4pt, draw=defblue, fill=lightblue,
+    minimum width=3cm, minimum height=0.6cm, font=\small\bfseries, align=center},
+  arrow/.style={-Stealth, thick, defblue!60}
+]
+\node[cat] (a) at (0,0) {A. SMPL 필수\\(초기값 의존)};
+\node[cat] (b) at (5,0) {B. SMPL 초기화 후\\공동 최적화};
+\node[cat] (c) at (10,0) {C. SMPL 불필요\\(완전 자유)};
+
+\draw[arrow] (a) -- (b) node[midway, above, font=\tiny] {의존도 감소};
+\draw[arrow] (b) -- (c) node[midway, above, font=\tiny] {의존도 제거};
+\end{tikzpicture}
+\end{figure}
+
+
+\section{A. SMPL 초기값 필수 방법}
+
+\begin{table}[H]
+\centering
+\caption{SMPL 필수 방법론}
+\renewcommand{\arraystretch}{1.2}
+\scriptsize
+\begin{tabularx}{\textwidth}{lccX}
+\toprule
+\textbf{논문} & \textbf{연도/학회} & \textbf{입력} & \textbf{핵심 기여} \\
+\midrule
+\textbf{GART} & 2024 & 단안 & Latent bones + skinning weight 보정. 학습 0.5--2.5분, 150+ FPS \\
+\textbf{ExAvatar} & ECCV 2024 & 단안 & SMPL-X 메시 + 3DGS 하이브리드. 손, 얼굴 포함 \\
+\textbf{GauHuman} & CVPR 2024 & 단안 & KL 기반 밀도 제어. 1--2분 학습, 189 FPS \\
+\textbf{GaussianAvatar} & CVPR 2024 & 단안 & UV space 자세 feature + 동적 외형 \\
+\bottomrule
+\end{tabularx}
+\end{table}
+
+\textbf{한계}: 초기 SMPL이 틀리면 복구 어려움. 투구 같은 극단적 자세에서 초기값 확보가 병목.
+
+
+\section{B. SMPL 초기화 + 공동 최적화 방법}
+
+\begin{table}[H]
+\centering
+\caption{공동 최적화 방법론 --- 가장 유망}
+\renewcommand{\arraystretch}{1.2}
+\scriptsize
+\begin{tabularx}{\textwidth}{lccX}
+\toprule
+\textbf{논문} & \textbf{연도/학회} & \textbf{입력} & \textbf{핵심 기여} \\
+\midrule
+\textbf{3DGS-Avatar} & CVPR 2024 & \textbf{다시점} & \textbf{JMBO}: 다시점에서 SMPL-X를 공동 최적화. 자세 의존 변형 모듈 \\
+\textbf{HUGS} & CVPR 2024 & 단안 & SMPL 초기화 후 Gaussian이 \textbf{이탈 허용}. LBS 가중치 공동 최적화 \\
+\textbf{RoGSplat} & CVPR 2025 & \textbf{다시점} & SMPL vertex $\rightarrow$ dense 3D prior. 이미지 정합 feature로 불일치 보정 \\
+\textbf{Better Together} & arXiv 2024 & 다시점 & 모캡 + 아바타 통합. EasyMocap 대안, 1mm 정확도 향상 \\
+\textbf{MAMMA} & NeurIPS 2025 & 다시점 & 다인원 + 접촉 인식. 밀집 2D 랜드마크 $\rightarrow$ SMPL-X \\
+\bottomrule
+\end{tabularx}
+\end{table}
+
+\begin{keyidea}
+\textbf{3DGS-Avatar의 JMBO}가 우리 상황에 가장 적합하다:
+\begin{itemize}[nosep]
+  \item 다시점(7대)에서 SMPL-X를 \textbf{공동 최적화} --- EasyMocap의 역할을 3DGS 학습 내부에서 수행
+  \item 대략적 초기값만 있으면 됨 (HMR 수준)
+  \item photometric + keypoint + silhouette 손실을 동시 사용
+\end{itemize}
+\end{keyidea}
+
+
+\section{C. SMPL 불필요 방법}
+
+\begin{table}[H]
+\centering
+\caption{SMPL-free 방법론}
+\renewcommand{\arraystretch}{1.2}
+\scriptsize
+\begin{tabularx}{\textwidth}{lccX}
+\toprule
+\textbf{논문} & \textbf{연도/학회} & \textbf{입력} & \textbf{핵심 기여} \\
+\midrule
+\textbf{SkelSplat} & WACV 2026 & 다시점 & 스켈레톤을 Gaussian으로 모델링. 3D GT 불필요. 관절별 독립 최적화 \\
+\textbf{MotionGS} & NeurIPS 2024 & 단안 & 광학 흐름 $\rightarrow$ 카메라/동작 분리. 파라메트릭 모델 없이 변형 학습 \\
+\textbf{GPS-Gaussian} & CVPR 2024 & 다시점 & 순방향 예측 (피험자별 최적화 불필요). 학습된 모델로 즉시 합성 \\
+\textbf{E-3DGS} & 2025 & 이벤트 카메라 & 이벤트 + 노출 기반. 고속 동작에 특화 \\
+\bottomrule
+\end{tabularx}
+\end{table}
+
+
+\section{D. 투구 동작 특화 연구}
+
+\begin{table}[H]
+\centering
+\caption{야구 투구 동작 분석 관련 최신 연구}
+\renewcommand{\arraystretch}{1.2}
+\scriptsize
+\begin{tabularx}{\textwidth}{lccX}
+\toprule
+\textbf{논문} & \textbf{연도} & \textbf{방식} & \textbf{핵심} \\
+\midrule
+\textbf{VTP (Volumetric Triangulation)} & 2024 & 다시점 2D & 투수 특화 자세 추정. 위치 오차 33.1mm, 속도 오차 0.35m/s \\
+\textbf{KinaTrax/Theia3D 검증} & 2025 & 다시점 마커리스 & MLB 경기장 실전 검증. MPJPE 52--57mm \\
+\textbf{Bright et al.} & 2026 & \textbf{단안 방송} & 방송 영상만으로 UCL 부상 예측 AUC 0.811 \\
+\bottomrule
+\end{tabularx}
+\end{table}
+
+
+% ====================================================================
+\chapter{우리 프로젝트에의 적용 가능성}
+% ====================================================================
+
+\section{현재 세팅 vs 각 방법의 요구사항}
+
+\begin{table}[H]
+\centering
+\caption{우리 세팅과의 호환성}
+\renewcommand{\arraystretch}{1.3}
+\scriptsize
+\begin{tabularx}{\textwidth}{lccccX}
+\toprule
+\textbf{방법} & \textbf{다시점} & \textbf{마스크} & \textbf{2D kp} & \textbf{카메라 K} & \textbf{호환성} \\
+\midrule
+3DGS-Avatar (JMBO) & \checkmark & \checkmark & \checkmark & \textbf{필요} & \textcolor{thmgreen}{\textbf{높음}} \\
+SkelSplat & \checkmark & $\times$ & $\times$ & 필요 & \textcolor{thmgreen}{높음} \\
+RoGSplat & \checkmark & \checkmark & $\times$ & 필요 & \textcolor{thmgreen}{높음} \\
+HUGS & $\times$ (단안) & $\times$ & $\times$ & 필요 & 낮음 \\
+MotionGS & $\times$ (단안) & $\times$ & $\times$ & $\times$ & 낮음 \\
+VTP (투구 특화) & \checkmark & $\times$ & \checkmark & 필요 & \textcolor{thmgreen}{\textbf{매우 높음}} \\
+\bottomrule
+\end{tabularx}
+\end{table}
+
+\begin{keyidea}
+모든 방법이 \textbf{카메라 파라미터 K}를 필요로 한다.
+마스킹 COLMAP이 성공하면, 위 표의 모든 방법을 적용할 수 있다.
+\textbf{K가 모든 것의 전제조건}이다.
+\end{keyidea}
+
+
+\section{추천 전략 (우선순위 순)}
+
+\begin{enumerate}[leftmargin=*]
+  \item \textbf{마스킹 COLMAP $\rightarrow$ EasyMocap $\rightarrow$ GART}: 가장 검증된 경로. K만 해결되면 즉시 실행 가능.
+
+  \item \textbf{마스킹 COLMAP $\rightarrow$ 3DGS-Avatar (JMBO)}: SMPL 초기값이 부정확해도 공동 최적화로 복구. EasyMocap 실패 시 대안.
+
+  \item \textbf{마스킹 COLMAP $\rightarrow$ SkelSplat}: SMPL 완전 불필요. 스켈레톤 Gaussian으로 자세 추정. 가장 급진적.
+\end{enumerate}
+
+
+% ====================================================================
+\chapter{논문 기회 분석}
+% ====================================================================
+
+\section{기존 연구의 공백 (Research Gap)}
+
+\begin{gapbox}
+기존 연구에서 다루지 않은 것:
+\begin{enumerate}[nosep]
+  \item \textbf{고속 스포츠 동작}에서의 3DGS 인체 재구성 --- 보행/댄스만 검증됨
+  \item \textbf{7000$^\circ$/s 관절 회전}에서의 자세 정제 --- 시간 정규화 전략 부재
+  \item \textbf{다시점(7대) + 3DGS + 생체역학 검증} --- 렌더링 품질만 평가, 임상 지표 미검증
+  \item \textbf{Vicon gold standard 대비 정량 비교} --- 3DGS 방법의 생체역학적 정확도 미보고
+  \item \textbf{투구 위상별 적응형 최적화} --- 가속/감속 구간에 맞춘 하이퍼파라미터 전략 없음
+\end{enumerate}
+\end{gapbox}
+
+\section{제안 논문 프레임}
+
+\begin{noveltybox}
+\textbf{제안 제목}: ``GART-Pitch: 3D Gaussian Splatting 기반 마커리스 투구 생체역학 분석 ---
+고속 동작에서의 다시점 공동 최적화와 Vicon 검증''
+
+\textbf{핵심 기여}:
+\begin{enumerate}[nosep]
+  \item 3DGS를 고속 투구 동작(7000$^\circ$/s)에 \textbf{최초 적용}
+  \item 투구 위상별 적응형 시간 정규화 전략
+  \item 7대 카메라 다시점 photometric loss 기반 자세 정제
+  \item Vicon gold standard 대비 MPJPE, 관절각 RMSE, ICC, Bland--Altman 정량 검증
+  \item 임상 지표(MER, 외반 토크, 내회전 속도) 정확도 보고
+\end{enumerate}
+
+\textbf{타겟 학회}: CVPR / ECCV / MICCAI / Sports Engineering
+\end{noveltybox}
+
+
+% ====================================================================
+\chapter{Linear AI 검색 가이드}
+% ====================================================================
+
+\begin{searchbox}
+\textbf{Linear AI}에서 다음 키워드로 검색하세요:
+
+\textbf{카테고리 1: 3DGS + 인체 재구성}
+\begin{itemize}[nosep]
+  \item ``3D Gaussian Splatting human avatar joint optimization''
+  \item ``gaussian splatting SMPL-free human reconstruction''
+  \item ``animatable gaussian splatting multi-view''
+  \item ``3DGS avatar pose refinement photometric''
+  \item ``deformable gaussian splatting dynamic human''
+\end{itemize}
+
+\textbf{카테고리 2: SMPL 피팅 방법론}
+\begin{itemize}[nosep]
+  \item ``multi-view SMPL fitting without COLMAP''
+  \item ``joint SMPL optimization differentiable rendering''
+  \item ``SMPL pose refinement neural rendering loss''
+  \item ``EasyMocap alternative multi-view body model''
+  \item ``markerless motion capture SMPL multi-camera''
+\end{itemize}
+
+\textbf{카테고리 3: 고속 동작 / 스포츠}
+\begin{itemize}[nosep]
+  \item ``high-speed sports motion capture 3D reconstruction''
+  \item ``baseball pitching biomechanics markerless''
+  \item ``fast motion 3D gaussian splatting''
+  \item ``event camera human pose estimation''
+  \item ``athletic motion analysis deep learning multi-view''
+\end{itemize}
+
+\textbf{카테고리 4: 카메라 보정 + 인체}
+\begin{itemize}[nosep]
+  \item ``camera calibration dynamic scene human''
+  \item ``Depth Anything camera intrinsics estimation''
+  \item ``self-calibrating multi-view human reconstruction''
+  \item ``COLMAP masked dynamic scene''
+\end{itemize}
+
+\textbf{최신 논문 추적}:
+\begin{itemize}[nosep]
+  \item arxiv.org: ``cs.CV'' 카테고리, ``3D Gaussian'' + ``human'' 필터
+  \item Papers With Code: ``Human Pose Estimation'' + ``3D Gaussian Splatting''
+  \item Semantic Scholar: 위 논문들의 citing/cited 논문 추적
+\end{itemize}
+\end{searchbox}
+
+
+\section{핵심 논문 리스트 (즉시 읽어야 할 것)}
+
+\begin{table}[H]
+\centering
+\caption{우선 읽기 논문 5편}
+\renewcommand{\arraystretch}{1.3}
+\small
+\begin{tabularx}{\textwidth}{clX}
+\toprule
+\textbf{순위} & \textbf{논문} & \textbf{읽어야 하는 이유} \\
+\midrule
+1 & \textbf{3DGS-Avatar} (CVPR 2024) & JMBO = 다시점 SMPL 공동 최적화의 구체적 구현 \\
+2 & \textbf{SkelSplat} (WACV 2026) & SMPL 없이 스켈레톤 Gaussian으로 자세 추정 \\
+3 & \textbf{VTP} (2024) & 투구 특화 다시점 자세 추정, 33.1mm 정확도 \\
+4 & \textbf{RoGSplat} (CVPR 2025) & sparse 다시점 + SMPL 이탈 허용 \\
+5 & \textbf{GART} (2024) & 현재 사용 중인 방법의 원논문 \\
+\bottomrule
+\end{tabularx}
+\end{table}
+
+
+% ====================================================================
+\chapter{커스텀 방법론 설계 (초안)}
+% ====================================================================
+
+\section{제안: Multi-view Photometric SMPL Joint Optimization}
+
+기존 방법들을 결합한 커스텀 파이프라인:
+
+\begin{figure}[H]
+\centering
+\begin{tikzpicture}[
+  block/.style={rectangle, rounded corners=3pt, draw=defblue, fill=lightblue,
+    minimum width=3cm, minimum height=0.6cm, align=center, font=\small},
+  loss/.style={rectangle, rounded corners=3pt, draw=darkred, fill=lightred,
+    minimum width=2.5cm, minimum height=0.6cm, align=center, font=\small},
+  arrow/.style={-Stealth, thick, defblue!60}
+]
+\node[block] (init) at (0,0) {HMR/SPIN\\(약한 초기값)};
+\node[block] (can) at (4,0) {Canonical\\Gaussians};
+\node[block] (lbs) at (8,0) {LBS 변환\\$\vartheta_t$};
+\node[block] (render) at (8,-1.5) {미분 가능\\렌더링};
+
+\node[loss] (photo) at (4,-3) {$\mathcal{L}_{\text{photo}}$\\(7뷰 RGB)};
+\node[loss] (sil) at (0,-3) {$\mathcal{L}_{\text{sil}}$\\(SAM3 마스크)};
+\node[loss] (kp) at (8,-3) {$\mathcal{L}_{\text{kp}}$\\(OpenPose 2D)};
+\node[loss] (smooth) at (4,-4.5) {$\mathcal{L}_{\text{smooth}}$\\(위상별 적응형)};
+
+\draw[arrow] (init) -- (can);
+\draw[arrow] (can) -- (lbs);
+\draw[arrow] (lbs) -- (render);
+\draw[arrow, darkred, dashed] (photo) -- (can) node[midway, right, font=\tiny] {gradient};
+\draw[arrow, darkred, dashed] (photo) -- (lbs) node[midway, left, font=\tiny] {$\nabla_\vartheta$};
+\draw[arrow] (render) -- (photo);
+\draw[arrow] (render) -- (sil);
+\draw[arrow] (render) -- (kp);
+\draw[arrow, darkred, dashed] (smooth) -- (lbs);
+\end{tikzpicture}
+\caption{제안 파이프라인: 4가지 손실 함수로 SMPL + 3DGS를 공동 최적화}
+\end{figure}
+
+\begin{equation}
+\mathcal{L}_{\text{total}} = \lambda_1 \mathcal{L}_{\text{photo}}^{7\text{view}}
+  + \lambda_2 \mathcal{L}_{\text{silhouette}}^{\text{SAM3}}
+  + \lambda_3 \mathcal{L}_{\text{keypoint}}^{\text{OP2D}}
+  + \lambda_4^{\phi(t)} \mathcal{L}_{\text{smooth}}
+\end{equation}
+
+\textbf{$\lambda_4^{\phi(t)}$}: 투구 위상 $\phi(t)$에 따라 적응적으로 변하는 시간 정규화 가중치.
+가속 단계에서 약하게, 와인드업에서 강하게.
+
+\begin{noveltybox}
+\textbf{이 접근의 차별점}:
+\begin{enumerate}[nosep]
+  \item 기존 GART에 없는 \textbf{silhouette + keypoint 보조 손실} 추가
+  \item \textbf{투구 위상별 적응형} 시간 정규화 (기존 연구 없음)
+  \item \textbf{약한 초기값}(HMR 단안 추정)으로 시작 가능 --- EasyMocap 불필요
+  \item \textbf{Vicon 대비 생체역학 검증} --- 렌더링 품질이 아닌 임상 지표로 평가
+\end{enumerate}
+\end{noveltybox}
+
+
+\end{document}

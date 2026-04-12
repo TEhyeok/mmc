@@ -1,0 +1,346 @@
+\documentclass[11pt, a4paper]{report}
+
+\input{preamble/packages}
+\usepackage{multirow}
+\usepackage{siunitx}
+\input{preamble/colors}
+\input{preamble/tcolorboxes}
+\input{preamble/commands}
+\input{preamble/formatting}
+
+\begin{document}
+
+\begin{titlepage}
+\centering
+\vspace*{1.5cm}
+{\Large\color{gray} Calibration Analysis Report}
+\vspace{0.5cm}
+
+{\Huge\bfseries\color{defblue} VGGT vs DA3\\[0.3cm]
+카메라 캘리브레이션 비교 분석}
+
+\vspace{1cm}
+
+{\LARGE\color{defblue!70!black} 왜 두 방법의 결과가 다른가:\\
+전처리 파이프라인, 좌표계, 스케일 차이의 근본 원인 분석}
+
+\vspace{3cm}
+{\large 2026년 4월 12일}
+
+\vspace{\fill}
+{\small\color{gray} 7시점 다시점 촬영 (6 landscape + 1 portrait) 환경에서\\
+DA3 PnP Refined와 VGGT의 카메라 파라미터 추정 결과를 비교합니다.}
+\end{titlepage}
+
+\tableofcontents
+\newpage
+
+
+% ====================================================================
+\chapter{비교 결과 요약}
+% ====================================================================
+
+\section{내부 파라미터 (Intrinsics) 비교}
+
+\begin{table}[H]
+\centering
+\caption{DA3 vs VGGT: 원본 해상도 기준 초점 거리 비교}
+\renewcommand{\arraystretch}{1.3}
+\begin{tabular}{l cc cc cc}
+\toprule
+& \multicolumn{2}{c}{\textbf{DA3 (280$\times$280)}} & \multicolumn{2}{c}{\textbf{DA3 $\rightarrow$ 원본}} & \multicolumn{2}{c}{\textbf{VGGT (원본)}} \\
+\cmidrule(lr){2-3} \cmidrule(lr){4-5} \cmidrule(lr){6-7}
+\textbf{Camera} & $f_x$ & $f_y$ & $f_x$ & $f_y$ & $f_x$ & $f_y$ \\
+\midrule
+cam1 (portrait) & 206.7 & 206.1 & 797.4 & 785.1 & 738.0 & 741.1 \\
+cam2 & 208.0 & 206.8 & 792.3 & 797.6 & 733.2 & 737.3 \\
+cam3 & 205.2 & 203.8 & 781.6 & 786.2 & 730.0 & 734.5 \\
+cam4 & 205.8 & 207.8 & 784.1 & 801.4 & 732.9 & 736.8 \\
+cam5 & 206.6 & 205.1 & 787.0 & 791.1 & 729.7 & 725.9 \\
+cam6 & 205.7 & 204.5 & 783.5 & 788.8 & 737.4 & 740.3 \\
+cam7 & 206.7 & 205.5 & 787.5 & 792.8 & 740.7 & 740.1 \\
+\midrule
+\textbf{평균} & 206.4 & 205.7 & \textbf{787.6} & \textbf{791.9} & \textbf{734.4} & \textbf{736.6} \\
+\textbf{spread} & 2.8 & 4.0 & 15.8 & 16.3 & \textbf{11.0} & \textbf{14.4} \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\begin{keyidea}
+두 방법의 초점 거리 차이: DA3 $\approx$ 790 px vs VGGT $\approx$ 735 px (\textbf{약 7.5\% 차이}).
+같은 카메라를 보고 있지만, 두 모델의 FOV 추정 방식이 다르기 때문에 절대값이 다르다.
+\end{keyidea}
+
+
+\section{외부 파라미터 (Extrinsics) 비교}
+
+\begin{table}[H]
+\centering
+\caption{DA3 vs VGGT: Translation 벡터 비교}
+\renewcommand{\arraystretch}{1.3}
+\begin{tabular}{l ccc ccc}
+\toprule
+& \multicolumn{3}{c}{\textbf{DA3 PnP Refined}} & \multicolumn{3}{c}{\textbf{VGGT}} \\
+\cmidrule(lr){2-4} \cmidrule(lr){5-7}
+\textbf{Camera} & $t_x$ & $t_y$ & $t_z$ & $t_x$ & $t_y$ & $t_z$ \\
+\midrule
+cam1 & 5.52 & 13.39 & 2.53 & 0.00 & 0.00 & $-0.00$ \\
+cam2 & 9.06 & 5.65 & 1.62 & $-0.40$ & $-0.04$ & 0.30 \\
+cam3 & 8.08 & 7.66 & 4.38 & 0.28 & $-0.04$ & 0.60 \\
+cam4 & 10.61 & 6.45 & 0.59 & $-0.57$ & $-0.09$ & 0.80 \\
+cam5 & 10.18 & 6.69 & 3.43 & 0.58 & $-0.12$ & 0.86 \\
+cam6 & 8.21 & 6.29 & 1.36 & $-0.80$ & $-0.10$ & 1.21 \\
+cam7 & 14.71 & 9.40 & 4.03 & 0.49 & $-0.07$ & 1.33 \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\begin{warningbox}
+Translation 벡터의 \textbf{스케일이 완전히 다르다}.
+\begin{itemize}[leftmargin=*]
+  \item DA3: $\|t\| \approx 5$--$17$ (미터? 임의 단위?)
+  \item VGGT: $\|t\| \approx 0$--$1.3$ (정규화된 좌표)
+  \item 두 방법 모두 \textbf{metric scale을 보장하지 않는다} --- 단안 깊이 추정 기반이므로.
+\end{itemize}
+\end{warningbox}
+
+
+% ====================================================================
+\chapter{차이의 근본 원인}
+% ====================================================================
+
+\section{원인 1: 전처리 파이프라인의 차이}
+
+두 방법이 이미지를 내부적으로 처리하는 방식이 근본적으로 다릅니다.
+
+\begin{table}[H]
+\centering
+\caption{전처리 파이프라인 비교}
+\renewcommand{\arraystretch}{1.4}
+\begin{tabular}{p{3cm} p{5.5cm} p{5.5cm}}
+\toprule
+\textbf{단계} & \textbf{DA3} & \textbf{VGGT} \\
+\midrule
+1. 입력 & 원본 이미지 & 원본 이미지 \\
+2. 리사이즈 & longest side $\rightarrow$ 504 & width $\rightarrow$ 518, height 비례 \\
+3. 정규화 & \texttt{make\_divisible\_by\_14} (미세 리사이즈) & height를 14의 배수로 반올림 \\
+4. 배치 통일 & \textbf{center crop to 280$\times$280} & 별도 처리 불필요 (같은 비율) \\
+5. K 추정 & FOV 예측 $\rightarrow$ 280$\times$280 기준 K & FOV 예측 $\rightarrow$ 518$\times$294 기준 K \\
+6. 역변환 필요 & \textbf{3단계} (uncrop + undiv14 + unresize) & \textbf{1단계} (단순 스케일링) \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\begin{importantnote}
+DA3의 역변환이 3단계인 이유: center crop과 \texttt{make\_divisible\_by\_14}가 \textbf{비균일 스케일링}을 유발하기 때문.
+\begin{align*}
+s_x &= \frac{504}{1920} = 0.2625 \\
+s_y &= \frac{280}{1080} = 0.2593 \quad (\neq s_x!)
+\end{align*}
+이 미세한 차이($\sim$1.2\%)가 $f_x/f_y$ 비율을 왜곡시킨다.
+\end{importantnote}
+
+
+\section{원인 2: 가로/세로 혼재 처리 방식}
+
+\begin{table}[H]
+\centering
+\caption{Portrait (cam1, 1080$\times$1920) 처리 비교}
+\renewcommand{\arraystretch}{1.3}
+\begin{tabular}{l p{6cm} p{6cm}}
+\toprule
+& \textbf{DA3} & \textbf{VGGT (crop mode)} \\
+\midrule
+리사이즈 & $1080\times1920 \rightarrow 283\times504$ & 90° 회전 후 $1920\times1080 \rightarrow 518\times294$ \\
+정규화 & $283\rightarrow280$ (width), $504$ 유지 & $294$ (14의 배수, 변화 없음) \\
+배치 통일 & crop $280\times504 \rightarrow 280\times280$ & 불필요 (모든 이미지가 동일 비율) \\
+\midrule
+crop 방향 & \textbf{상하}에서 112px씩 제거 ($c_y \mathrel{-}= 112$) & 없음 \\
+역변환 & $c_y$에 112 복원 + 비균일 스케일 & 단순 스케일 + 90° 역회전 \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\begin{keyidea}[title={핵심 차이}]
+DA3는 portrait/landscape를 \textbf{같은 배치}에서 처리하면서 280$\times$280 정사각으로 통일한다.
+이때 portrait는 상하가, landscape는 좌우가 잘리므로, 역변환 공식이 카메라마다 달라야 한다.
+
+VGGT는 portrait를 90° 회전하여 \textbf{모든 이미지를 landscape로 통일}한 후 처리하므로,
+역변환이 모든 카메라에 동일하다.
+\end{keyidea}
+
+
+\section{원인 3: FOV 추정 모델의 차이}
+
+\begin{table}[H]
+\centering
+\caption{FOV/초점거리 추정 방식 비교}
+\renewcommand{\arraystretch}{1.3}
+\begin{tabular}{l p{6cm} p{6cm}}
+\toprule
+& \textbf{DA3} & \textbf{VGGT} \\
+\midrule
+모델 크기 & ViT-Large ($\sim$300M) & ViT-Large ($\sim$1B) \\
+학습 데이터 & depth 중심 (다양한 실내외) & 3D 재구성 + 카메라 포즈 중심 \\
+K 추정 방식 & 별도 camera decoder에서 FOV 예측 & pose encoding에서 FOV 디코딩 \\
+cx, cy & 모델이 예측 (중심 근처) & \textbf{항상 이미지 중심으로 고정} \\
+다시점 활용 & 단일 이미지 독립 추정 & \textbf{모든 이미지를 함께 보고 추정} \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+이 차이가 약 7.5\%의 초점 거리 차이($\sim$790 vs $\sim$735 px)를 유발한다. 두 모델 모두 \textbf{ground truth focal length에 접근하는 다른 근사}를 제공하며, 절대적으로 어느 것이 맞는지는 체커보드 캘리브레이션 없이는 판단할 수 없다.
+
+
+\section{원인 4: 좌표계와 스케일}
+
+\begin{table}[H]
+\centering
+\caption{좌표계 및 스케일 비교}
+\renewcommand{\arraystretch}{1.3}
+\begin{tabular}{l p{6cm} p{6cm}}
+\toprule
+& \textbf{DA3 PnP Refined} & \textbf{VGGT} \\
+\midrule
+좌표 원점 & PnP로 결정된 임의 원점 & cam1 근처 (첫 번째 카메라) \\
+스케일 & 깊이 맵 기반 (임의 스케일) & 정규화된 좌표 ($\|t\| \sim 1$) \\
+Metric? & \textbf{No} (단안 깊이 = 상대적) & \textbf{No} (up-to-scale) \\
+\midrule
+$\|t\|$ 범위 & 5--17 & 0--1.3 \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\begin{warningbox}
+두 방법 모두 \textbf{절대 스케일(미터)}을 보장하지 않는다. 실제 카메라 간 거리(예: Vicon으로 측정)와 비교하려면 스케일 팩터를 곱해야 한다. 그러나 \textbf{삼각측량에는 metric scale이 필요하지 않다} --- 모든 카메라가 같은 좌표계에 있으면 된다.
+\end{warningbox}
+
+
+% ====================================================================
+\chapter{정량적 비교}
+% ====================================================================
+
+\section{$f_x/f_y$ 비율 (정사각 픽셀 검증)}
+
+동일 카메라 모델이면 $f_x \approx f_y$, 즉 $f_x/f_y \approx 1.0$이어야 한다.
+
+\begin{table}[H]
+\centering
+\caption{$f_x/f_y$ 비율 비교 (1.0에 가까울수록 정상)}
+\renewcommand{\arraystretch}{1.3}
+\begin{tabular}{l cc}
+\toprule
+\textbf{Camera} & \textbf{DA3 $\rightarrow$ 원본} & \textbf{VGGT} \\
+\midrule
+cam1 & 1.016 & 0.996 \\
+cam2 & 0.993 & 0.994 \\
+cam3 & 0.994 & 0.994 \\
+cam4 & 0.978 & 0.995 \\
+cam5 & 0.995 & 1.005 \\
+cam6 & 0.993 & 0.996 \\
+cam7 & 0.993 & 1.001 \\
+\midrule
+\textbf{1.0과의 최대 편차} & \textbf{0.022 (cam4)} & \textbf{0.006 (cam2,3)} \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\begin{summary}
+VGGT의 $f_x/f_y$ 비율이 1.0에 훨씬 가깝다 (최대 편차 0.6\% vs DA3의 2.2\%).
+이는 VGGT의 전처리가 비균일 스케일링을 유발하지 않기 때문이다.
+DA3의 cam4에서 $f_x/f_y = 0.978$은 비정상적으로 크며, \texttt{make\_divisible\_by\_14}와 center crop의 누적 오차로 추정된다.
+\end{summary}
+
+
+\section{카메라 간 초점 거리 일관성}
+
+7대 카메라가 같은 모델이므로 초점 거리가 유사해야 한다.
+
+\begin{table}[H]
+\centering
+\caption{$f_x$ 통계 비교}
+\renewcommand{\arraystretch}{1.3}
+\begin{tabular}{l ccc}
+\toprule
+& \textbf{평균} & \textbf{표준편차} & \textbf{CV (\%)} \\
+\midrule
+DA3 $\rightarrow$ 원본 & 787.6 & 5.3 & 0.67\% \\
+VGGT & 734.4 & 4.2 & \textbf{0.57\%} \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+두 방법 모두 일관성은 좋다 (CV $< 1\%$). VGGT가 약간 더 일관적이다.
+
+
+% ====================================================================
+\chapter{결론 및 권장 사항}
+% ====================================================================
+
+\section{왜 결과가 다른가}
+
+차이의 원인을 중요도 순으로 정리하면:
+
+\begin{enumerate}[leftmargin=*]
+  \item \textbf{FOV 추정 모델 차이} (약 7.5\% 초점 거리 차이)
+    \begin{itemize}
+      \item DA3와 VGGT는 서로 다른 학습 데이터, 아키텍처, 목적 함수를 사용
+      \item DA3는 깊이 추정 최적화, VGGT는 3D 기하 + 카메라 포즈 최적화
+      \item 절대값이 다른 것은 당연; 체커보드 GT 없이는 누가 맞는지 판단 불가
+    \end{itemize}
+
+  \item \textbf{전처리 파이프라인의 비균일 스케일링} ($f_x/f_y$ 왜곡)
+    \begin{itemize}
+      \item DA3: \texttt{make\_divisible\_by\_14} + center crop $\Rightarrow$ $s_x \neq s_y$ $\Rightarrow$ $f_x/f_y$ 최대 2.2\% 편차
+      \item VGGT (crop mode): 단순 리사이즈 + 14배수 조정 $\Rightarrow$ $f_x/f_y$ 최대 0.6\% 편차
+    \end{itemize}
+
+  \item \textbf{가로/세로 혼재 처리} (cam1 portrait)
+    \begin{itemize}
+      \item DA3: 배치 내 center crop 방향이 portrait/landscape에서 다름 $\Rightarrow$ 역변환 공식 분기 필요
+      \item VGGT: 90° 회전으로 landscape 통일 $\Rightarrow$ 역변환 일관적
+    \end{itemize}
+
+  \item \textbf{좌표계 원점 및 스케일} (translation 차이)
+    \begin{itemize}
+      \item DA3: PnP 기반 스케일 (깊이 맵 의존, 절대값 큼)
+      \item VGGT: 정규화된 좌표 (cam1 기준, $\|t\| \sim 1$)
+      \item 둘 다 non-metric; 삼각측량에는 같은 좌표계 내 일관성만 중요
+    \end{itemize}
+\end{enumerate}
+
+
+\section{어느 것을 사용해야 하는가}
+
+\begin{table}[H]
+\centering
+\caption{DA3 vs VGGT 최종 비교}
+\renewcommand{\arraystretch}{1.4}
+\begin{tabular}{p{4cm} p{5cm} p{5cm}}
+\toprule
+\textbf{기준} & \textbf{DA3} & \textbf{VGGT} \\
+\midrule
+$f_x/f_y$ 정확도 & 최대 2.2\% 편차 & \textbf{최대 0.6\% 편차} \\
+역변환 복잡도 & 3단계, 카메라별 분기 & \textbf{1단계, 동일 공식} \\
+portrait 처리 & 배치 내 crop 방향 다름 & \textbf{회전으로 통일} \\
+다시점 일관성 & 카메라별 독립 추정 & \textbf{7장 동시 추정} \\
+K와 OpenPose 좌표계 & 역변환 필요 (오류 위험) & \textbf{원본 해상도에서 직접 매칭} \\
+왜곡 계수 & 없음 & 없음 \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\begin{summary}
+\textbf{VGGT를 권장한다.} 이유:
+\begin{enumerate}[leftmargin=*]
+  \item K가 원본 해상도와 자연스럽게 매칭되어, OpenPose 2D 키포인트와의 좌표계 불일치 위험이 없다.
+  \item $f_x/f_y$ 비율이 1.0에 가까워, 정사각 픽셀 가정이 잘 유지된다.
+  \item R, t가 7대 카메라를 동시에 고려하여 추정되므로, 상대적 위치 관계가 더 일관적이다.
+  \item 역변환이 단순하여, DA3에서 발생했던 ``모든 문제의 원인''인 좌표계 불일치가 구조적으로 방지된다.
+\end{enumerate}
+
+단, 두 방법 모두 왜곡 계수를 제공하지 않으며, 절대 초점 거리의 정확도는 체커보드 캘리브레이션 없이 검증 불가능하다. 최종 정확도는 삼각측량 + SMPL 피팅의 reprojection error로 간접 평가해야 한다.
+\end{summary}
+
+
+\end{document}

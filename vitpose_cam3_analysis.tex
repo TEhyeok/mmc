@@ -1,0 +1,197 @@
+\documentclass[11pt, a4paper]{article}
+\usepackage{fontspec}
+\usepackage{kotex}
+\usepackage{amsmath}
+\usepackage{booktabs}
+\usepackage{tabularx}
+\usepackage{hyperref}
+\usepackage{geometry}
+\usepackage{enumitem}
+\usepackage{xcolor}
+\usepackage{tcolorbox}
+\usepackage{tikz}
+\usepackage{pgfplots}
+\pgfplotsset{compat=1.18}
+\usepackage{float}
+
+\geometry{margin=2.5cm}
+
+\definecolor{defblue}{RGB}{30, 80, 150}
+\definecolor{thmgreen}{RGB}{20, 110, 60}
+\definecolor{noteorange}{RGB}{200, 100, 0}
+\definecolor{lightblue}{RGB}{230, 240, 255}
+\definecolor{lightgreen}{RGB}{230, 255, 235}
+\definecolor{lightorange}{RGB}{255, 245, 230}
+\definecolor{lightred}{RGB}{255, 235, 235}
+\definecolor{darkred}{RGB}{180, 30, 30}
+
+\newtcolorbox{keyidea}[1][]{colback=lightblue, colframe=defblue, fonttitle=\bfseries, title={Root Cause}, #1}
+\newtcolorbox{warningbox}[1][]{colback=lightred, colframe=darkred, fonttitle=\bfseries, title={Problem}, #1}
+\newtcolorbox{successbox}[1][]{colback=lightgreen, colframe=thmgreen, fonttitle=\bfseries, title={Solution}, #1}
+
+\title{\color{defblue}\textbf{ViTPose cam3 스켈레톤 소실 분석 보고서}}
+\author{GART-Pitch Development Log}
+\date{2026년 4월 11일}
+
+\begin{document}
+\maketitle
+
+\section{현상}
+
+cam3의 ViTPose 오버레이 영상에서 투구 동작 구간 중 \textbf{스켈레톤이 갑자기 사라지거나 다른 위치로 점프}하는 현상이 관찰되었다.
+
+\section{분석 결과}
+
+\subsection{데이터 통계}
+
+\begin{table}[H]
+\centering
+\caption{cam3 ViTPose 검출 현황}
+\renewcommand{\arraystretch}{1.3}
+\begin{tabular}{lc}
+\toprule
+\textbf{지표} & \textbf{값} \\
+\midrule
+전체 프레임 & 1,000 \\
+검출된 프레임 (1명 이상) & \textbf{1,000 (100\%)} \\
+검출된 인원 수 & 2명: 134프레임, \textbf{3명: 797프레임}, 4명: 69프레임 \\
+평균 confidence & 0.459 \\
+\midrule
+\textbf{투수 아닌 사람이 P0인 프레임} & \textbf{909 / 1,000 (90.9\%)} \\
+Person 스위칭 (200px+ 점프) & 15회 \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\begin{warningbox}
+\textbf{스켈레톤이 ``사라진'' 것이 아니다.}\\
+모든 프레임에서 사람은 검출되었지만, \textbf{Person 0이 투수가 아닌 다른 사람}을 가리키고 있다.
+투수 위치에 스켈레톤이 없는 것처럼 보이는 이유는, 스켈레톤이 화면 밖 또는 배경의 다른 사람 위에 그려지기 때문이다.
+\end{warningbox}
+
+\subsection{잘못된 프레임 구간}
+
+\begin{table}[H]
+\centering
+\caption{투수가 아닌 사람이 P0으로 선택된 구간}
+\renewcommand{\arraystretch}{1.3}
+\begin{tabular}{lccl}
+\toprule
+\textbf{구간} & \textbf{프레임 수} & \textbf{영상 시각 (24fps)} & \textbf{비고} \\
+\midrule
+37--504 & 468 & 1.5s--21.0s & 가장 긴 오류 구간 \\
+529--530 & 2 & 22.0s & 단발 \\
+545--570 & 26 & 22.7s--23.7s & \\
+573--580 & 8 & 23.8s--24.1s & \\
+600--999 & 400 & 25.0s--41.6s & 후반부 전체 \\
+\midrule
+\textbf{합계} & \textbf{909} & & \textbf{90.9\%} \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\subsection{OpenPose와의 비교}
+
+\begin{table}[H]
+\centering
+\caption{cam3: OpenPose vs ViTPose 비교}
+\renewcommand{\arraystretch}{1.3}
+\begin{tabular}{lcc}
+\toprule
+\textbf{지표} & \textbf{OpenPose} & \textbf{ViTPose} \\
+\midrule
+미검출 프레임 & 0 & 0 \\
+평균 confidence & \textbf{0.759} & 0.459 \\
+투수 올바르게 선택 & \textbf{1,000 (100\%)} & 91 (9.1\%) \\
+Person 선택 방식 & \texttt{pitcher\_indices.json} & \textbf{없음 (P0 고정)} \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+
+\section{근본 원인}
+
+\begin{keyidea}
+\textbf{원인: ViTPose 실행 시 투수 선택 로직이 없음}
+
+\begin{enumerate}[nosep]
+  \item cam3 시야에 \textbf{3--4명}이 동시에 보임
+  \item ViTPose(MMPose)는 모든 사람을 검출하고 \textbf{confidence 순}으로 정렬
+  \item 스크립트에서 \texttt{people[0]} (첫 번째 검출 사람)을 무조건 사용
+  \item \textbf{투수가 P0이 아닌 경우 90.9\%} --- 대부분 다른 사람이 더 높은 confidence
+  \item OpenPose는 \texttt{pitcher\_indices.json}으로 투수를 명시적으로 선택하여 이 문제 없음
+\end{enumerate}
+\end{keyidea}
+
+\subsection{왜 다른 사람의 confidence가 더 높은가?}
+
+\begin{itemize}[leftmargin=*]
+  \item cam3 시야에서 투수는 멀리 있거나 빠르게 움직여 \textbf{모션 블러} 발생
+  \item 다른 사람(앉아 있거나 서 있는)은 정적이어서 \textbf{검출 confidence가 더 높음}
+  \item ViTPose/RTMPose의 Top-Down 방식은 먼저 사람을 탐지(RTMDet)한 후 자세를 추정하는데,
+        \textbf{탐지 confidence 순서}로 정렬됨
+\end{itemize}
+
+\subsection{cam3만의 문제인가?}
+
+다른 카메라에서도 동일한 문제가 발생할 가능성이 높다.
+특히 여러 사람이 보이는 카메라(cam4, cam5, cam7)에서 투수 선택 오류가 있을 수 있다.
+
+
+\section{해결 방안}
+
+\begin{successbox}
+\textbf{3가지 해결 방법:}
+
+\begin{enumerate}[leftmargin=*]
+  \item \textbf{SAM3 마스크 활용 (권장)}\\
+    이미 각 프레임의 투수 마스크가 있으므로,
+    검출된 모든 사람 중 \textbf{마스크와 가장 많이 겹치는 사람}을 투수로 선택.
+
+    $\text{pitcher} = \arg\max_{p \in \text{people}} \sum_{j} \mathbf{1}[\text{mask}(\text{kp}_j^{(p)}) > 0]$
+
+  \item \textbf{OpenPose pitcher\_indices 재사용}\\
+    OpenPose의 person 순서와 ViTPose의 person 순서가 다르므로 직접 사용은 불가.
+    하지만 OpenPose 투수의 2D 중심 위치를 기준으로 ViTPose에서 가장 가까운 사람을 선택.
+
+  \item \textbf{Bounding Box 기반}\\
+    투수의 예상 위치(이전 프레임의 bbox)와 가장 가까운 검출 결과를 선택.
+    Temporal tracking 유사 방식.
+\end{enumerate}
+\end{successbox}
+
+\section{추가 발견: 모델 문제}
+
+\begin{warningbox}
+ViTPose 실행 시 실제로 로드된 모델은 \textbf{RTMPose} (기본 모델)이지,
+\textbf{ViTPose-Huge}가 아니다.
+
+서버 로그:
+\begin{verbatim}
+Loads checkpoint by http backend from path:
+  rtmdet_m_8xb32-100e_coco-obj365-person-235e8209.pth
+\end{verbatim}
+
+\texttt{MMPoseInferencer(pose2d='human')} → RTMPose (기본)
+
+ViTPose-Huge를 사용하려면:
+\begin{verbatim}
+MMPoseInferencer(
+  pose2d='td-hm_ViTPose-huge_8xb64-210e_coco-256x192'
+)
+\end{verbatim}
+\end{warningbox}
+
+
+\section{결론}
+
+\begin{enumerate}[leftmargin=*]
+  \item \textbf{스켈레톤 소실의 원인}: 투수 선택 로직 부재 (P0 $\neq$ 투수, 90.9\%)
+  \item \textbf{검출 자체는 정상}: 모든 프레임에서 사람 검출됨
+  \item \textbf{OpenPose는 정상}: \texttt{pitcher\_indices.json}으로 투수 명시 선택
+  \item \textbf{해결}: SAM3 마스크 겹침으로 투수 선택 → 전체 7대 카메라 재처리
+  \item \textbf{추가}: 현재 RTMPose 사용 중 → ViTPose-Huge로 교체 필요
+\end{enumerate}
+
+
+\end{document}

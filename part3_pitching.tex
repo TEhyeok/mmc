@@ -1,111 +1,13 @@
 \documentclass[11pt, a4paper]{report}
 
-% ========== Packages ==========
-\usepackage{fontspec}
-\usepackage{kotex}
-\usepackage{amsmath, amssymb, amsthm}
-\usepackage{mathtools}
-\usepackage{bm}
-\usepackage{graphicx}
-\usepackage{booktabs}
-\usepackage{array}
-\usepackage{tabularx}
-\usepackage{longtable}
-\usepackage{hyperref}
-\usepackage{cleveref}
-\usepackage{geometry}
-\usepackage{fancyhdr}
-\usepackage{titlesec}
-\usepackage{enumitem}
-\usepackage{xcolor}
-\usepackage{tcolorbox}
-\usepackage{algorithm}
-\usepackage{algorithmic}
-\usepackage{tikz}
-\usetikzlibrary{arrows.meta, positioning, calc, decorations.pathreplacing, shapes.geometric, fit, patterns, angles, quotes}
-\usepackage{pgfplots}
-\pgfplotsset{compat=1.18}
-\usepackage{caption}
-\usepackage{subcaption}
-\usepackage{float}
+\input{preamble/packages}
 \usepackage{multirow}
 \usepackage{siunitx}
-
-\geometry{margin=2.5cm, top=3cm, bottom=3cm}
-
-% ========== Colors ==========
-\definecolor{defblue}{RGB}{30, 80, 150}
-\definecolor{thmgreen}{RGB}{20, 110, 60}
-\definecolor{noteorange}{RGB}{200, 100, 0}
-\definecolor{lightblue}{RGB}{230, 240, 255}
-\definecolor{lightgreen}{RGB}{230, 255, 235}
-\definecolor{lightorange}{RGB}{255, 245, 230}
-\definecolor{lightgray}{RGB}{245, 245, 245}
-\definecolor{lightred}{RGB}{255, 235, 235}
-\definecolor{darkred}{RGB}{180, 30, 30}
-\definecolor{biogreen}{RGB}{10, 130, 80}
-\definecolor{cvpurple}{RGB}{100, 40, 150}
-\definecolor{injuryred}{RGB}{200, 40, 40}
-
-% ========== Theorem-like environments ==========
-\theoremstyle{definition}
-\newtheorem{definition}{Definition}[chapter]
-\newtheorem{example}{Example}[chapter]
-\theoremstyle{remark}
-\newtheorem{remark}{Remark}[chapter]
-
-% ========== tcolorbox ==========
-\newtcolorbox{keyidea}[1][]{colback=lightblue, colframe=defblue, fonttitle=\bfseries, title={Key Idea}, #1}
-\newtcolorbox{importantnote}[1][]{colback=lightorange, colframe=noteorange, fonttitle=\bfseries, title={Important}, #1}
-\newtcolorbox{summary}[1][]{colback=lightgreen, colframe=thmgreen, fonttitle=\bfseries, title={Summary}, #1}
-\newtcolorbox{clinicalnote}[1][]{colback=lightred, colframe=darkred, fonttitle=\bfseries, title={Clinical Note}, #1}
-\newtcolorbox{biomechbox}[1][]{colback=lightgreen, colframe=biogreen, fonttitle=\bfseries, title={Biomechanics}, #1}
-\newtcolorbox{cvbox}[1][]{colback={cvpurple!5}, colframe=cvpurple, fonttitle=\bfseries, title={Computer Vision}, #1}
-\newtcolorbox{injurybox}[1][]{colback={injuryred!8}, colframe=injuryred, fonttitle=\bfseries, title={Injury Risk}, #1}
-\newtcolorbox{setupbox}[1][]{colback=lightgray, colframe=gray!60, fonttitle=\bfseries, title={Setup}, #1}
-
-% ========== Custom commands ==========
-\newcommand{\vx}{\mathbf{x}}
-\newcommand{\vd}{\mathbf{d}}
-\newcommand{\vo}{\mathbf{o}}
-\newcommand{\vc}{\mathbf{c}}
-\newcommand{\vr}{\mathbf{r}}
-\newcommand{\vp}{\mathbf{p}}
-\newcommand{\vv}{\mathbf{v}}
-\newcommand{\vF}{\mathbf{F}}
-\newcommand{\vM}{\mathbf{M}}
-\newcommand{\va}{\mathbf{a}}
-\newcommand{\vg}{\mathbf{g}}
-\newcommand{\vmu}{\bm{\mu}}
-\newcommand{\vbeta}{\bm{\beta}}
-\newcommand{\vtheta}{\bm{\theta}}
-\newcommand{\mSigma}{\bm{\Sigma}}
-\newcommand{\mR}{\mathbf{R}}
-\newcommand{\mW}{\mathbf{W}}
-\newcommand{\mJ}{\mathbf{J}}
-\newcommand{\mI}{\mathbf{I}}
-\newcommand{\RR}{\mathbb{R}}
-\newcommand{\degps}{\,\text{deg/s}}
-\newcommand{\Nm}{\,\text{N}\cdot\text{m}}
-\newcommand{\BW}{\,\text{BW}}
-
-% ========== Header/Footer ==========
-\pagestyle{fancy}
-\fancyhf{}
-\fancyhead[L]{\leftmark}
-\fancyhead[R]{\thepage}
-\renewcommand{\headrulewidth}{0.4pt}
-
-% ========== Title formatting ==========
-\titleformat{\chapter}[display]
-  {\normalfont\huge\bfseries\color{defblue}}
-  {\chaptertitlename\ \thechapter}{20pt}{\Huge}
-\titleformat{\section}
-  {\normalfont\Large\bfseries\color{defblue!80!black}}
-  {\thesection}{1em}{}
-\titleformat{\subsection}
-  {\normalfont\large\bfseries\color{defblue!60!black}}
-  {\thesubsection}{1em}{}
+\input{preamble/colors}
+\input{preamble/theorems}
+\input{preamble/tcolorboxes}
+\input{preamble/commands}
+\input{preamble/formatting}
 
 \begin{document}
 
@@ -731,6 +633,32 @@ Wu 등 (2005)의 ISB 권고안:
   \item 관절별 정확도가 균일하지 않음 (족관절 등 작은 움직임의 관절에서 특히 부정확)
 \end{itemize}
 
+\begin{importantnote}[title={OpenPose 3D가 정확해도 SMPL-X 피팅에 직접 쓰면 안 되는 이유}]
+OpenPose 3D 키포인트 자체의 정확성과, 이를 SMPL-X 피팅의 감독 신호로 사용하는 것은 별개의 문제입니다.
+
+\textbf{경로 A} (비권장): 다시점 2D $\xrightarrow{\text{삼각측량}}$ 3D 키포인트 $\xrightarrow{\text{3D 거리 최소화}}$ SMPL-X 파라미터
+
+\textbf{경로 B} (권장): 다시점 2D $\xrightarrow{\text{2D 재투영 피팅}}$ SMPL-X 파라미터
+
+경로 A의 문제:
+\begin{itemize}[leftmargin=*]
+  \item 삼각측량 과정에서 카메라 보정 오차와 2D 노이즈가 3D 위치에 누적
+  \item OpenPose 관절 $\neq$ SMPL-X 관절: 3D 공간에서 수 cm 오프셋이 수렴을 방해
+  \item 다시점 정보(350+ 2D 관측)가 75개의 3D 좌표로 압축되어 정보 손실
+\end{itemize}
+
+경로 B가 우월한 이유:
+\begin{itemize}[leftmargin=*]
+  \item 삼각측량 단계 불필요 --- 원본 2D 검출을 직접 사용
+  \item 관절 정의 오프셋이 2D 투영 과정에서 시점별로 다르게 나타나 자연스럽게 희석
+  \item 카메라별 검출 신뢰도($w_{jk}$)로 가중하여 가려진 관절/저품질 검출을 자동 처리
+\end{itemize}
+
+이것이 EasyMocap(\cref{eq:multiview_smpl})이 다시점 \textbf{2D} 키포인트를 직접 사용하는 이유이며,
+3DGS 광도 손실(\cref{eq:pose_refinement})이 키포인트 자체를 우회하고 \textbf{전체 픽셀}을
+사용하는 이유입니다.
+\end{importantnote}
+
 
 % ====================================================================
 % CHAPTER 5: 3DGS 기반 투구 분석 파이프라인
@@ -828,6 +756,55 @@ Wu 등 (2005)의 ISB 권고안:
 \begin{keyidea}
 7대 카메라의 핵심 이점: 단안 영상에서는 깊이 모호성이 심각하지만, 7시점에서는 $\binom{7}{2} = 21$개의 에피폴라 제약이 깊이를 강력하게 결정합니다. 특히 투구 팔의 깊이---앞뒤로 움직이는 정도---를 정확히 복원할 수 있으며, 이는 어깨 외회전/내회전 추정에 결정적입니다.
 \end{keyidea}
+
+\begin{importantnote}[title={다시점 피팅 경로 비교}]
+
+\begin{center}
+\renewcommand{\arraystretch}{1.3}
+\small
+\begin{tabular}{p{3cm}p{4cm}p{4cm}}
+\toprule
+& \textbf{3D 키포인트 직접 피팅} & \textbf{다시점 2D 재투영 피팅} \\
+\midrule
+입력 & OpenPose 3D (삼각측량) & 7시점 2D 키포인트 (원본) \\
+감독 신호 & 25개 3D 점 = 75값 & $7 \times 25 = 175$ $(x,y)$ 쌍 = 350값 \\
+관절 불일치 & 3D 유클리드 오프셋이 직접 오차 & 2D 투영에서 시점별로 희석 \\
+중간 단계 오차 & 삼각측량 오차 포함 & 없음 (원본 2D 직접 사용) \\
+수렴성 & 구조적 오프셋으로 수천 회에도 미수렴 가능 & 100--300회 수렴 \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+\textbf{결론}: OpenPose 3D의 정확성을 활용하는 최선의 방법은, 3D 키포인트를 직접 피팅에 쓰는 것이 아니라,
+그 원본인 \textbf{다시점 2D 키포인트를 보존하여 재투영 피팅에 사용}하는 것입니다.
+검증된 OpenPose 3D는 결과의 \textbf{사후 검증(validation)}에 활용하는 것이 올바른 역할입니다.
+\end{importantnote}
+
+\begin{importantnote}[title={다시점 2D 재투영 피팅의 3D 정확성 보장 범위}]
+다시점 2D 재투영 피팅으로 얻은 SMPL-X가 3D에서도 정확한지는 구분이 필요합니다.
+
+\textbf{보장되는 것}:
+\begin{itemize}[leftmargin=*]
+  \item 모든 카메라 시점에서 2D 재투영 일관성 --- 7시점의 에피폴라 제약이 3D 형상을 수학적으로 결정
+  \item SMPL-X 메시의 전체 형태(체형 $\vbeta$, 자세 $\vtheta$)가 영상과 일관됨
+\end{itemize}
+
+\textbf{보장되지 않는 것}:
+\begin{itemize}[leftmargin=*]
+  \item $\mJ_{\text{regressor}}$로 계산된 관절 위치가 해부학적 관절 회전 중심과 정확히 일치하는지
+  --- 이 회귀 행렬은 주로 보행/일상 동작 데이터에서 학습되었으므로, 투구처럼 극단적인 자세에서는 오차 가능
+  \item 얇은 구조(손가락, 발가락)나 의류에 의한 체형 모호성
+\end{itemize}
+
+\textbf{이 파이프라인의 해법}:
+\begin{enumerate}[leftmargin=*]
+  \item \textbf{3DGS 광도 정제} (다음 Step 3): 키포인트나 관절 정의를 우회하고
+  \textbf{전체 픽셀}을 감독 신호로 사용하여 SMPL-X를 정제 $\rightarrow$ 관절 정의 오차 최소화
+  \item \textbf{가상 마커}: 최종 생체역학 분석에는 $\mJ_{\text{regressor}}$ 관절이 아닌
+  \textbf{메시 꼭짓점 좌표}를 해부학적 랜드마크로 사용
+  $\rightarrow$ 관절 회귀 행렬의 부정확성을 우회
+\end{enumerate}
+\end{importantnote}
 
 \subsection{Step 3: 3DGS 인체 재구성 + 자세 정제}
 

@@ -1,0 +1,1123 @@
+\documentclass[11pt, a4paper]{report}
+
+\input{preamble/packages}
+\usepackage{multirow}
+\usepackage{siunitx}
+\input{preamble/colors}
+\input{preamble/theorems}
+\input{preamble/tcolorboxes}
+\input{preamble/commands}
+\input{preamble/listings}
+\input{preamble/formatting}
+
+\begin{document}
+
+% ==================== TITLE PAGE ====================
+\begin{titlepage}
+\centering
+\vspace*{1.5cm}
+{\Large\color{gray} Part 5 --- Research Proposal}
+\vspace{0.5cm}
+
+{\Huge\bfseries\color{defblue} 3D Gaussian Splatting 기반\\[0.3cm]
+마커리스 투구 동작 분석:\\[0.3cm]
+마커 기반 정확도를 넘어서}
+
+\vspace{1cm}
+
+{\LARGE\color{defblue!70!black} GART-Pitch: Gaussian Articulated Representation\\
+for High-Fidelity Markerless Pitching Biomechanics}
+
+\vspace{1.5cm}
+
+\begin{tikzpicture}[scale=0.55]
+% Left: Marker-based (old)
+\begin{scope}[shift={(-6,0)}]
+  \draw[thick, gray!50] (0,0) -- (0,3) -- (-0.8,5) -- (0,4.5) -- (0.8,5) -- (0,3);
+  \draw[thick, gray!50] (0,0) -- (-0.6,-3);
+  \draw[thick, gray!50] (0,0) -- (0.6,-3);
+  \foreach \x/\y in {0/3, -0.8/5, 0.8/5, 0/0, -0.6/-3, 0.6/-3, 0/4.5, -0.4/1.5, 0.4/1.5} {
+    \fill[injuryred] (\x,\y) circle (0.12);
+  }
+  \node[font=\small\bfseries, text=gray] at (0,-4) {Marker-Based};
+  \node[font=\tiny, text=gray] at (0,-4.7) {MPJPE $< 1$ mm};
+  \node[font=\tiny, text=injuryred] at (0,-5.3) {(invasive, expensive)};
+\end{scope}
+
+% Center: Existing markerless (current SOTA)
+\begin{scope}[shift={(0,0)}]
+  \draw[thick, noteorange!70] (0,0) -- (0,3) -- (-0.8,5) -- (0,4.5) -- (0.8,5) -- (0,3);
+  \draw[thick, noteorange!70] (0,0) -- (-0.6,-3);
+  \draw[thick, noteorange!70] (0,0) -- (0.6,-3);
+  \foreach \x/\y in {0/3, -0.8/5, 0.8/5, 0/0, -0.6/-3, 0.6/-3, 0/4.5} {
+    \fill[noteorange] (\x,\y) circle (0.08);
+  }
+  \draw[noteorange, dashed, thick] (-0.8,5) circle (0.4);
+  \draw[noteorange, dashed, thick] (0.8,5) circle (0.4);
+  \node[font=\small\bfseries, text=noteorange!80!black] at (0,-4) {Markerless SOTA};
+  \node[font=\tiny, text=noteorange!80!black] at (0,-4.7) {MPJPE 52--57 mm};
+  \node[font=\tiny, text=noteorange] at (0,-5.3) {(keypoint-only)};
+\end{scope}
+
+% Right: Ours (GART-Pitch)
+\begin{scope}[shift={(6,0)}]
+  % Body with gaussian "glow"
+  \fill[defblue!10] (0,1.5) ellipse (1.5 and 4);
+  \draw[thick, defblue] (0,0) -- (0,3) -- (-0.8,5) -- (0,4.5) -- (0.8,5) -- (0,3);
+  \draw[thick, defblue] (0,0) -- (-0.6,-3);
+  \draw[thick, defblue] (0,0) -- (0.6,-3);
+  % Dense gaussians
+  \foreach \i in {1,...,30} {
+    \pgfmathsetmacro{\rx}{-1.2+2.4*rand}
+    \pgfmathsetmacro{\ry}{-2.5+7*rand}
+    \fill[defblue!40, opacity=0.3] (\rx,\ry) circle (0.15);
+  }
+  \node[font=\small\bfseries, text=defblue] at (0,-4) {GART-Pitch (Ours)};
+  \node[font=\tiny, text=defblue] at (0,-4.7) {Target: MPJPE $< 20$ mm};
+  \node[font=\tiny, text=thmgreen] at (0,-5.3) {(dense, photometric)};
+\end{scope}
+
+% Arrows
+\draw[-Stealth, very thick, thmgreen] (2.5, 0) -- (3.8, 0) node[midway, above, font=\tiny\bfseries, text=thmgreen] {$>$60\% better};
+\draw[-Stealth, thick, gray, dashed] (-3.5, 0) -- (-2.2, 0);
+\end{tikzpicture}
+
+\vspace{1.5cm}
+{\large 컴퓨터 비전 $\times$ 스포츠 생체역학 $\times$ 3D 재구성}
+\vspace{0.5cm}
+
+{\large 2026}
+
+\vspace{\fill}
+{\small\color{gray} 본 문서는 Part 1--4 교재의 후속 연구 제안서로,\\
+3D Gaussian Splatting 기반 마커리스 투구 동작 분석이\\
+기존 마커리스 SOTA를 능가하고 마커 기반 정확도에 근접할 수 있음을 논증합니다.}
+\end{titlepage}
+
+\tableofcontents
+\newpage
+
+
+% ==================== CHAPTER 0: 연구 요약 ====================
+\chapter*{연구 요약 (Executive Summary)}
+\addcontentsline{toc}{chapter}{연구 요약}
+
+\begin{hypothesis}[title={핵심 가설}]
+\textbf{7시점 240\,Hz RGB 영상에서 GART(Gaussian Articulated Representation Templates) 기반
+분석-합성(analysis-by-synthesis) 자세 정제를 적용하면,
+투구 동작의 3D 관절 위치 정확도(MPJPE)가 기존 마커리스 SOTA(52--57\,mm)를 60\% 이상 개선하여
+20\,mm 이하를 달성하고, 임상적 핵심 지표(어깨 MER, 팔꿈치 외반 토크)에서
+마커 기반(Vicon) 결과와 5$^\circ$ / 10\% 이내의 일치도를 보일 것이다.}
+\end{hypothesis}
+
+\vspace{0.5cm}
+
+\noindent\textbf{배경.} 야구 투구는 인체에서 가장 빠른 관절 운동(어깨 내회전 7,000--9,000\degps)을 포함하며,
+MLB 투수의 35.3\%가 UCL 재건술 경험이 있을 정도로 부상 위험이 높다.
+정확한 생체역학 분석은 부상 예방의 핵심이지만,
+현재 gold standard인 Vicon 마커 기반 시스템은 고비용, 침습적 마커 부착, 가려짐 등의 한계가 있다.
+기존 마커리스 SOTA(Theia3D, KinaTrax)는 MPJPE 52--57\,mm, 회전 속도 오차 50--400\degps 이상으로
+임상 의사결정에 충분하지 않다.
+
+\vspace{0.3cm}
+\noindent\textbf{방법.} 본 연구는 GART 프레임워크를 투구 동작에 특화시킨 \textbf{GART-Pitch}를 제안한다.
+7대 240\,Hz 카메라 영상에서 (1) 다시점 SMPL-X 초기 피팅, (2) GART 기반 캐노니컬 Gaussian 학습,
+(3) 렌더링 기반 자세 정제(photometric loss + multi-view consistency),
+(4) 가상 마커 추출 및 OpenSim 역운동학/역동역학을 수행한다.
+핵심 기여는 키포인트 재투영만이 아닌 \textbf{전체 픽셀 수준의 외형 일치}를 감독 신호로 활용하여
+자세 정확도를 비약적으로 향상시키는 것이다.
+
+\vspace{0.3cm}
+\noindent\textbf{검증 계획.}
+Vicon 마커 기반 역운동학을 gold standard로 하여 MPJPE, PA-MPJPE, 관절각 RMSE,
+Bland--Altman 분석, ICC를 보고한다.
+기존 SOTA(Theia3D, KinaTrax, OpenPose+삼각측량, MotionBERT)와 직접 비교하며,
+특히 투구의 가속 단계($\sim$30\,ms)에서의 정확도를 집중 평가한다.
+
+\vspace{0.3cm}
+\noindent\textbf{기대 영향.}
+마커 없이 Vicon에 근접하는 정확도로 투구 분석이 가능해지면,
+(1) 경기 중 실시간 분석, (2) 과거 영상 소급 분석, (3) 비용 대폭 절감,
+(4) 선수의 자연스러운 동작 보장이라는 네 가지 혁신이 실현된다.
+
+
+% ====================================================================
+% CHAPTER 1: 서론
+% ====================================================================
+\chapter{서론: 문제 정의와 연구 동기}
+\label{ch:introduction}
+
+\section{투구 생체역학 분석의 현황과 한계}
+
+야구 투구는 인체 관절 운동 중 가장 극단적인 움직임을 포함한다.
+어깨 내회전 각속도는 7,000--9,000\degps에 달하며,
+팔꿈치에 작용하는 외반 토크는 체중의 50\% 이상에 해당하는 64\Nm에 이른다.
+이 극단적 부하의 정확한 측정은 부상 예방 전략 수립의 전제 조건이다.
+
+현재 생체역학 분석의 gold standard는 \textbf{Vicon 마커 기반 모션캡처}로,
+반사 마커를 신체에 부착하고 적외선 카메라로 추적하여 $< 1$\,mm의 관절 위치 정확도를 달성한다.
+그러나 이 방법은 다음과 같은 근본적 한계를 갖는다:
+
+\begin{itemize}[leftmargin=*]
+  \item \textbf{고비용}: 시스템 가격 \$100,000+, 전문 인력 필요
+  \item \textbf{침습적 마커}: 피부 위 마커가 고유수용감각에 영향을 줄 수 있음
+  \item \textbf{마커 가려짐}: 와인드업, 팔로스루에서 마커가 가려지거나 탈락
+  \item \textbf{연구실 한정}: 경기장에서의 실시간 분석 불가능
+  \item \textbf{연조직 아티팩트(STA)}: 빠른 움직임 시 피부 위 마커가 뼈와 다르게 움직임
+\end{itemize}
+
+\section{기존 마커리스 접근법의 한계}
+\label{sec:existing_markerless}
+
+마커리스 시스템은 이러한 한계를 극복하고자 등장했으나, 투구 분석에서는 아직 충분한 정확도에 도달하지 못했다.
+
+\begin{table}[H]
+\centering
+\caption{기존 마커리스 시스템의 투구 분석 성능 (2025년 검증 연구 기준)}
+\label{tab:existing_sota}
+\renewcommand{\arraystretch}{1.3}
+\small
+\begin{tabular}{p{3.5cm}cccc}
+\toprule
+\textbf{시스템} & \textbf{MPJPE (mm)} & \textbf{관절각 RMSE} & \textbf{회전속도 오차} & \textbf{방식} \\
+\midrule
+Vicon (gold std.) & $< 1$ & 기준 & 기준 & 마커 기반 \\
+Theia3D & 52.0 $\pm$ 12.3 & 2--16$^\circ$ & 50--400+\degps & 마커리스 \\
+KinaTrax & 56.6 $\pm$ 9.4 & 2--16$^\circ$ & 50--400+\degps & 마커리스 \\
+OpenPose + 삼각측량 & $\sim$70--90 & 5--25$^\circ$ & 검증 없음 & 키포인트 \\
+MediaPipe & $\sim$80--100 & 8--30$^\circ$ & 검증 없음 & 키포인트 \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\begin{clinicalnote}
+마커리스 시스템의 MPJPE 52--57\,mm는 보행 분석에서는 수용 가능하지만,
+투구 분석에서는 임상적으로 중요한 한계이다.
+특히 \textbf{팔꿈치 외반 토크} 계산은 모멘트 팔(moment arm)에 매우 민감하여,
+수 mm의 관절 중심 오차가 수 Nm의 토크 오차로 증폭된다.
+또한 투구에서 가장 중요한 \textbf{어깨 회전 변수}(MER, 내회전 속도)에서
+가장 큰 불일치가 관찰된다.
+\end{clinicalnote}
+
+\subsection{기존 마커리스의 근본적 병목}
+
+기존 마커리스 시스템의 한계는 \textbf{감독 신호의 빈곤}에서 기인한다:
+
+\begin{enumerate}[leftmargin=*]
+  \item \textbf{희소 키포인트 의존}: OpenPose/MediaPipe는 17--33개 키포인트만 추출.
+        7,000\degps 어깨 회전에서 키포인트 2--3개로 회전각을 결정하는 것은 본질적으로 부정확.
+  \item \textbf{모션 블러 취약}: 30\,fps용으로 설계된 검출기를 240\,fps에 적용해도,
+        가속 단계의 팔은 흐릿한 줄무늬로 나타남.
+  \item \textbf{깊이 모호성}: 단안 또는 적은 수의 뷰에서 깊이 추정이 근본적으로 어려움.
+  \item \textbf{외형 정보 미활용}: 키포인트 좌표만 사용하고, 이미지의 풍부한 외형 정보
+        (근육 윤곽, 유니폼 주름, 피부 텍스처)를 활용하지 않음.
+\end{enumerate}
+
+
+\section{제안하는 접근법: Analysis-by-Synthesis}
+\label{sec:proposed_approach}
+
+\begin{keyidea}
+본 연구의 핵심 통찰은 다음과 같다:
+\textbf{3DGS/GART 기반 렌더링이 제공하는 전체 픽셀 수준의 광도 손실(photometric loss)은
+희소 키포인트 재투영 손실보다 본질적으로 더 풍부한 감독 신호를 제공한다.}
+
+\vspace{0.3cm}
+\noindent $1920 \times 1080$ 해상도 $\times$ 7대 카메라 = 프레임당 약 \textbf{14.5M 픽셀}의 감독 신호.\\
+키포인트 기반: 33개 관절 $\times$ 7대 카메라 = 프레임당 \textbf{231개} 좌표값.\\[0.2cm]
+\textbf{감독 신호 밀도 차이: $\sim$63,000$\times$}
+\end{keyidea}
+
+이 감독 신호의 비약적 차이가 자세 정확도의 비약적 향상을 가능하게 한다는 것이 본 연구의 가설이다.
+
+\begin{figure}[H]
+\centering
+\begin{tikzpicture}[
+  block/.style={rectangle, rounded corners, draw, minimum width=3cm, minimum height=0.8cm, align=center, font=\small},
+  arrow/.style={-{Stealth[length=2.5mm]}, thick}
+]
+% Keypoint-based (top row)
+\node[block, fill=noteorange!20, draw=noteorange] (kp_det) at (0,2) {2D Keypoint\\Detection};
+\node[block, fill=noteorange!20, draw=noteorange] (kp_tri) at (4.5,2) {Multi-view\\Triangulation};
+\node[block, fill=noteorange!20, draw=noteorange] (kp_smpl) at (9,2) {SMPL-X\\Fitting};
+\node[font=\small\bfseries, text=noteorange!80!black] at (-3,2) {기존 방법};
+\node[font=\tiny, text=gray] at (9, 1.2) {감독 신호: 231개 좌표};
+
+\draw[arrow, noteorange] (kp_det) -- (kp_tri);
+\draw[arrow, noteorange] (kp_tri) -- (kp_smpl);
+
+% GART-based (bottom row)
+\node[block, fill=defblue!15, draw=defblue] (g_init) at (0,-1) {초기 SMPL-X\\피팅};
+\node[block, fill=defblue!15, draw=defblue] (g_gart) at (4.5,-1) {GART 학습\\+ Rendering};
+\node[block, fill=defblue!15, draw=defblue] (g_ref) at (9,-1) {Photometric\\Pose Refinement};
+\node[font=\small\bfseries, text=defblue] at (-3,-1) {GART-Pitch};
+\node[font=\tiny, text=gray] at (9, -1.8) {감독 신호: 14.5M 픽셀};
+
+\draw[arrow, defblue] (g_init) -- (g_gart);
+\draw[arrow, defblue] (g_gart) -- (g_ref);
+
+% Feedback loop
+\draw[arrow, darkred, dashed] (g_ref.south) -- ++(0,-0.5) -| (g_gart.south)
+  node[midway, below, font=\tiny\color{darkred}] {iterative refinement};
+
+% Comparison
+\draw[very thick, thmgreen, -Stealth] (11, 2) -- (11, -1)
+  node[midway, right, font=\small\bfseries\color{thmgreen}] {$63,\!000\times$\\감독 신호};
+\end{tikzpicture}
+\caption{기존 키포인트 기반 방법 vs GART-Pitch의 감독 신호 밀도 비교.
+GART-Pitch는 프레임당 14.5M 픽셀의 광도 일치를 요구하여 자세 정제의 정확도를 비약적으로 향상시킨다.}
+\label{fig:supervision_comparison}
+\end{figure}
+
+
+\section{연구 기여 (Contributions)}
+
+본 연구의 구체적 기여는 다음과 같다:
+
+\begin{enumerate}[leftmargin=*]
+  \item \textbf{GART-Pitch 프레임워크}: 3D Gaussian Splatting 기반 인체 재구성을
+        고속 투구 동작 분석에 최초로 적용하는 end-to-end 파이프라인 설계.
+
+  \item \textbf{시간적 정규화 + 적응형 자세 정제}: 투구의 6단계 특성(가속 30\,ms)에
+        맞춘 위상별 적응형 시간 정규화와 coarse-to-fine 자세 정제 전략.
+
+  \item \textbf{포괄적 벤치마크}: Vicon gold standard 대비, 기존 마커리스 SOTA 4종
+        (Theia3D, KinaTrax, OpenPose+삼각측량, MotionBERT)과의 체계적 정량 비교.
+
+  \item \textbf{임상 지표 검증}: MPJPE를 넘어 투구 특화 임상 지표
+        (MER, 팔꿈치 외반 토크, 어깨 내회전 속도)에서의 정확도 검증.
+\end{enumerate}
+
+
+% ====================================================================
+% CHAPTER 2: 관련 연구
+% ====================================================================
+\chapter{관련 연구}
+\label{ch:related_work}
+
+\section{투구 생체역학 분석의 발전}
+
+투구 생체역학 연구는 세 세대에 걸쳐 발전해왔다.
+
+\subsection{제1세대: 마커 기반 모션캡처 (1990s--현재)}
+
+Fleisig 등(1996)이 확립한 Vicon 기반 분석은 여전히 gold standard로 사용된다.
+ASMI(American Sports Medicine Institute)의 프로토콜은 대부분의 투구 생체역학 연구의 기초이며,
+UCL 토크 $> 64$\Nm이 부상 위험 요인이라는 핵심 발견도 이 세대에서 이루어졌다.
+%% [CITATION: Fleisig1996 -- PLACEHOLDER, VERIFY]
+
+\subsection{제2세대: 상용 마커리스 시스템 (2018--현재)}
+
+KinaTrax(8대 300\,fps, MLB 경기장 설치)와 Theia3D(다시점 RGB 기반)가 대표적이다.
+2025년 검증 연구에서 18명 대학 투수를 대상으로 Vicon과 비교한 결과,
+MPJPE 52--57\,mm, 관절각 RMSE 2--16$^\circ$로 보고되었다.
+어깨 회전 변수에서 가장 큰 불일치가 관찰되며,
+이는 정확히 투구 분석에서 가장 중요한 변수(MER, 내회전 속도)이다.
+%% [CITATION: Boddy2025_KinaTrax_validation -- PLACEHOLDER, VERIFY]
+
+\subsection{제3세대: 딥러닝 기반 마커리스 (2020--현재)}
+
+단안 영상 기반 인체 자세 추정(HMR, PARE, 4DHumans, MotionBERT)이 급속히 발전했으나,
+투구와 같은 극한 동작에서의 검증은 제한적이다.
+주목할 만한 연구로, Bright 등(2026)이 MLB 방송 영상(단안, 30\,fps)만으로
+18개 생체역학 지표를 추출하여 토미 존 수술 예측 AUC 0.811을 달성했다.
+이는 저품질 입력에서도 의미 있는 분석이 가능함을 시사하지만,
+지표 수준의 정확도(개별 관절 각도)는 여전히 Vicon에 미치지 못한다.
+%% [CITATION: Bright2026_broadcast -- PLACEHOLDER, VERIFY]
+
+
+\section{3D Gaussian Splatting과 인체 재구성}
+
+\subsection{3DGS 기초}
+
+Kerbl 등(2023)이 제안한 3D Gaussian Splatting은 Neural Radiance Fields(NeRF)의 암시적 표현을
+명시적 3D Gaussian의 집합으로 대체하여 실시간 렌더링과 빠른 학습을 가능하게 했다.
+각 Gaussian $g_k = \{\vmu_k, \mSigma_k, \alpha_k, \vc_k\}$는 중심, 공분산, 불투명도, 색상(SH 계수)으로 정의된다.
+%% [CITATION: Kerbl2023_3DGS -- PLACEHOLDER, VERIFY]
+
+\subsection{동적 인체 재구성: GART와 관련 연구}
+
+\textbf{GART}(Lei 등, 2024)는 SMPL의 Linear Blend Skinning(LBS) 가중치를 활용하여
+정규 공간의 Gaussian을 자세별로 변환하는 구조를 제안했다.
+GauHuman(Hu 등, 2024), ExAvatar(Moon 등, 2024) 등이 유사한 접근을 발전시켰으며,
+모두 photometric loss 기반 자세 정제를 지원한다.
+%% [CITATION: Lei2024_GART, Hu2024_GauHuman, Moon2024_ExAvatar -- PLACEHOLDER, VERIFY]
+
+그러나 기존 연구들은 대부분 \textbf{보행이나 댄스 등 상대적으로 느린 동작}에서 검증되었으며,
+7,000\degps 이상의 고속 관절 운동에서의 성능은 검증된 바 없다.
+이것이 본 연구가 채우고자 하는 핵심 갭이다.
+
+
+\section{감독 신호 밀도와 자세 정확도}
+
+자세 추정의 감독 신호 밀도가 정확도에 미치는 영향은 이론적으로나 실증적으로 지지된다:
+
+\begin{itemize}[leftmargin=*]
+  \item \textbf{키포인트 기반}: $\sim$20--33개 관절 $\times$ 뷰 수. 자유도 대비 관측 수가 부족하여
+        ill-posed 문제가 되기 쉬움.
+  \item \textbf{실루엣 기반}: $\sim$10K--50K 경계 픽셀. 외형의 내부 구조는 활용 불가.
+  \item \textbf{광도 기반 (3DGS)}: $\sim$수백만 픽셀. 표면 텍스처, 근육 윤곽, 그림자 등
+        모든 시각 정보를 감독 신호로 활용.
+\end{itemize}
+
+\begin{table}[H]
+\centering
+\caption{감독 신호 유형별 밀도 비교 (7대 1080p 카메라 기준)}
+\label{tab:supervision_density}
+\begin{tabular}{lccc}
+\toprule
+\textbf{감독 유형} & \textbf{프레임당 신호 수} & \textbf{차원} & \textbf{대표 시스템} \\
+\midrule
+키포인트 좌표 & $\sim$231 & 2D & OpenPose, Theia3D \\
+실루엣 경계 & $\sim$70K & 1D (binary) & Theia3D \\
+\textbf{전체 광도 (Ours)} & \textbf{$\sim$14.5M} & \textbf{3D (RGB)} & \textbf{GART-Pitch} \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+
+% ====================================================================
+% CHAPTER 3: 방법론
+% ====================================================================
+\chapter{GART-Pitch: 제안 방법론}
+\label{ch:method}
+
+\section{전체 파이프라인 개요}
+
+\begin{figure}[H]
+\centering
+\begin{tikzpicture}[
+  block/.style={rectangle, draw, rounded corners=3pt, minimum width=2.8cm, minimum height=0.8cm,
+    align=center, font=\small},
+  data/.style={rectangle, draw, dashed, rounded corners=3pt, minimum width=2.2cm, minimum height=0.6cm,
+    align=center, font=\scriptsize},
+  arrow/.style={-{Stealth[length=2.5mm]}, thick},
+  node distance=0.6cm and 1.5cm
+]
+% Row 1: Inputs
+\node[block, fill=lightorange] (rgb) at (0,0) {7$\times$ RGB\\240\,Hz};
+\node[block, fill=lightgreen] (vicon) at (6,0) {Vicon\\250--500\,Hz};
+
+% Row 2: Preprocessing
+\node[block, fill=lightgray] (sync) at (3,-1.5) {시간/공간\\동기화};
+\node[block, fill=lightblue] (pose2d) at (0,-3) {Multi-view\\2D Pose (ViTPose)};
+\node[block, fill=lightblue] (calib) at (6,-3) {카메라 보정\\(COLMAP)};
+
+% Row 3: SMPL-X Initialization
+\node[block, fill=cvpurple!15, draw=cvpurple] (smpl_init) at (3,-4.5) {다시점 SMPL-X\\초기 피팅};
+
+% Row 4: GART Core
+\node[block, fill=defblue!20, draw=defblue, minimum width=8cm] (gart) at (3,-6.5)
+  {\textbf{GART-Pitch Core}\\
+   Canonical Gaussian $\xrightarrow{\text{LBS}}$ Posed Gaussian $\xrightarrow{\text{Splat}}$ Rendered Image};
+
+% Row 5: Pose Refinement
+\node[block, fill=darkred!15, draw=darkred] (refine) at (3,-8.5)
+  {\textbf{위상별 적응형 자세 정제}\\
+   $\vtheta^* = \arg\min \mathcal{L}_{\text{photo}} + \mathcal{L}_{\text{temporal}} + \mathcal{L}_{\text{biomech}}$};
+
+% Row 6: Biomechanics
+\node[block, fill=biogreen!20, draw=biogreen] (bio) at (-1,-10.5) {ISB 관절각\\+ OpenSim IK/ID};
+\node[block, fill=biogreen!20, draw=biogreen] (clinical) at (3,-12) {투구 임상 지표\\MER, $\tau_{\text{valgus}}$, $\omega_{\text{IR}}$};
+\node[block, fill=thmgreen!20, draw=thmgreen] (validate) at (7,-10.5) {Vicon 대비\\정량적 검증};
+
+% Arrows
+\draw[arrow] (rgb) -- (sync);
+\draw[arrow] (vicon) -- (sync);
+\draw[arrow] (sync) -- (pose2d);
+\draw[arrow] (sync) -- (calib);
+\draw[arrow] (pose2d) -- (smpl_init);
+\draw[arrow] (calib) -- (smpl_init);
+\draw[arrow] (smpl_init) -- (gart);
+\draw[arrow] (gart) -- (refine);
+\draw[arrow, darkred, dashed] (refine.east) -- ++(1.5,0) |- (gart.east)
+  node[pos=0.25, right, font=\tiny\color{darkred}] {iterative};
+\draw[arrow] (refine) -- (bio);
+\draw[arrow] (bio) -- (clinical);
+\draw[arrow] (refine) -- (validate);
+\draw[arrow] (vicon.south) -- ++(0,-8) -- (validate.north);
+
+\end{tikzpicture}
+\caption{GART-Pitch 전체 파이프라인. 핵심은 GART Core의 렌더링 기반 자세 정제(빨간 점선 루프)이다.}
+\label{fig:full_pipeline}
+\end{figure}
+
+
+\section{Stage 1: 데이터 전처리 및 초기화}
+
+\subsection{다시점 동기화}
+
+7대 240\,Hz 카메라(6대 landscape 1920$\times$1080, 1대 portrait 1080$\times$1920)와
+Vicon(250--500\,Hz)의 시간 동기화는 오디오 기반 크로스-상관 방법으로 수행한다:
+\begin{equation}
+  \Delta t^* = \arg\max_{\Delta t} \sum_t s_{\text{audio}}^{(i)}(t) \cdot s_{\text{audio}}^{(j)}(t + \Delta t)
+\end{equation}
+공간 동기화는 체커보드 보정 + DLT(Direct Linear Transform)로 Vicon 좌표계와 RGB 좌표계를 정합한다.
+
+\subsection{카메라 보정}
+
+COLMAP을 이용한 SfM(Structure from Motion)으로 내부/외부 파라미터를 추정한다.
+투구 세팅에서는 피험자가 없는 빈 장면을 촬영하여 충분한 특징점을 확보하는 것이 중요하다.
+재투영 오차 $< 0.5$\,px를 목표로 한다.
+
+\subsection{초기 SMPL-X 피팅}
+
+ViTPose로 각 카메라의 2D 관절을 추출한 후, EasyMocap 프레임워크로 다시점 SMPL-X 피팅을 수행한다:
+\begin{equation}
+(\vtheta^{(0)}, \vbeta^*) = \arg\min_{\vtheta, \vbeta}
+  \underbrace{\sum_{c=1}^{7}\sum_{j=1}^{J} w_{cj}\|\pi_c(J_j(\vtheta,\vbeta)) - \hat{\vx}_{cj}\|^2}_{\text{2D 재투영}}
+  + \lambda_\beta\|\vbeta\|^2 + \lambda_\theta\|\vtheta\|^2
+\label{eq:init_smpl}
+\end{equation}
+
+이 초기 피팅은 GART 학습의 시작점으로만 사용되며,
+최종 정확도는 이후 렌더링 기반 정제 단계에서 비약적으로 향상된다.
+
+
+\section{Stage 2: GART 캐노니컬 Gaussian 학습}
+
+\subsection{캐노니컬 공간 Gaussian}
+
+정규(canonical) 공간에서 $N$ 개의 3D Gaussian을 학습한다:
+\begin{equation}
+  \mathcal{G}_{\text{can}} = \{g_k\}_{k=1}^{N}, \quad
+  g_k = \{\vmu_k^{\text{can}}, \mSigma_k^{\text{can}}, \alpha_k, \vc_k\}
+\end{equation}
+초기 Gaussian은 SMPL-X 메시 정점에서 샘플링하여 초기화한다 ($N_0 \approx 10,475$, SMPL-X 정점 수).
+
+\subsection{LBS 기반 자세 변환}
+
+프레임 $t$의 자세 $\vtheta_t$에 대해, Gaussian 중심과 공분산을 변환한다:
+\begin{align}
+  \vmu_k^{\text{posed}}(t) &= \Big(\sum_{b=1}^{B} w_{kb}\, \mT_b(\vtheta_t)\Big) \bar{\vmu}_k^{\text{can}} \\
+  \mSigma_k^{\text{posed}}(t) &= \mR_{\text{lbs},k}(t)\, \mSigma_k^{\text{can}}\, \mR_{\text{lbs},k}(t)^\top
+\end{align}
+여기서 $w_{kb}$는 Gaussian $k$의 본 $b$에 대한 스키닝 가중치 (SMPL-X 기본값 + 학습 가능 오프셋 $\Delta w_{kb}$),
+$\mT_b \in SE(3)$는 본 변환 행렬, $\bar{\vmu}$는 동차좌표 확장이다.
+
+\subsection{미분 가능 래스터화}
+
+변환된 Gaussian을 미분 가능하게 래스터화하여 각 카메라 뷰의 이미지를 생성한다:
+\begin{equation}
+  \hat{I}_c(t) = \text{Splat}(\mathcal{G}_{\text{posed}}(t),\; \mK_c, [\mR_c | \vt_c])
+\end{equation}
+여기서 $\mK_c$는 카메라 $c$의 내부 행렬, $[\mR_c|\vt_c]$는 외부 행렬이다.
+
+
+\section{Stage 3: 위상별 적응형 자세 정제}
+\label{sec:phase_adaptive}
+
+이것이 GART-Pitch의 핵심 기여이다.
+투구 동작의 각 단계별로 다른 정규화 전략을 적용하여 정확도를 극대화한다.
+
+\subsection{투구 위상 자동 검출}
+
+투구의 6단계(와인드업, 스트라이드, 후기 코킹, 가속, 감속, 팔로스루)를
+자동으로 분할하기 위해, 초기 SMPL-X 피팅의 관절 속도 프로파일을 활용한다:
+
+\begin{itemize}[nosep]
+  \item \textbf{발 접지(FC)}: 앞발 관절의 수직 속도가 0을 교차하는 시점
+  \item \textbf{MER}: 어깨 외회전 각도의 최대값
+  \item \textbf{공 릴리스(BR)}: 손목 관절의 전방 속도 최대값 직후
+\end{itemize}
+
+\subsection{위상별 적응형 손실 함수}
+
+\begin{equation}
+\mathcal{L}_{\text{total}}(t) =
+  \underbrace{\mathcal{L}_{\text{photo}}(t)}_{\text{광도 일치}}
+  + \underbrace{\lambda_{\text{temp}}^{\phi(t)} \mathcal{L}_{\text{temp}}(t)}_{\text{위상별 시간 정규화}}
+  + \underbrace{\lambda_{\text{bio}} \mathcal{L}_{\text{bio}}(t)}_{\text{생체역학 제약}}
+\label{eq:total_loss}
+\end{equation}
+
+\subsubsection{광도 손실 (Photometric Loss)}
+
+\begin{equation}
+\mathcal{L}_{\text{photo}}(t) = \sum_{c=1}^{7}
+  \Big[ (1-\lambda_s)\|I_c(t) - \hat{I}_c(t)\|_1 + \lambda_s\, \mathcal{L}_{\text{D-SSIM}}(I_c(t), \hat{I}_c(t)) \Big]
+\end{equation}
+
+7대 카메라 모두의 광도 일치를 동시에 요구하므로,
+단일 뷰에서 모호한 자세도 다시점 일관성으로 해소된다.
+
+\subsubsection{위상별 시간 정규화 (Phase-Adaptive Temporal Regularization)}
+
+\begin{equation}
+\mathcal{L}_{\text{temp}}(t) = \|\vtheta_t - \vtheta_{t-1}\|^2 + \gamma \|\vtheta_t - 2\vtheta_{t-1} + \vtheta_{t-2}\|^2
+\end{equation}
+
+핵심은 위상별로 $\lambda_{\text{temp}}^{\phi(t)}$를 적응적으로 조절하는 것이다:
+
+\begin{table}[H]
+\centering
+\caption{투구 위상별 시간 정규화 가중치}
+\label{tab:phase_weights}
+\begin{tabular}{lcl}
+\toprule
+\textbf{위상 $\phi(t)$} & \textbf{$\lambda_{\text{temp}}^{\phi}$} & \textbf{근거} \\
+\midrule
+와인드업 & 10.0 & 느린 동작, 강한 정규화 가능 \\
+스트라이드 & 5.0 & 중간 속도 \\
+후기 코킹 & 2.0 & 빠른 외회전 시작, 정규화 완화 \\
+\textbf{가속} & \textbf{0.5} & \textbf{7,000\degps, 급격한 변화 허용 필수} \\
+감속 & 1.0 & 급격한 속도 변화, 중간 정규화 \\
+팔로스루 & 3.0 & 점진적 감속 \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\begin{importantnote}
+가속 단계(약 30\,ms, 7프레임)에서 시간 정규화를 과도하게 적용하면,
+7,000\degps의 실제 각속도 변화를 억제하여 오히려 정확도가 크게 저하된다.
+이것이 기존 방법들이 어깨 회전 변수에서 가장 큰 오차를 보이는 주요 원인 중 하나이다.
+GART-Pitch는 이 구간에서 정규화를 최소화하고 광도 손실에 의존한다.
+\end{importantnote}
+
+\subsubsection{생체역학적 제약 (Biomechanical Constraints)}
+
+해부학적으로 불가능한 관절 운동을 방지하는 소프트 제약:
+\begin{equation}
+\mathcal{L}_{\text{bio}}(t) =
+  \sum_{k \in \mathcal{J}} \max(0, \theta_k(t) - \theta_k^{\max})^2 + \max(0, \theta_k^{\min} - \theta_k(t))^2
+\end{equation}
+여기서 $\theta_k^{\max}, \theta_k^{\min}$은 관절 $k$의 해부학적 가동범위이다.
+예: 팔꿈치 과신전 $< 5^\circ$, 어깨 외전 $< 180^\circ$.
+
+\subsection{Coarse-to-Fine 정제 전략}
+
+자세 정제는 두 단계로 수행한다:
+
+\begin{enumerate}[leftmargin=*]
+  \item \textbf{Phase 1 (Coarse)}: Gaussian 파라미터 고정, 자세 $\vtheta_t$만 최적화.
+        큰 학습률($\eta = 10^{-3}$)로 전역적 자세 오차를 빠르게 교정. 500 iterations.
+
+  \item \textbf{Phase 2 (Fine)}: Gaussian 파라미터와 자세를 공동 최적화.
+        작은 자세 학습률($\eta = 10^{-5}$)로 세밀한 정합.
+        Gaussian 학습률은 일반적 3DGS 수준 유지. 3000 iterations.
+\end{enumerate}
+
+
+\section{Stage 4: 생체역학 지표 산출}
+
+정제된 SMPL-X 자세 $\vtheta^*$에서 투구 생체역학 지표를 산출한다.
+
+\subsection{관절 각도 추출 (ISB 분해)}
+
+어깨 관절의 $Y$-$X'$-$Y''$ 오일러 분해:
+\begin{equation}
+  \mR_{\text{shoulder}} = \mR_y(\alpha)\,\mR_{x'}(\beta)\,\mR_{y''}(\gamma)
+\end{equation}
+팔꿈치의 $Z$-$X$-$Y$ 분해:
+\begin{equation}
+  \mR_{\text{elbow}} = \mR_z(\text{flex/ext})\,\mR_x(\text{carry})\,\mR_y(\text{pro/sup})
+\end{equation}
+
+\subsection{핵심 투구 지표}
+
+\begin{table}[H]
+\centering
+\caption{산출 대상 투구 생체역학 지표}
+\label{tab:pitching_metrics}
+\renewcommand{\arraystretch}{1.3}
+\begin{tabular}{p{4cm}lcc}
+\toprule
+\textbf{지표} & \textbf{기호} & \textbf{정상 범위} & \textbf{부상 임계값} \\
+\midrule
+어깨 최대 외회전 & MER & 160--180$^\circ$ & $> 185^\circ$ \\
+어깨 내회전 속도 & $\omega_{\text{IR}}$ & 7,000--9,000\degps & --- \\
+팔꿈치 외반 토크 & $\tau_{\text{valgus}}$ & 50--64\Nm & $> 64$\Nm \\
+어깨 내회전 토크 & $\tau_{\text{IR}}$ & 50--80\Nm & --- \\
+스트라이드 길이 & $L_s$ & 85\% 신장 & $< 74\%$ \\
+몸통 분리 & $\Delta\theta_{\text{trunk}}$ & 40--60$^\circ$ & $< 30^\circ$ \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\subsection{가상 마커 + OpenSim 파이프라인}
+
+SMPL-X 메시에서 해부학적 랜드마크에 해당하는 정점을 추출하여 TRC 형식으로 변환한 후,
+OpenSim의 역운동학(IK)과 역동역학(ID)을 수행하여 관절 토크를 산출한다.
+이를 통해 마커리스 파이프라인의 결과를 전통적 생체역학 분석 도구로 직접 검증할 수 있다.
+
+
+% ====================================================================
+% CHAPTER 4: 실험 설계
+% ====================================================================
+\chapter{실험 설계}
+\label{ch:experiments}
+
+\section{데이터 수집}
+
+\begin{setupbox}[title={실험 세팅}]
+\begin{itemize}[leftmargin=*]
+  \item \textbf{피험자}: 대학/프로 수준 투수 15--20명 (IRB 승인 후)
+  \item \textbf{RGB 카메라}: 7대, 240\,Hz
+  \begin{itemize}
+    \item 6대: 1920$\times$1080 (landscape)
+    \item 1대: 1080$\times$1920 (portrait, 투수 후방)
+  \end{itemize}
+  \item \textbf{Vicon}: 12+대, 250--500\,Hz, 반사 마커 39개 (Upper Extremity Marker Set)
+  \item \textbf{동기화}: 외부 트리거 + 오디오 기반 크로스-상관
+  \item \textbf{투구}: 피험자당 최대 노력 패스트볼 10구 이상
+  \item \textbf{환경}: 실내 투구 연구실, 충분한 조명 (마운드 + 홈플레이트)
+\end{itemize}
+\end{setupbox}
+
+
+\section{비교 대상 (Baselines)}
+
+\begin{table}[H]
+\centering
+\caption{비교 실험 설계}
+\label{tab:baselines}
+\renewcommand{\arraystretch}{1.3}
+\begin{tabular}{p{3.5cm}p{3cm}p{6cm}}
+\toprule
+\textbf{방법} & \textbf{유형} & \textbf{설명} \\
+\midrule
+Vicon + IK & Gold Standard & 반사 마커 기반 역운동학 (모든 비교의 기준) \\
+\midrule
+Theia3D & Markerless SOTA & 상용 마커리스 시스템, 동일 영상 입력 \\
+OpenPose + 삼각측량 & Keypoint & 키포인트 추출 후 다시점 삼각측량 \\
+ViTPose + EasyMocap & Keypoint+SMPL & 다시점 SMPL-X 피팅 (우리의 초기화) \\
+MotionBERT & Lifting & 단안 3D 자세 추정 후 다시점 앙상블 \\
+\textbf{GART-Pitch (Ours)} & \textbf{3DGS} & \textbf{GART + 위상별 자세 정제} \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+
+\section{평가 지표}
+
+\subsection{3D 자세 정확도}
+
+\begin{align}
+  \text{MPJPE} &= \frac{1}{TJ}\sum_{t,j}\|\hat{\vp}_j(t) - \vp_j^{\text{gt}}(t)\|_2 \label{eq:mpjpe} \\
+  \text{PA-MPJPE} &= \frac{1}{TJ}\sum_{t,j}\|s^*\mR^*\hat{\vp}_j(t) + \vt^* - \vp_j^{\text{gt}}(t)\|_2 \label{eq:pampjpe}
+\end{align}
+
+\subsection{관절각 정확도}
+
+\begin{equation}
+  \text{RMSE}_{\theta_k} = \sqrt{\frac{1}{T}\sum_{t=1}^{T}(\theta_k^{\text{pred}}(t) - \theta_k^{\text{gt}}(t))^2}
+\end{equation}
+
+\subsection{운동역학 정확도}
+
+\begin{equation}
+  \text{nRMSE}_\tau = \frac{\text{RMSE}_\tau}{\tau_{\max}^{\text{gt}} - \tau_{\min}^{\text{gt}}} \times 100\%
+\end{equation}
+
+\subsection{일치도 분석}
+
+\begin{itemize}[nosep]
+  \item \textbf{Bland--Altman 분석}: 바이어스 + 95\% 일치한계(LoA)
+  \item \textbf{ICC(3,1)}: $> 0.90$ (우수), $0.75$--$0.90$ (양호)
+  \item \textbf{CCC (Concordance Correlation Coefficient)}: 일치도의 엄격한 평가
+\end{itemize}
+
+
+\section{실험 프로토콜}
+
+\subsection{실험 1: 전체 정확도 비교}
+
+모든 방법의 전체 투구 동작에 대한 MPJPE, PA-MPJPE, 관절각 RMSE를 비교한다.
+
+\begin{hypothesis}[title={실험 1 가설}]
+GART-Pitch는 MPJPE $< 20$\,mm를 달성하여 Theia3D(52\,mm) 대비 60\% 이상 개선된다.
+\end{hypothesis}
+
+\subsection{실험 2: 투구 위상별 정확도 분석}
+
+투구의 6단계 각각에서 관절각 RMSE를 보고한다.
+특히 가속 단계(30\,ms)에서의 정확도를 집중 분석한다.
+
+\begin{hypothesis}[title={실험 2 가설}]
+가속 단계에서 GART-Pitch와 기존 SOTA의 정확도 차이가 가장 크다.
+기존 방법들이 가장 실패하는 구간에서 광도 기반 정제가 가장 큰 효과를 발휘한다.
+\end{hypothesis}
+
+\subsection{실험 3: 임상 지표 일치도}
+
+MER, 팔꿈치 외반 토크, 어깨 내회전 속도에 대해 Vicon 대비 Bland--Altman 분석을 수행한다.
+
+\begin{hypothesis}[title={실험 3 가설}]
+MER에서 RMSE $< 5^\circ$, 외반 토크에서 nRMSE $< 10\%$를 달성하여
+임상 의사결정에 충분한 정확도를 보인다.
+\end{hypothesis}
+
+\subsection{실험 4: Ablation Study}
+
+각 구성 요소의 기여도를 분석한다:
+
+\begin{table}[H]
+\centering
+\caption{Ablation 실험 설계}
+\label{tab:ablation}
+\begin{tabular}{lccc}
+\toprule
+\textbf{변형} & \textbf{위상별 $\lambda_{\text{temp}}$} & \textbf{$\mathcal{L}_{\text{bio}}$} & \textbf{Coarse-to-Fine} \\
+\midrule
+Full GART-Pitch & \checkmark & \checkmark & \checkmark \\
+w/o Phase-Adaptive & $\times$ (상수) & \checkmark & \checkmark \\
+w/o Biomech. Constraint & \checkmark & $\times$ & \checkmark \\
+w/o Coarse-to-Fine & \checkmark & \checkmark & $\times$ (single-stage) \\
+SMPL-X Only (초기화) & $\times$ & $\times$ & $\times$ \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+
+% ====================================================================
+% CHAPTER 5: 예상 결과
+% ====================================================================
+\chapter{예상 결과 및 분석}
+\label{ch:expected_results}
+
+\section{실험 1: 전체 정확도}
+
+\begin{resultbox}[title={예상 결과: 3D 자세 정확도}]
+\begin{center}
+\renewcommand{\arraystretch}{1.3}
+\begin{tabular}{lccc}
+\toprule
+\textbf{방법} & \textbf{MPJPE (mm) $\downarrow$} & \textbf{PA-MPJPE (mm) $\downarrow$} & \textbf{관절각 RMSE $\downarrow$} \\
+\midrule
+OpenPose + 삼각측량 & 75--90 & 55--65 & 8--25$^\circ$ \\
+MotionBERT 앙상블 & 60--75 & 45--55 & 6--20$^\circ$ \\
+Theia3D & 52 $\pm$ 12 & 40 $\pm$ 8 & 2--16$^\circ$ \\
+ViTPose + EasyMocap & 40--50 & 30--40 & 3--12$^\circ$ \\
+\textbf{GART-Pitch (Ours)} & \textbf{15--20} & \textbf{10--15} & \textbf{1--5$^\circ$} \\
+\midrule
+Vicon (Gold Standard) & $< 1$ & $< 1$ & 기준 \\
+\bottomrule
+\end{tabular}
+\end{center}
+\end{resultbox}
+
+\begin{keyidea}
+GART-Pitch가 15--20\,mm MPJPE를 달성하면,
+기존 마커리스 SOTA 대비 \textbf{60--70\% 개선}이며,
+Vicon과의 격차를 \textbf{52\,mm $\rightarrow$ 20\,mm으로 60\% 좁히는} 것이다.
+이 수준은 투구 분석에서 ``수용 가능'' 기준(40\,mm)을 넘어 ``우수'' 기준(20\,mm)에 도달한다.
+\end{keyidea}
+
+
+\section{실험 2: 위상별 정확도}
+
+\begin{figure}[H]
+\centering
+\begin{tikzpicture}
+\begin{axis}[
+  width=14cm, height=7cm,
+  ybar,
+  bar width=0.25cm,
+  xlabel={투구 위상},
+  ylabel={어깨 관절각 RMSE ($^\circ$)},
+  ymin=0, ymax=30,
+  symbolic x coords={Wind-up, Stride, Late Cocking, Acceleration, Deceleration, Follow-through},
+  xtick=data,
+  x tick label style={rotate=30, anchor=east, font=\small},
+  legend style={at={(0.5,-0.35)}, anchor=north, legend columns=3, font=\small},
+  grid=major,
+  grid style={gray!20},
+  title={\small 투구 위상별 어깨 관절각 RMSE (예상)},
+  title style={font=\small\bfseries}
+]
+% Theia3D
+\addplot[fill=noteorange!60] coordinates {
+  (Wind-up, 3) (Stride, 5) (Late Cocking, 10) (Acceleration, 25) (Deceleration, 18) (Follow-through, 8)
+};
+% ViTPose + EasyMocap
+\addplot[fill=cvpurple!40] coordinates {
+  (Wind-up, 2.5) (Stride, 4) (Late Cocking, 8) (Acceleration, 20) (Deceleration, 14) (Follow-through, 6)
+};
+% GART-Pitch
+\addplot[fill=defblue!60] coordinates {
+  (Wind-up, 1.5) (Stride, 2) (Late Cocking, 3) (Acceleration, 7) (Deceleration, 5) (Follow-through, 3)
+};
+\legend{Theia3D, ViTPose+EasyMocap, GART-Pitch (Ours)}
+\end{axis}
+\end{tikzpicture}
+\caption{투구 위상별 어깨 관절각 RMSE 예상 결과.
+가속 단계에서 기존 방법(25$^\circ$, 20$^\circ$)과 GART-Pitch(7$^\circ$)의 격차가 가장 크다.
+이는 광도 기반 자세 정제가 가장 빠른 동작 구간에서 가장 큰 효과를 발휘함을 보여준다.}
+\label{fig:phase_accuracy}
+\end{figure}
+
+
+\section{실험 3: 임상 지표 일치도}
+
+\begin{figure}[H]
+\centering
+\begin{tikzpicture}
+\begin{axis}[
+  width=10cm, height=6cm,
+  xlabel={평균 (Vicon + GART-Pitch) / 2 ($^\circ$)},
+  ylabel={차이 (GART-Pitch $-$ Vicon) ($^\circ$)},
+  xmin=140, xmax=190,
+  ymin=-10, ymax=10,
+  grid=both,
+  grid style={gray!20},
+  title={\small Bland--Altman: 어깨 MER (예상)},
+  title style={font=\small\bfseries}
+]
+% Simulated GART-Pitch data (tighter than existing)
+\addplot[only marks, mark=*, mark size=1.5pt, defblue!70] coordinates {
+  (150,1.2)(152,-0.8)(155,2.1)(158,-1.5)(160,0.3)(162,1.8)(165,-0.6)
+  (167,2.5)(168,-1.2)(170,0.7)(172,1.4)(175,-0.9)(177,0.2)(180,1.6)
+  (148,0.5)(153,-1.8)(156,1.0)(159,2.3)(161,-0.4)(163,0.9)(166,-2.0)
+  (169,1.5)(171,-0.7)(173,2.0)(176,-1.3)(178,0.8)(182,-0.2)(185,1.1)
+};
+% Bias
+\addplot[red, thick, domain=140:190] {0.4};
+\node[red, font=\small] at (axis cs:187,1.2) {bias = 0.4$^\circ$};
+% LoA
+\addplot[red, dashed, domain=140:190] {0.4+1.96*1.3};
+\addplot[red, dashed, domain=140:190] {0.4-1.96*1.3};
+\node[red, font=\tiny] at (axis cs:187,3.5) {+1.96 SD};
+\node[red, font=\tiny] at (axis cs:187,-2.7) {$-$1.96 SD};
+\end{axis}
+\end{tikzpicture}
+\caption{예상 Bland--Altman 플롯: 어깨 MER.
+바이어스 0.4$^\circ$, 95\% LoA $\pm$2.5$^\circ$로
+임상적으로 우수한 일치도를 기대한다.}
+\label{fig:bland_altman_mer}
+\end{figure}
+
+\begin{resultbox}[title={예상 결과: 임상 지표 일치도}]
+\begin{center}
+\renewcommand{\arraystretch}{1.3}
+\begin{tabular}{lcccc}
+\toprule
+\textbf{지표} & \textbf{RMSE} & \textbf{ICC} & \textbf{Bland--Altman Bias} & \textbf{목표 달성} \\
+\midrule
+MER & 3--5$^\circ$ & $> 0.95$ & $< 1^\circ$ & 우수 \\
+팔꿈치 굴곡 & 2--3$^\circ$ & $> 0.97$ & $< 0.5^\circ$ & 우수 \\
+어깨 내회전 속도 & 200--400\degps & $> 0.90$ & $< 100$\degps & 양호 \\
+외반 토크 (nRMSE) & 5--10\% & $> 0.85$ & --- & 수용 가능 \\
+\bottomrule
+\end{tabular}
+\end{center}
+\end{resultbox}
+
+
+\section{실험 4: Ablation Study}
+
+\begin{resultbox}[title={예상 결과: Ablation Study (MPJPE, mm)}]
+\begin{center}
+\renewcommand{\arraystretch}{1.3}
+\begin{tabular}{lcc}
+\toprule
+\textbf{변형} & \textbf{전체 MPJPE} & \textbf{가속단계 MPJPE} \\
+\midrule
+SMPL-X Only (초기화) & 40--50 & 70--90 \\
++ 3DGS Pose Refinement (상수 $\lambda$) & 25--30 & 40--50 \\
++ Phase-Adaptive $\lambda_{\text{temp}}$ & 18--22 & 22--28 \\
++ Biomech. Constraint & 17--20 & 20--25 \\
+\textbf{+ Coarse-to-Fine (Full)} & \textbf{15--20} & \textbf{18--22} \\
+\bottomrule
+\end{tabular}
+\end{center}
+\end{resultbox}
+
+\begin{keyidea}
+Ablation 결과의 핵심 시사점:
+\begin{enumerate}[nosep]
+  \item 3DGS 자세 정제만으로도 SMPL-X 대비 $\sim$40\% 개선 ($\rightarrow$ 렌더링 기반 정제의 효과 입증)
+  \item 위상별 적응형 정규화가 가속 단계에서 가장 큰 개선 ($\rightarrow$ 투구 특화 설계의 효과)
+  \item 생체역학 제약은 전체 정확도보다 해부학적 타당성 향상에 기여
+  \item Coarse-to-Fine 전략이 안정적 수렴에 기여
+\end{enumerate}
+\end{keyidea}
+
+
+% ====================================================================
+% CHAPTER 6: 기술적 도전과 해결 전략
+% ====================================================================
+\chapter{기술적 도전과 해결 전략}
+\label{ch:challenges}
+
+\section{고속 동작에서의 3DGS 한계}
+
+\begin{table}[H]
+\centering
+\caption{기술적 도전과 대응 전략}
+\label{tab:challenges}
+\renewcommand{\arraystretch}{1.4}
+\begin{tabularx}{\textwidth}{p{3.5cm}X}
+\toprule
+\textbf{도전} & \textbf{해결 전략} \\
+\midrule
+가속 30\,ms에서 7프레임 확보 &
+인접 프레임 warm-start; 위상별 적응형 시간 정규화;
+필요 시 Vicon 고주파 데이터로 보간하여 중간 프레임 의사 GT 생성 \\
+\addlinespace
+모션 블러 &
+1/1000초 이하 노출 시간; 충분한 조명 (1000+ lux);
+블러 인식 Gaussian (모션 블러를 모델링하는 확장 가능) \\
+\addlinespace
+자기 가려짐 (self-occlusion) &
+와인드업/팔로스루에서 몸통이 팔을 가림.
+7시점의 다양한 각도가 최소 3대 이상 가시 보장.
+GART의 정규 공간에서 가려지지 않은 영역이 학습 유지 \\
+\addlinespace
+계산 비용 &
+GART 구조 활용: 캐노니컬 모델 1회 학습 후 프레임별 자세만 최적화.
+자세 정제는 자세 파라미터(72개 값)만 갱신하므로 프레임당 $\sim$1--2초.
+전체 투구(1--2초, 240--480 프레임): $\sim$15분 내 완료 가능 \\
+\addlinespace
+손가락/공 세밀 추적 &
+SMPL-X의 손 관절(30개) 활용; 공은 별도 트래킹;
+릴리스 타이밍 정밀 검출에는 공 위치 변화율 활용 \\
+\bottomrule
+\end{tabularx}
+\end{table}
+
+
+\section{잠재적 실패 모드와 대비}
+
+\begin{enumerate}[leftmargin=*]
+  \item \textbf{3DGS 정제가 국소해에 수렴}: 초기 SMPL-X 피팅이 크게 잘못된 경우,
+        광도 손실이 올바른 자세로 안내하지 못할 수 있음.
+        $\rightarrow$ Coarse-to-Fine 전략 + 다중 초기화 + 7시점 다시점 제약으로 완화.
+
+  \item \textbf{유니폼의 외형 모호성}: 느슨한 유니폼이 체형을 가려 광도 일치가 불충분할 수 있음.
+        $\rightarrow$ 실루엣 손실 + 키포인트 재투영 손실을 보조적으로 활용.
+
+  \item \textbf{시간적 일관성 vs 정확도 트레이드오프}: 과도한 시간 정규화는 빠른 동작을 억제하고,
+        부족하면 떨림이 발생.
+        $\rightarrow$ 위상별 적응형 가중치가 이 트레이드오프를 관리.
+\end{enumerate}
+
+
+% ====================================================================
+% CHAPTER 7: 한계점 및 향후 연구
+% ====================================================================
+\chapter{한계점 및 향후 연구}
+\label{ch:limitations}
+
+\section{현재 연구의 한계}
+
+\begin{enumerate}[leftmargin=*]
+  \item \textbf{통제된 환경}: 실내 연구실에서의 촬영만 다루며, 실제 경기장 환경은 고려하지 않음.
+        경기장에서는 조명 변화, 관중, 먼 거리 등 추가적 도전이 존재.
+
+  \item \textbf{실시간성 부재}: 프레임당 1--2초의 처리 시간으로 실시간 피드백은 불가능.
+        경기 후 분석(post-hoc) 용도에 적합.
+
+  \item \textbf{Vicon 한계의 전이}: Vicon을 gold standard로 사용하지만,
+        Vicon 자체도 연조직 아티팩트(STA)로 인한 오차가 존재.
+        특히 고속 회전에서 STA가 크며, 이로 인해 ``true'' gold standard와의 비교는 근본적으로 제한됨.
+
+  \item \textbf{피험자 수}: 15--20명은 통계적 검정력에 제한적일 수 있으며,
+        다양한 투구 유형(변화구, 사이드암 등)을 포함하지 못할 수 있음.
+
+  \item \textbf{지면 반력 부재}: 역동역학(토크 계산)에 필요한 지면 반력 데이터를
+        마커리스 파이프라인에서는 직접 획득할 수 없으며,
+        별도의 포스 플레이트가 필요함.
+\end{enumerate}
+
+
+\section{향후 연구 방향}
+
+\begin{enumerate}[leftmargin=*]
+  \item \textbf{실시간 GART}: 최근 실시간 3DGS 렌더링 기술(Radl 등, 2024)을
+        활용하여 이닝 간 실시간 분석을 목표.
+
+  \item \textbf{소수 카메라 확장}: 7대에서 3--4대로 줄여도 유사한 정확도 유지 가능한지 검증.
+        경기장 설치 비용 절감에 직결.
+
+  \item \textbf{이벤트 카메라 결합}: 고속 동작에서 이벤트 카메라의 $\mu$s 시간 해상도를
+        활용한 EventSplat 접근법으로 모션 블러 근본 해결.
+
+  \item \textbf{부상 예측 모델}: GART-Pitch로 추출한 정밀 지표를 입력으로
+        UCL 부상 예측 모델 구축. Bright 등(2026)의 AUC 0.811을 개선 목표.
+
+  \item \textbf{타 스포츠 확장}: 테니스 서브, 배구 스파이크, 크리켓 볼링 등
+        유사한 고속 오버헤드 동작에 적용.
+\end{enumerate}
+
+
+% ====================================================================
+% CHAPTER 8: 결론
+% ====================================================================
+\chapter{결론}
+\label{ch:conclusion}
+
+본 연구 제안서는 3D Gaussian Splatting(GART) 기반 마커리스 투구 동작 분석 프레임워크인
+\textbf{GART-Pitch}를 제시하였다.
+
+\begin{summary}[title={핵심 논증 요약}]
+\begin{enumerate}[leftmargin=*]
+  \item \textbf{문제}: 기존 마커리스 SOTA(MPJPE 52--57\,mm)는 투구 분석의 임상 요구를 충족하지 못함.
+        특히 어깨 회전 변수(MER, 내회전 속도)에서 가장 큰 오차가 발생하며,
+        이는 정확히 투구에서 가장 중요한 변수임.
+
+  \item \textbf{원인}: 기존 방법의 병목은 \textbf{감독 신호의 빈곤}---
+        17--33개 키포인트 좌표로 7,000\degps 회전을 정확히 복원하는 것은 본질적으로 부정확.
+
+  \item \textbf{해결}: GART-Pitch는 프레임당 14.5M 픽셀의 광도 일치를 감독 신호로 활용하여
+        (63,000$\times$ 더 풍부한 신호), 자세 정확도를 비약적으로 향상.
+        투구 위상별 적응형 시간 정규화가 7,000\degps 가속 구간에서도 정확도를 유지.
+
+  \item \textbf{기대 결과}: MPJPE $< 20$\,mm (기존 SOTA 대비 60\%+ 개선),
+        MER RMSE $< 5^\circ$, 외반 토크 nRMSE $< 10\%$로
+        마커 기반에 근접하는 임상적 정확도 달성.
+
+  \item \textbf{영향}: 마커 없이 Vicon에 근접하는 정확도는
+        경기 중 실시간 분석, 과거 영상 소급 분석, 비용 절감, 자연스러운 동작 보장을 가능하게 하여
+        투구 생체역학 분석의 패러다임을 전환할 잠재력이 있음.
+\end{enumerate}
+\end{summary}
+
+
+% ====================================================================
+% APPENDIX
+% ====================================================================
+\appendix
+
+\chapter{수학적 세부 사항}
+
+\section{3DGS 렌더링 방정식}
+
+깊이 순서로 정렬된 $N$ 개의 Gaussian에 대해, 픽셀 $\vx$의 색상:
+\begin{equation}
+  C(\vx) = \sum_{k=1}^{N} c_k \, \alpha_k \, G_k(\vx) \prod_{j=1}^{k-1}(1 - \alpha_j \, G_j(\vx))
+\end{equation}
+여기서 $G_k(\vx)$는 Gaussian $k$의 2D 투영에서 $\vx$ 위치의 값:
+\begin{equation}
+  G_k(\vx) = \exp\!\Big(-\tfrac{1}{2}(\vx - \vmu_k^{2D})^\top (\mSigma_k^{2D})^{-1}(\vx - \vmu_k^{2D})\Big)
+\end{equation}
+
+\section{LBS 변환의 미분}
+
+자세 파라미터 $\vtheta$에 대한 Gaussian 위치의 야코비안:
+\begin{equation}
+  \frac{\partial \vmu_k^{\text{posed}}}{\partial \vtheta} = \sum_{b=1}^{B} w_{kb} \frac{\partial \mT_b(\vtheta)}{\partial \vtheta} \bar{\vmu}_k^{\text{can}}
+\end{equation}
+이 미분은 PyTorch의 자동 미분으로 효율적으로 계산된다.
+
+
+\chapter{용어 사전}
+
+\begin{tabularx}{\textwidth}{lX}
+\toprule
+\textbf{용어} & \textbf{설명} \\
+\midrule
+3DGS & 3D Gaussian Splatting. 명시적 3D Gaussian 집합 기반 장면 표현 \\
+GART & Gaussian Articulated Representation Templates. SMPL 스키닝을 활용한 동적 인체 3DGS \\
+SMPL-X & 인체 파라메트릭 모델 (얼굴, 손 포함) \\
+LBS & Linear Blend Skinning. 스켈레톤 기반 메시 변형 \\
+MER & Maximum External Rotation. 어깨 최대 외회전 \\
+MPJPE & Mean Per Joint Position Error. 3D 관절 위치 오차 (mm) \\
+PA-MPJPE & Procrustes Aligned MPJPE. 최적 강체 정합 후 관절 위치 오차 \\
+ICC & Intraclass Correlation Coefficient. 측정 일치도 지표 \\
+ISB & International Society of Biomechanics. 관절 각도 분해 표준 \\
+UCL & Ulnar Collateral Ligament. 팔꿈치 내측 측부 인대 \\
+\bottomrule
+\end{tabularx}
+
+
+\end{document}

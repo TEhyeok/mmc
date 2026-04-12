@@ -1,0 +1,635 @@
+\documentclass[11pt, a4paper]{report}
+
+\input{preamble/packages}
+\usepackage{multirow}
+\input{preamble/colors}
+\input{preamble/theorems}
+\input{preamble/tcolorboxes}
+\input{preamble/commands}
+\input{preamble/listings}
+\input{preamble/formatting}
+
+\begin{document}
+
+% ==================== TITLE PAGE ====================
+\begin{titlepage}
+\centering
+\vspace*{1.5cm}
+{\Large\color{gray} Part 4 --- Fitting Guide}
+\vspace{0.5cm}
+
+{\Huge\bfseries\color{defblue} OpenPose 3D 키포인트에서\\[0.3cm]
+SMPL 인체 모델 피팅까지}
+
+\vspace{1cm}
+
+{\LARGE\color{defblue!70!black} 3D Keypoints $\rightarrow$ SMPL Parameters:\\
+수학적 정식화, 단계별 파이프라인, 실전 구현}
+
+\vspace{2cm}
+
+\begin{tikzpicture}[
+  block/.style={rectangle, rounded corners=4pt, draw=defblue, fill=lightblue,
+    minimum width=2.2cm, minimum height=0.7cm, font=\small\bfseries, text=defblue!80!black, align=center},
+  arrow/.style={-Stealth, thick, defblue!60}
+]
+\node[block] (op2d) at (0,0) {OpenPose\\2D $\times$ 7};
+\node[block] (tri) at (3.5,0) {DLT\\삼각측량};
+\node[block, fill=cvpurple!15, draw=cvpurple] (op3d) at (7,0) {OpenPose\\3D (25J)};
+\node[block, fill=noteorange!15, draw=noteorange] (smpl) at (10.5,0) {SMPL\\피팅};
+\node[block, fill=thmgreen!15, draw=thmgreen] (mesh) at (14,0) {SMPL\\Mesh};
+
+\draw[arrow] (op2d) -- (tri);
+\draw[arrow] (tri) -- (op3d);
+\draw[arrow, noteorange] (op3d) -- (smpl) node[midway, above, font=\tiny\color{noteorange}] {이 문서};
+\draw[arrow, thmgreen] (smpl) -- (mesh);
+\end{tikzpicture}
+
+\vspace{2cm}
+{\large 2026}
+
+\vspace{\fill}
+{\small\color{gray} 이 문서는 Part 1 (SMPL 모델 이론), Part 2 (동작 분석), Part 3 (투구 파이프라인)의 후속으로,\\
+OpenPose 3D 키포인트에서 SMPL 파라미터를 최적화하는 전체 과정을 상세히 다룹니다.}
+\end{titlepage}
+
+\tableofcontents
+\newpage
+
+
+% ====================================================================
+% CHAPTER 1
+% ====================================================================
+\chapter{OpenPose 3D 키포인트의 이해}
+\label{ch:openpose3d}
+
+\section{OpenPose Body25 관절 정의}
+
+OpenPose Body25 모델은 25개의 관절(keypoint)을 정의한다.
+
+\begin{table}[H]
+\centering
+\caption{OpenPose Body25 관절 인덱스}
+\renewcommand{\arraystretch}{1.2}
+\small
+\begin{tabular}{cl|cl|cl}
+\toprule
+\textbf{\#} & \textbf{이름} & \textbf{\#} & \textbf{이름} & \textbf{\#} & \textbf{이름} \\
+\midrule
+0 & Nose & 9 & RHip & 18 & LEar \\
+1 & Neck & 10 & RKne & 19 & LBToe \\
+2 & RSho & 11 & RAnk & 20 & LSToe \\
+3 & RElb & 12 & LHip & 21 & LHeel \\
+4 & RWri & 13 & LKne & 22 & RBToe \\
+5 & LSho & 14 & LAnk & 23 & RSToe \\
+6 & LElb & 15 & REye & 24 & RHeel \\
+7 & LWri & 16 & LEye & & \\
+8 & MidHip & 17 & REar & & \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+
+\section{2D에서 3D로: 다시점 삼각측량}
+
+$C$개 카메라에서 관절 $j$의 2D 좌표 $\mathbf{u}_{cj} = (x_{cj}, y_{cj})$가 주어질 때,
+투영 행렬 $\mK_c[\mR_c | \vt_c]$를 이용한 DLT 삼각측량:
+
+\begin{equation}
+\mathbf{X}_j^* = \arg\min_{\mathbf{X} \in \RR^3}
+  \sum_{c=1}^{C} w_{cj} \left\| \mathbf{u}_{cj} - \pi_c(\mathbf{X}) \right\|^2
+\end{equation}
+
+신뢰도 $w_{cj}$를 가중치로 사용하여, 검출이 확실한 뷰에 더 큰 비중을 둔다.
+최소 3개 뷰 이상에서 검출된 관절만 삼각측량한다.
+
+
+\section{OpenPose $\leftrightarrow$ SMPL 관절 매핑}
+
+\begin{keyidea}
+OpenPose Body25 (25개)와 SMPL (24개)의 관절 정의가 다르므로,
+\textbf{대응 관절 매핑}이 피팅의 전제조건이다.
+얼굴 관절(Eyes, Ears)과 발가락 관절(BToe, SToe, Heel)은 SMPL에 직접 대응이 없다.
+\end{keyidea}
+
+\begin{table}[H]
+\centering
+\caption{OpenPose Body25 $\rightarrow$ SMPL 24 관절 매핑 (14개 대응)}
+\label{tab:joint_mapping}
+\renewcommand{\arraystretch}{1.3}
+\begin{tabular}{clcl}
+\toprule
+\textbf{OP25 \#} & \textbf{OP 이름} & \textbf{SMPL \#} & \textbf{SMPL 이름} \\
+\midrule
+1 & Neck & 12 & Neck \\
+8 & MidHip & 0 & Pelvis \\
+2 & RSho & 17 & R\_Shoulder \\
+3 & RElb & 19 & R\_Elbow \\
+4 & RWri & 21 & R\_Wrist \\
+5 & LSho & 16 & L\_Shoulder \\
+6 & LElb & 18 & L\_Elbow \\
+7 & LWri & 20 & L\_Wrist \\
+9 & RHip & 2 & R\_Hip \\
+10 & RKne & 5 & R\_Knee \\
+11 & RAnk & 8 & R\_Ankle \\
+12 & LHip & 1 & L\_Hip \\
+13 & LKne & 4 & L\_Knee \\
+14 & LAnk & 7 & L\_Ankle \\
+\midrule
+\multicolumn{4}{l}{\textcolor{gray}{매핑 불가: 0(Nose), 15--18(Eyes/Ears), 19--24(Toes/Heel)}} \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+
+\section{좌표계 정합}
+
+\begin{importantnote}
+OpenPose 3D와 SMPL의 좌표계가 다를 수 있다.
+\begin{itemize}[nosep]
+  \item \textbf{OpenPose 3D}: 카메라 보정의 월드 좌표계 (DA3 PnP 등)
+  \item \textbf{SMPL}: 정규 공간에서 정의, 글로벌 회전 $\mR$과 이동 $\vt$로 변환
+\end{itemize}
+피팅 과정에서 $\mR$과 $\vt$를 최적화하여 두 좌표계를 자동으로 정합한다.
+별도의 좌표 변환은 불필요하다.
+\end{importantnote}
+
+
+% ====================================================================
+% CHAPTER 2
+% ====================================================================
+\chapter{SMPL 피팅의 수학적 정식화}
+\label{ch:formulation}
+
+\section{문제 정의}
+
+프레임 $t$에서 OpenPose 3D 키포인트 $\{\vp_j^{\text{OP}}\}_{j \in \mathcal{M}}$이 주어질 때,
+SMPL 파라미터를 최적화한다:
+
+\begin{equation}
+\boxed{
+\vtheta^*, \vbeta^*, \mR^*, \vt^* = \arg\min_{\vtheta, \vbeta, \mR, \vt}
+E_{\text{total}}(\vtheta, \vbeta, \mR, \vt \mid \{\vp_j^{\text{OP}}\})
+}
+\label{eq:total_objective}
+\end{equation}
+
+여기서:
+\begin{itemize}[nosep]
+  \item $\vtheta \in \RR^{72}$: body pose (24 관절 $\times$ 3 axis-angle)
+  \item $\vbeta \in \RR^{10}$: body shape (PCA 계수)
+  \item $\mR \in SO(3)$: 글로벌 회전 (root orientation)
+  \item $\vt \in \RR^3$: 글로벌 이동 (root translation)
+\end{itemize}
+
+
+\section{에너지 함수}
+
+\begin{equation}
+E_{\text{total}} = \lambda_{J} E_{J3D} + \lambda_\theta E_\theta + \lambda_\beta E_\beta
+  + \lambda_{\text{smooth}} E_{\text{smooth}} + \lambda_{\text{limit}} E_{\text{limit}}
+\label{eq:energy}
+\end{equation}
+
+\subsection{3D 관절 위치 오차 ($E_{J3D}$)}
+
+핵심 데이터 항. SMPL의 관절 위치와 OpenPose 3D 키포인트 사이의 오차를 최소화한다:
+
+\begin{equation}
+E_{J3D} = \sum_{j \in \mathcal{M}} w_j \rho\!\left(
+  \left\| J_j^{\text{SMPL}}(\vtheta, \vbeta) - \vp_j^{\text{OP}} \right\|^2
+\right)
+\end{equation}
+
+여기서:
+\begin{itemize}[nosep]
+  \item $J_j^{\text{SMPL}}(\vtheta, \vbeta)$: SMPL forward kinematics로 계산된 관절 $j$의 3D 위치
+  \item $\vp_j^{\text{OP}}$: OpenPose 3D 삼각측량 결과
+  \item $w_j$: 관절별 가중치 (삼각측량 신뢰도 기반)
+  \item $\rho(\cdot)$: 로버스트 비용 함수
+  \item $\mathcal{M}$: 매핑 가능한 관절 집합 (\cref{tab:joint_mapping}의 14개)
+\end{itemize}
+
+\begin{cvbox}[title={로버스트 비용 함수}]
+이상치에 강건한 Geman-McClure 비용 함수를 권장한다:
+\begin{equation}
+\rho_{\text{GM}}(r) = \frac{r}{\sigma^2 + r}
+\end{equation}
+$\sigma$는 이상치 임계값으로, 일반적으로 $\sigma = 100$\,mm.
+큰 오차에 대해 기울기가 포화되어 이상치의 영향을 억제한다.
+\end{cvbox}
+
+\begin{keyidea}
+\textbf{SMPLify와의 핵심 차이}:
+SMPLify는 2D 키포인트를 사용하므로 재투영 오차 $\|\pi(\cdot) - \mathbf{u}\|^2$를 최소화하고,
+카메라 파라미터가 필요하다.
+\textbf{3D 키포인트를 직접 사용하면 재투영 과정이 불필요하고, 카메라 파라미터에 독립적이다.}
+이것이 3D 피팅의 가장 큰 장점이다.
+\end{keyidea}
+
+
+\subsection{자세 사전 ($E_\theta$)}
+
+해부학적으로 불가능한 자세를 방지하는 사전(prior):
+
+\begin{equation}
+E_\theta = \|\vtheta\|^2 \quad \text{(간단한 $L_2$ 정규화)}
+\end{equation}
+
+또는 학습된 자세 공간을 사용:
+\begin{equation}
+E_\theta^{\text{VPoser}} = \|z_\theta\|^2, \quad \vtheta = \text{VPoser}(z_\theta)
+\end{equation}
+VPoser는 VAE로 학습된 인체 자세의 잠재 공간으로,
+$z_\theta \in \RR^{32}$에서 $\vtheta \in \RR^{63}$ (21 관절, root 제외)을 생성한다.
+
+\begin{importantnote}
+$L_2$ 정규화는 모든 관절을 T-pose로 당기는 경향이 있다.
+투구와 같은 극단적 자세에서는 $\lambda_\theta$를 작게 설정해야 한다.
+VPoser를 사용하면 이 문제를 완화할 수 있지만, 사전 학습 데이터에 투구 동작이 포함되어 있지 않을 수 있다.
+\end{importantnote}
+
+
+\subsection{체형 정규화 ($E_\beta$)}
+
+\begin{equation}
+E_\beta = \|\vbeta\|^2
+\end{equation}
+
+체형이 평균(zero)에서 크게 벗어나지 않도록 한다.
+같은 피험자의 시퀀스에서는 $\vbeta$를 모든 프레임에서 공유한다.
+
+
+\subsection{시간적 매끄러움 ($E_{\text{smooth}}$)}
+
+시퀀스 데이터의 경우 프레임 간 급격한 변화를 억제한다:
+
+\begin{equation}
+E_{\text{smooth}} = \sum_t \left( \|\vtheta_t - \vtheta_{t-1}\|^2
+  + \gamma \|\vtheta_t - 2\vtheta_{t-1} + \vtheta_{t-2}\|^2 \right)
+\end{equation}
+
+첫째 항은 속도 정규화, 둘째 항은 가속도 정규화이다.
+
+\begin{biomechbox}[title={투구 동작에서의 시간 정규화}]
+투구 가속 단계(약 30\,ms)에서는 어깨 내회전이 7,000$^\circ$/s에 달한다.
+이 구간에서 시간 정규화를 과도하게 적용하면 실제 빠른 동작을 억제한다.
+Part 5의 GART-Pitch에서 제안한 \textbf{위상별 적응형 $\lambda_{\text{smooth}}$}를 적용할 수 있다.
+\end{biomechbox}
+
+
+\subsection{관절 각도 제한 ($E_{\text{limit}}$)}
+
+해부학적으로 불가능한 관절 각도를 소프트 페널티로 방지:
+
+\begin{equation}
+E_{\text{limit}} = \sum_{k \in \mathcal{J}} \left[
+  \max(0, \theta_k - \theta_k^{\max})^2 + \max(0, \theta_k^{\min} - \theta_k)^2
+\right]
+\end{equation}
+
+예: 팔꿈치 과신전 $< 5^\circ$, 무릎 과신전 $< 0^\circ$.
+
+
+\section{Coarse-to-Fine 최적화 전략}
+
+\begin{table}[H]
+\centering
+\caption{Coarse-to-Fine 최적화 단계}
+\renewcommand{\arraystretch}{1.3}
+\begin{tabular}{clcccc}
+\toprule
+\textbf{Stage} & \textbf{최적화 변수} & \textbf{고정} & \textbf{학습률} & \textbf{Iterations} \\
+\midrule
+1 & $\mR, \vt$ & $\vtheta, \vbeta$ & $10^{-2}$ & 100 \\
+2 & $\vbeta$ & $\mR, \vt, \vtheta$ & $10^{-2}$ & 200 \\
+3 & $\vtheta$ & $\mR, \vt, \vbeta$ & $10^{-3}$ & 500 \\
+4 & $\vtheta, \vbeta, \mR, \vt$ & --- & $10^{-4}$ & 300 \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+
+% ====================================================================
+% CHAPTER 3
+% ====================================================================
+\chapter{단계별 피팅 파이프라인}
+\label{ch:pipeline}
+
+\begin{figure}[H]
+\centering
+\begin{tikzpicture}[
+  block/.style={rectangle, rounded corners=3pt, draw, minimum width=3.5cm, minimum height=0.8cm,
+    align=center, font=\small},
+  arrow/.style={-{Stealth[length=2mm]}, thick}
+]
+\node[block, fill=lightgray] (pre) at (0,0) {Step 0: 전처리\\(필터링, 좌표계)};
+\node[block, fill=lightorange] (init) at (0,-1.5) {Step 1: 글로벌 자세\\($\mR, \vt$ 초기화)};
+\node[block, fill=lightblue] (beta) at (0,-3) {Step 2: 체형 추정\\($\vbeta$ 최적화)};
+\node[block, fill=cvpurple!15] (theta) at (0,-4.5) {Step 3: 자세 최적화\\($\vtheta$ 최적화)};
+\node[block, fill=defblue!15] (joint) at (0,-6) {Step 4: 공동 정제\\($\vtheta, \vbeta, \mR, \vt$)};
+\node[block, fill=lightgreen] (temp) at (0,-7.5) {Step 5: 시간적 매끄러움\\(시퀀스의 경우)};
+
+\draw[arrow] (pre) -- (init);
+\draw[arrow] (init) -- (beta);
+\draw[arrow] (beta) -- (theta);
+\draw[arrow] (theta) -- (joint);
+\draw[arrow] (joint) -- (temp);
+
+% Annotations
+\node[font=\scriptsize\color{gray}, right=0.5cm] at (pre.east) {이상치 제거, confidence 필터};
+\node[font=\scriptsize\color{gray}, right=0.5cm] at (init.east) {골반 위치 + 몸통 방향};
+\node[font=\scriptsize\color{gray}, right=0.5cm] at (beta.east) {사지 길이 비율로 초기 추정};
+\node[font=\scriptsize\color{gray}, right=0.5cm] at (theta.east) {관절별 순차 또는 동시};
+\node[font=\scriptsize\color{gray}, right=0.5cm] at (joint.east) {Fine-tuning, 학습률 감소};
+\node[font=\scriptsize\color{gray}, right=0.5cm] at (temp.east) {가속도 정규화};
+\end{tikzpicture}
+\caption{SMPL 피팅 5단계 파이프라인}
+\end{figure}
+
+
+\section{Step 0: 전처리}
+
+\begin{enumerate}[leftmargin=*]
+  \item \textbf{신뢰도 필터링}: 삼각측량 신뢰도가 낮은 관절 ($w_j < 0.3$) 제거
+  \item \textbf{이상치 제거}: 관절 위치가 인체 크기 대비 비현실적인 경우 제거
+        (예: 팔 길이 $> 1$\,m)
+  \item \textbf{시간적 필터링}: Butterworth 저역통과 필터 (cutoff $\sim$15\,Hz) 적용하여 고주파 노이즈 제거
+  \item \textbf{관절 매핑}: OpenPose 25 $\rightarrow$ SMPL 14 대응 관절 추출 (\cref{tab:joint_mapping})
+\end{enumerate}
+
+
+\section{Step 1: 글로벌 자세 초기화}
+
+SMPL의 root를 OpenPose 3D의 골반(MidHip) 위치에 정합한다.
+
+\subsection{Translation 초기화}
+
+\begin{equation}
+\vt^{(0)} = \vp_8^{\text{OP}} \quad (\text{MidHip} = \text{Pelvis 근사})
+\end{equation}
+
+\subsection{Rotation 초기화}
+
+몸통 방향 벡터로 글로벌 회전을 추정한다:
+
+\begin{align}
+\mathbf{up} &= \frac{\vp_1^{\text{OP}} - \vp_8^{\text{OP}}}{\|\vp_1 - \vp_8\|} \quad (\text{Neck} - \text{MidHip}) \\
+\mathbf{right} &= \frac{\vp_2^{\text{OP}} - \vp_5^{\text{OP}}}{\|\vp_2 - \vp_5\|} \quad (\text{RSho} - \text{LSho}) \\
+\mathbf{front} &= \mathbf{up} \times \mathbf{right}
+\end{align}
+
+이로부터 초기 회전 행렬 $\mR^{(0)} = [\mathbf{right} \;|\; \mathbf{up} \;|\; \mathbf{front}]$를 구성한다.
+
+
+\section{Step 2: 체형 ($\vbeta$) 추정}
+
+사지 길이 비율을 이용한 초기 추정:
+
+\begin{equation}
+L_k^{\text{OP}} = \|\vp_{j_1}^{\text{OP}} - \vp_{j_2}^{\text{OP}}\| \quad (k\text{번째 사지})
+\end{equation}
+
+SMPL의 $\vbeta$에 따른 사지 길이 $L_k^{\text{SMPL}}(\vbeta)$와의 차이를 최소화:
+
+\begin{equation}
+\vbeta^{(0)} = \arg\min_{\vbeta} \sum_k \left( L_k^{\text{SMPL}}(\vbeta) - L_k^{\text{OP}} \right)^2 + \lambda_\beta \|\vbeta\|^2
+\end{equation}
+
+시퀀스의 경우, 여러 프레임의 사지 길이 중앙값을 사용하여 안정적으로 추정한다.
+
+
+\section{Step 3: 자세 ($\vtheta$) 최적화}
+
+\begin{equation}
+\vtheta^* = \arg\min_{\vtheta} \sum_{j \in \mathcal{M}} w_j \| J_j^{\text{SMPL}}(\vtheta, \vbeta^{(0)}) + \vt^{(0)} - \vp_j^{\text{OP}} \|^2
+  + \lambda_\theta \|\vtheta\|^2
+\end{equation}
+
+\begin{importantnote}
+SMPL의 forward kinematics는 관절 체인이므로,
+\textbf{부모 관절의 오차가 자식 관절로 전파}된다.
+근위(proximal) 관절부터 최적화하는 것이 안정적이다:
+\begin{enumerate}[nosep]
+  \item 골반(root) $\rightarrow$ 척추(spine) $\rightarrow$ 목(neck)
+  \item 어깨 $\rightarrow$ 팔꿈치 $\rightarrow$ 손목
+  \item 엉덩이 $\rightarrow$ 무릎 $\rightarrow$ 발목
+\end{enumerate}
+\end{importantnote}
+
+
+\section{Step 4: 공동 정제}
+
+모든 파라미터를 작은 학습률로 동시 최적화:
+
+\begin{equation}
+\vtheta^*, \vbeta^*, \mR^*, \vt^* = \arg\min \;
+  \lambda_J E_{J3D} + \lambda_\theta E_\theta + \lambda_\beta E_\beta + \lambda_{\text{limit}} E_{\text{limit}}
+\end{equation}
+
+Adam 또는 L-BFGS 옵티마이저를 사용한다.
+L-BFGS가 수렴이 빠르지만, 미니배치 처리에는 Adam이 적합하다.
+
+
+\section{Step 5: 시간적 매끄러움}
+
+시퀀스 전체에 대해 시간 정규화를 추가하여 최종 정제:
+
+\begin{equation}
+\min_{\{\vtheta_t\}} \sum_t \left[
+  E_{J3D}(\vtheta_t) + \lambda_{\text{smooth}} \left(
+    \|\vtheta_t - \vtheta_{t-1}\|^2 + \gamma \|\vtheta_t - 2\vtheta_{t-1} + \vtheta_{t-2}\|^2
+  \right)
+\right]
+\end{equation}
+
+이때 $\vbeta$는 시퀀스 전체에서 공유(단일 값)하고, $\vtheta_t$만 프레임별로 최적화한다.
+
+
+% ====================================================================
+% CHAPTER 4
+% ====================================================================
+\chapter{실전 구현}
+\label{ch:implementation}
+
+\section{PyTorch 구현 의사코드}
+
+\begin{codebox}[title={OpenPose 3D $\rightarrow$ SMPL 피팅 (PyTorch)}]
+\begin{lstlisting}[language=Python]
+import torch
+import smplx
+
+# 1. Load SMPL model
+body_model = smplx.create(
+    model_path='models/smpl',
+    model_type='smpl',
+    gender='neutral',
+    batch_size=1
+).cuda()
+
+# 2. Load OpenPose 3D keypoints
+op3d = load_openpose3d('openpose3d_data.json')  # (T, 25, 3)
+target = op3d[:, OP_TO_SMPL_IDX]  # (T, 14, 3)
+
+# 3. Initialize parameters
+global_orient = torch.zeros(T, 3, requires_grad=True)
+body_pose = torch.zeros(T, 69, requires_grad=True)
+betas = torch.zeros(1, 10, requires_grad=True)
+transl = torch.tensor(op3d[:, 8], requires_grad=True)
+
+# 4. Stage 1: Global orient + translation
+opt1 = torch.optim.Adam([global_orient, transl], lr=1e-2)
+for i in range(100):
+    output = body_model(
+        global_orient=global_orient,
+        body_pose=body_pose,
+        betas=betas.expand(T, -1),
+        transl=transl
+    )
+    joints = output.joints[:, SMPL_TO_OP_IDX]
+    loss = ((joints - target) ** 2).sum()
+    loss.backward(); opt1.step(); opt1.zero_grad()
+
+# 5. Stage 2: Body shape
+opt2 = torch.optim.Adam([betas], lr=1e-2)
+for i in range(200):
+    ...  # similar loop, optimize betas
+
+# 6. Stage 3: Body pose
+opt3 = torch.optim.Adam([body_pose], lr=1e-3)
+for i in range(500):
+    ...  # + pose prior + joint limits
+
+# 7. Stage 4: Joint refinement
+opt4 = torch.optim.Adam(
+    [global_orient, body_pose, betas, transl],
+    lr=1e-4
+)
+for i in range(300):
+    ...  # all parameters jointly
+\end{lstlisting}
+\end{codebox}
+
+\section{기존 도구 비교}
+
+\begin{table}[H]
+\centering
+\caption{3D 키포인트 $\rightarrow$ SMPL 피팅 도구 비교}
+\renewcommand{\arraystretch}{1.3}
+\begin{tabularx}{\textwidth}{lXcc}
+\toprule
+\textbf{도구} & \textbf{설명} & \textbf{3D 입력} & \textbf{GPU} \\
+\midrule
+SMPLify-X & 공식 피팅 도구, 2D/3D 지원 & 가능 & 권장 \\
+EasyMocap & 다시점 2D $\rightarrow$ SMPL, 3D 모드 있음 & 부분 & 권장 \\
+직접 구현 & smplx + PyTorch 최적화 & \textbf{완전} & 필수 \\
+\bottomrule
+\end{tabularx}
+\end{table}
+
+\begin{keyidea}
+이미 정확한 3D 키포인트가 있는 경우, \textbf{직접 구현이 가장 단순하고 확실}하다.
+EasyMocap은 2D에서 3D를 재구성하는 과정이 추가되어 오히려 오차가 누적될 수 있다
+(Part 0 보고서에서 확인한 좌표계 불일치 문제).
+\end{keyidea}
+
+
+\section{흔한 실패와 디버깅}
+
+\begin{table}[H]
+\centering
+\caption{SMPL 피팅 실패 유형과 해결}
+\renewcommand{\arraystretch}{1.4}
+\begin{tabularx}{\textwidth}{lXX}
+\toprule
+\textbf{증상} & \textbf{원인} & \textbf{해결} \\
+\midrule
+자세가 뒤집어짐 & 글로벌 회전 초기화 실패 & Step 1의 몸통 방향 초기화 정확히 수행 \\
+팔다리 교차 & $\vtheta$ 좌/우 혼동 & 관절 매핑의 L/R 확인, 좌표계 방향 확인 \\
+$\vbeta$ 발산 & $\lambda_\beta$ 너무 작음 & $\lambda_\beta$ 증가, 시퀀스 공유 $\vbeta$ 사용 \\
+T-pose로 수렴 & $\lambda_\theta$ 너무 큼 & $\lambda_\theta$ 감소, VPoser 사용 \\
+떨림(jitter) & 시간 정규화 부재 & Step 5 적용, $\lambda_{\text{smooth}}$ 조절 \\
+극단적 자세 실패 & 자세 사전이 투구 미지원 & $\lambda_\theta$ 극소화, 관절 제한만 유지 \\
+\bottomrule
+\end{tabularx}
+\end{table}
+
+
+% ====================================================================
+% CHAPTER 5
+% ====================================================================
+\chapter{다시점 시나리오에서의 통합}
+\label{ch:multiview}
+
+\section{현재 파이프라인에서의 위치}
+
+\begin{figure}[H]
+\centering
+\begin{tikzpicture}[
+  block/.style={rectangle, rounded corners=3pt, draw, minimum width=3cm, minimum height=0.7cm,
+    align=center, font=\small},
+  arrow/.style={-{Stealth[length=2mm]}, thick},
+  done/.style={block, fill=thmgreen!15, draw=thmgreen},
+  curr/.style={block, fill=noteorange!15, draw=noteorange, very thick},
+  next/.style={block, fill=lightgray, draw=gray}
+]
+\node[done] (cam) at (0,0) {카메라 보정\\(DA3 PnP)};
+\node[done] (seg) at (4,0) {SAM3\\세그멘테이션};
+\node[done] (op2d) at (8,0) {OpenPose 2D\\$\times$ 7 카메라};
+\node[done] (op3d) at (4,-1.5) {DLT 삼각측량\\OpenPose 3D};
+\node[curr] (smpl) at (4,-3) {SMPL 피팅\\$\vtheta, \vbeta, \mR, \vt$};
+\node[next] (gart) at (4,-4.5) {GART 학습\\3DGS 인체 재구성};
+\node[next] (bio) at (4,-6) {생체역학 분석\\MER, 외반 토크};
+
+\draw[arrow, thmgreen] (cam) -- (seg);
+\draw[arrow, thmgreen] (seg) -- (op2d);
+\draw[arrow, thmgreen] (op2d) -- (op3d);
+\draw[arrow, noteorange, very thick] (op3d) -- (smpl);
+\draw[arrow, gray] (smpl) -- (gart);
+\draw[arrow, gray] (gart) -- (bio);
+\end{tikzpicture}
+\caption{GART-Pitch 파이프라인에서 SMPL 피팅의 위치}
+\end{figure}
+
+
+\section{삼각측량 후 피팅 vs 직접 다시점 피팅}
+
+\begin{table}[H]
+\centering
+\caption{두 가지 다시점 SMPL 피팅 접근법 비교}
+\renewcommand{\arraystretch}{1.3}
+\begin{tabularx}{\textwidth}{lXX}
+\toprule
+& \textbf{삼각측량 $\rightarrow$ 3D 피팅} & \textbf{직접 다시점 2D 피팅} \\
+\midrule
+입력 & 3D 키포인트 (삼각측량 결과) & 2D 키포인트 $\times$ $C$개 뷰 \\
+장점 & 카메라 파라미터 불필요, 단순 & 가려짐에 강건, 깊이 모호성 적음 \\
+단점 & 삼각측량 오차 누적 & 카메라 파라미터 필요, 복잡 \\
+도구 & 직접 구현 (이 문서) & EasyMocap, SMPLify-X \\
+\textbf{현재 선택} & \textcolor{thmgreen}{\textbf{채택}} & 좌표계 불일치 문제 \\
+\bottomrule
+\end{tabularx}
+\end{table}
+
+
+\section{SMPL 피팅 결과의 활용}
+
+피팅된 SMPL 파라미터는 두 가지 경로로 활용된다:
+
+\begin{enumerate}[leftmargin=*]
+  \item \textbf{GART 학습 입력}: 프레임별 $\vtheta_t$로 캐노니컬 Gaussian을 자세 변환 (LBS)
+  \item \textbf{생체역학 분석}: $\vtheta_t$에서 ISB 관절 각도 추출 $\rightarrow$ MER, 외반 토크 등 산출
+\end{enumerate}
+
+\begin{summary}[title={OpenPose 3D $\rightarrow$ SMPL 피팅 핵심 요약}]
+\begin{enumerate}[nosep]
+  \item \textbf{매핑}: OpenPose 25관절 중 14개가 SMPL 24관절에 대응
+  \item \textbf{에너지}: $E_{J3D}$ (3D 관절 오차) + $E_\theta$ (자세 사전) + $E_\beta$ (체형) + $E_{\text{smooth}}$ (시간)
+  \item \textbf{최적화}: Coarse-to-fine 4단계 ($\mR,\vt \rightarrow \vbeta \rightarrow \vtheta \rightarrow$ 공동)
+  \item \textbf{장점}: 카메라 파라미터 불필요, 좌표계 독립, 직접 3D 감독
+  \item \textbf{구현}: smplx + PyTorch로 GPU 서버에서 프레임당 $\sim$1초
+\end{enumerate}
+\end{summary}
+
+
+\end{document}

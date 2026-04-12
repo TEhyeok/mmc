@@ -3,4 +3,32 @@
 *.out
 *.toc
 *.synctex.gz
+*.fls
+*.fdb_latexmk
+*.nav
+*.snm
+*.vrb
 .DS_Store
+
+# Sensitive
+data/secret_key/
+*.pem
+
+# Large data (not for git)
+data/3dgs_input*/
+data/da3_calibration/
+data/easymocap_result/
+data/markerbased/
+data/markerless/
+data/openpose/
+data/vitpose/
+data/vitpose_masked/
+data/smpl_fitting/
+data/segments/
+
+# Claude skills cache
+.claude/skills/
+.orchestra-skills.json
+
+# Temporary
+orig/

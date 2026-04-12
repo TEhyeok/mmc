@@ -1,0 +1,19 @@
+% ========== Header/Footer ==========
+\pagestyle{fancy}
+\fancyhf{}
+\fancyhead[L]{\leftmark}
+\fancyhead[R]{\thepage}
+\renewcommand{\headrulewidth}{0.4pt}
+
+% ========== Title formatting ==========
+\titleformat{\chapter}[display]
+  {\normalfont\huge\bfseries\color{defblue}}
+  {\chaptertitlename\ \thechapter}{20pt}{\Huge}
+
+\titleformat{\section}
+  {\normalfont\Large\bfseries\color{defblue!80!black}}
+  {\thesection}{1em}{}
+
+\titleformat{\subsection}
+  {\normalfont\large\bfseries\color{defblue!60!black}}
+  {\thesubsection}{1em}{}

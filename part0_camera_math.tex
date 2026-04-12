@@ -1,0 +1,599 @@
+\documentclass[11pt, a4paper]{report}
+
+\input{preamble/packages}
+\usepackage{multirow}
+\input{preamble/colors}
+
+% ========== Korean theorem names (이 파일 전용) ==========
+\theoremstyle{definition}
+\newtheorem{definition}{정의}[chapter]
+\newtheorem{theorem}{정리}[chapter]
+\newtheorem{proposition}{명제}[chapter]
+\newtheorem{corollary}{따름정리}[chapter]
+\newtheorem{example}{예제}[chapter]
+\theoremstyle{remark}
+\newtheorem{remark}{참고}[chapter]
+
+% ========== Korean tcolorbox (이 파일 전용) ==========
+\newtcolorbox{keyidea}[1][]{colback=lightblue, colframe=defblue, fonttitle=\bfseries, title={핵심}, #1}
+\newtcolorbox{importantnote}[1][]{colback=lightorange, colframe=noteorange, fonttitle=\bfseries, title={중요}, #1}
+\newtcolorbox{warningbox}[1][]{colback=lightred, colframe=darkred, fonttitle=\bfseries, title={주의}, #1}
+\newtcolorbox{proofbox}[1][]{colback=lightgreen, colframe=thmgreen, fonttitle=\bfseries, title={증명/유도}, #1}
+\newtcolorbox{practicebox}[1][]{colback=lightgray, colframe=gray!60, fonttitle=\bfseries, title={실전 적용}, #1}
+
+\input{preamble/commands}
+\input{preamble/formatting}
+
+\begin{document}
+
+% ==================== TITLE PAGE ====================
+\begin{titlepage}
+\centering
+\vspace*{1.5cm}
+{\Large\color{gray} 수학의 정석 시리즈}
+\vspace{0.5cm}
+
+{\Huge\bfseries\color{defblue} 다시점 카메라 보정에서\\[0.3cm]
+SMPL 인체 피팅까지\\[0.3cm]
+수학적 완전 가이드}
+
+\vspace{1cm}
+
+{\LARGE\color{defblue!70!black} 투영 기하학, 좌표 변환, 삼각측량,\\
+그리고 2D 재투영 기반 인체 모델 피팅의\\
+모든 수식을 빈틈없이 유도합니다}
+
+\vspace{3cm}
+{\large 2026}
+
+\vspace{\fill}
+{\small\color{gray} 이 문서는 ``왜 이렇게 해야 하는가''를 수식으로 증명합니다.\\
+직관과 수식이 함께 흐르는, 수학의 정석 스타일의 완전 해설서입니다.}
+\end{titlepage}
+
+\tableofcontents
+\newpage
+
+
+% ====================================================================
+\chapter{핀홀 카메라 모델}
+\label{ch:pinhole}
+% ====================================================================
+
+\section{3D 점에서 2D 픽셀로: 투영의 수학}
+
+\begin{definition}[핀홀 카메라 투영]
+3D 월드 좌표 $\vX = (X, Y, Z)^\top \in \RR^3$가 2D 이미지 좌표 $\vu = (u, v)^\top \in \RR^2$로 투영되는 과정은 다음과 같다:
+
+\begin{equation}
+\lambda \begin{pmatrix} u \\ v \\ 1 \end{pmatrix}
+= \underbrace{\begin{pmatrix} f_x & 0 & c_x \\ 0 & f_y & c_y \\ 0 & 0 & 1 \end{pmatrix}}_{\mK \text{ (내부 행렬)}}
+\underbrace{\begin{pmatrix} \mR & \vt \end{pmatrix}}_{\text{외부 행렬 } 3 \times 4}
+\begin{pmatrix} X \\ Y \\ Z \\ 1 \end{pmatrix}
+\label{eq:projection}
+\end{equation}
+
+여기서 $\lambda > 0$는 깊이(depth) 스케일 팩터이다.
+\end{definition}
+
+\subsection{내부 파라미터 $\mK$의 의미}
+
+\begin{itemize}[leftmargin=*]
+  \item $f_x, f_y$: \textbf{초점 거리} (focal length, 픽셀 단위). 렌즈에서 센서까지의 거리를 센서 픽셀 크기로 나눈 것.
+  \begin{equation}
+    f_x = \frac{f}{s_x}, \quad f_y = \frac{f}{s_y}
+  \end{equation}
+  여기서 $f$는 물리적 초점 거리(mm), $s_x, s_y$는 센서 픽셀의 물리적 크기(mm/px).
+  정사각 픽셀이면 $f_x = f_y$.
+
+  \item $c_x, c_y$: \textbf{주점} (principal point). 광축이 이미지 평면과 만나는 점.
+  이상적으로 이미지 중심 $(W/2, H/2)$이지만, 렌즈 조립 오차로 약간 다를 수 있음.
+\end{itemize}
+
+\subsection{외부 파라미터 $[\mR | \vt]$의 의미}
+
+\begin{itemize}[leftmargin=*]
+  \item $\mR \in SO(3)$: 월드 좌표계에서 카메라 좌표계로의 \textbf{회전 행렬} ($3 \times 3$, 정규직교, $\det(\mR) = 1$)
+  \item $\vt \in \RR^3$: \textbf{이동 벡터}. 카메라 좌표계에서 본 월드 원점의 위치.
+\end{itemize}
+
+\begin{importantnote}[title={카메라 위치와 $\vt$의 관계}]
+$\vt$는 카메라의 위치가 \textbf{아니다}.
+카메라의 월드 좌표계 위치 $\mathbf{C}$는:
+\begin{equation}
+\mathbf{C} = -\mR^\top \vt
+\label{eq:camera_center}
+\end{equation}
+
+$[\mR | \vt]$는 ``월드 $\rightarrow$ 카메라'' 변환이므로, $\vt$는 월드 원점을 카메라 좌표로 표현한 것이다.
+\end{importantnote}
+
+
+\section{투영 행렬 $\mP$}
+
+\begin{equation}
+\mP = \mK [\mR | \vt] \in \RR^{3 \times 4}
+\label{eq:proj_matrix}
+\end{equation}
+
+이 행렬 하나로 3D $\rightarrow$ 2D 변환이 완결된다:
+\begin{equation}
+\lambda \tilde{\vu} = \mP \tilde{\vX}
+\end{equation}
+여기서 $\tilde{\vu} = (u, v, 1)^\top$, $\tilde{\vX} = (X, Y, Z, 1)^\top$는 동차 좌표(homogeneous coordinates).
+
+\begin{proofbox}[title={투영의 전개}]
+$\mP$의 행을 $\mathbf{p}_1^\top, \mathbf{p}_2^\top, \mathbf{p}_3^\top$으로 놓으면:
+\begin{align}
+u &= \frac{\mathbf{p}_1^\top \tilde{\vX}}{\mathbf{p}_3^\top \tilde{\vX}}, \qquad
+v = \frac{\mathbf{p}_2^\top \tilde{\vX}}{\mathbf{p}_3^\top \tilde{\vX}}
+\label{eq:proj_explicit}
+\end{align}
+이것이 비선형 투영 함수 $\pi: \RR^3 \rightarrow \RR^2$를 정의한다.
+\end{proofbox}
+
+
+% ====================================================================
+\chapter{이미지 변환과 카메라 파라미터의 변화}
+\label{ch:transforms}
+% ====================================================================
+
+\begin{keyidea}
+이미지를 리사이즈하거나 크롭하면 $\mK$가 변한다.
+$[\mR | \vt]$는 이미지 변환에 \textbf{영향을 받지 않는다} --- 이것은 3D 공간의 속성이다.
+\end{keyidea}
+
+\section{리사이즈 (Resize)}
+
+\begin{theorem}[리사이즈와 $\mK$의 관계]
+\label{thm:resize}
+$W \times H$ 이미지를 $W' \times H'$로 리사이즈하면, 새로운 내부 행렬은:
+\begin{equation}
+\mK' = \begin{pmatrix} s_x & 0 & 0 \\ 0 & s_y & 0 \\ 0 & 0 & 1 \end{pmatrix} \mK
+= \begin{pmatrix} s_x f_x & 0 & s_x c_x \\ 0 & s_y f_y & s_y c_y \\ 0 & 0 & 1 \end{pmatrix}
+\label{eq:resize_K}
+\end{equation}
+여기서 $s_x = W'/W$, $s_y = H'/H$.
+\end{theorem}
+
+\begin{proofbox}
+리사이즈는 2D 좌표에 스케일을 적용하는 것이다:
+$u' = s_x u$, $v' = s_y v$.
+
+투영 $\lambda (u, v, 1)^\top = \mK[\mR|\vt]\tilde{\vX}$에서
+$\lambda (u', v', 1)^\top = \lambda (s_x u, s_y v, 1)^\top$를 만족하려면,
+$\mK$에 좌측에서 대각 스케일 행렬을 곱해야 한다. $\square$
+\end{proofbox}
+
+\begin{practicebox}[title={실전: DA3의 리사이즈}]
+DA3의 \texttt{upper\_bound\_resize}는 longest side를 \texttt{process\_res}로 맞춘다.
+
+landscape $1920 \times 1080$, \texttt{process\_res}$= 504$:
+\begin{align}
+s &= \frac{504}{1920} = 0.2625 \\
+W' &= \text{round}(1920 \times 0.2625) = 504 \\
+H' &= \text{round}(1080 \times 0.2625) = 284 \xrightarrow{\text{div by 14}} 280
+\end{align}
+
+이때 $\mK$의 변환:
+\begin{equation}
+f_x' = f_x \cdot \frac{504}{1920}, \quad
+f_y' = f_y \cdot \frac{280}{1080}, \quad
+c_x' = c_x \cdot \frac{504}{1920}, \quad
+c_y' = c_y \cdot \frac{280}{1080}
+\end{equation}
+
+\textbf{주의}: $s_x \neq s_y$ (504/1920 $\neq$ 280/1080)이므로 $f_x' / f_y' \neq f_x / f_y$.
+비율 보존 리사이즈에서도 \texttt{make\_divisible\_by\_14}가 높이를 284$\rightarrow$280으로 바꾸면서
+$s_y$가 미세하게 달라진다.
+\end{practicebox}
+
+
+\section{크롭 (Crop)}
+
+\begin{theorem}[크롭과 $\mK$의 관계]
+\label{thm:crop}
+이미지에서 $(x_0, y_0)$을 좌상단으로 하는 $W' \times H'$ 영역을 크롭하면:
+\begin{equation}
+\mK' = \begin{pmatrix} 1 & 0 & -x_0 \\ 0 & 1 & -y_0 \\ 0 & 0 & 1 \end{pmatrix} \mK
+= \begin{pmatrix} f_x & 0 & c_x - x_0 \\ 0 & f_y & c_y - y_0 \\ 0 & 0 & 1 \end{pmatrix}
+\label{eq:crop_K}
+\end{equation}
+
+\textbf{$f_x, f_y$는 변하지 않는다.} $c_x, c_y$만 이동한다.
+\end{theorem}
+
+\begin{proofbox}
+크롭은 2D 좌표를 평행 이동하는 것이다: $u' = u - x_0$, $v' = v - y_0$.
+$\mK$에 좌측에서 이동 행렬을 곱하면 주점만 변한다. $\square$
+\end{proofbox}
+
+
+\section{Center Crop}
+
+\begin{corollary}[Center crop]
+$W \times H$ 이미지를 $W' \times H'$로 center crop하면:
+\begin{equation}
+x_0 = \frac{W - W'}{2}, \quad y_0 = \frac{H - H'}{2}
+\end{equation}
+\begin{equation}
+c_x' = c_x - \frac{W - W'}{2}, \quad c_y' = c_y - \frac{H - H'}{2}
+\label{eq:center_crop}
+\end{equation}
+\end{corollary}
+
+
+\section{Letterbox 패딩 (Padding)}
+
+\begin{theorem}[패딩과 $\mK$의 관계]
+\label{thm:padding}
+이미지 주변에 패딩을 추가하는 것은 크롭의 \textbf{역연산}이다.
+$W \times H$ 이미지를 $W' \times H'$로 패딩(중앙 정렬)하면:
+\begin{equation}
+\text{pad}_x = \frac{W' - W}{2}, \quad \text{pad}_y = \frac{H' - H}{2}
+\end{equation}
+\begin{equation}
+c_x' = c_x + \text{pad}_x, \quad c_y' = c_y + \text{pad}_y
+\label{eq:padding_K}
+\end{equation}
+
+$f_x, f_y$는 변하지 않는다 (패딩은 리사이즈가 아니므로).
+\end{theorem}
+
+
+\section{복합 변환}
+
+\begin{theorem}[리사이즈 $\rightarrow$ 크롭 복합 변환]
+\label{thm:composite}
+리사이즈 $(s_x, s_y)$ 후 center crop $(x_0, y_0)$을 적용하면:
+\begin{equation}
+\mK_{\text{final}} = \mT_{\text{crop}} \cdot \mS_{\text{resize}} \cdot \mK_{\text{orig}}
+\end{equation}
+\begin{equation}
+\boxed{
+\begin{aligned}
+f_x' &= s_x \cdot f_x \\
+f_y' &= s_y \cdot f_y \\
+c_x' &= s_x \cdot c_x - x_0 \\
+c_y' &= s_y \cdot c_y - y_0
+\end{aligned}
+}
+\label{eq:composite}
+\end{equation}
+\end{theorem}
+
+\begin{practicebox}[title={실전: DA3 280$\times$280의 역변환}]
+DA3가 landscape 1920$\times$1080을 280$\times$280으로 변환한 과정:
+\begin{enumerate}[nosep]
+  \item 리사이즈: $(s_x, s_y) = (504/1920, 280/1080)$
+  \item Center crop: $(x_0, y_0) = ((504-280)/2, 0) = (112, 0)$
+\end{enumerate}
+
+역변환 (280$\times$280 $\rightarrow$ 1920$\times$1080):
+\begin{enumerate}[nosep]
+  \item Uncrop: $c_x \mathrel{+}= 112$, $c_y$ 변경 없음
+  \item Unresize: $f_x \mathrel{/}= (504/1920)$, $c_x \mathrel{/}= (504/1920)$, $f_y \mathrel{/}= (280/1080)$, $c_y \mathrel{/}= (280/1080)$
+\end{enumerate}
+
+\textbf{이 역변환이 정확해야 EasyMocap의 재투영 피팅이 작동한다.}
+\end{practicebox}
+
+\begin{warningbox}
+\textbf{DA3의 배치 통일(center crop to min size)} 문제:
+
+DA3가 배치 처리 시 서로 다른 크기의 이미지를 가장 작은 크기로 center crop한다.
+이때 landscape(504$\times$280)와 portrait(280$\times$504)가 섞이면
+280$\times$280으로 crop되어 \textbf{landscape에서 좌우 224px이 잘린다}.
+
+잘린 영역의 2D 키포인트는 280$\times$280 좌표계에 존재하지 않으므로,
+이 카메라 파라미터로는 원본 해상도 키포인트와 호환되지 않는다.
+
+\textbf{해결}: Letterbox 패딩으로 모든 이미지를 같은 정사각형으로 만들어 DA3에 입력.
+\end{warningbox}
+
+
+% ====================================================================
+\chapter{Letterbox 패딩과 DA3 보정}
+\label{ch:letterbox}
+% ====================================================================
+
+\section{Letterbox 전략}
+
+모든 이미지를 $S \times S$ 정사각형으로 만든다 ($S = \max(W_{\max}, H_{\max})$).
+
+\begin{definition}[Letterbox 패딩]
+$W \times H$ 이미지를 $S \times S$로 패딩:
+\begin{equation}
+\text{pad}_x = \frac{S - W}{2}, \quad \text{pad}_y = \frac{S - H}{2}
+\end{equation}
+패딩 영역은 검은색(0,0,0)으로 채운다.
+\end{definition}
+
+현재 세팅에서:
+\begin{table}[H]
+\centering
+\renewcommand{\arraystretch}{1.3}
+\begin{tabular}{lcccc}
+\toprule
+\textbf{카메라} & \textbf{원본} & \textbf{패딩 후} & \textbf{pad$_x$} & \textbf{pad$_y$} \\
+\midrule
+cam1 (portrait) & 1080$\times$1920 & 1920$\times$1920 & 420 & 0 \\
+cam2--7 (landscape) & 1920$\times$1080 & 1920$\times$1920 & 0 & 420 \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+
+\section{DA3 출력에서 원본 좌표계로의 변환}
+
+DA3가 $S \times S$ 이미지에서 추정한 $\mK_{\text{DA3}}$를 원본 좌표계로 변환:
+
+\begin{equation}
+\boxed{
+\begin{aligned}
+f_x^{\text{orig}} &= f_x^{\text{DA3}} \quad (\text{패딩은 스케일 변경 없음}) \\
+f_y^{\text{orig}} &= f_y^{\text{DA3}} \\
+c_x^{\text{orig}} &= c_x^{\text{DA3}} - \text{pad}_x \\
+c_y^{\text{orig}} &= c_y^{\text{DA3}} - \text{pad}_y
+\end{aligned}
+}
+\label{eq:letterbox_to_orig}
+\end{equation}
+
+\textbf{$\mR, \vt$는 변하지 않는다} --- 이것들은 3D 공간의 속성이다.
+
+\begin{keyidea}
+\textbf{왜 Letterbox가 올바른 해결책인가}:
+\begin{enumerate}[nosep]
+  \item 리사이즈가 없으므로 $f_x, f_y$가 \textbf{그대로} 원본 해상도에서 유효
+  \item 원본 좌표로의 변환이 \textbf{$c_x, c_y$에서 정수 offset을 빼는 것}만으로 완결
+  \item 모든 원본 이미지 영역이 DA3 입력에 포함됨 (잘림 없음)
+  \item 배치 내 모든 이미지가 같은 크기이므로 DA3의 center crop이 발생하지 않음
+\end{enumerate}
+\end{keyidea}
+
+
+\section{DA3의 내부 처리}
+
+\begin{warningbox}
+DA3는 \texttt{make\_divisible\_by\_14} 단계에서 $S \rightarrow S'$ 미세 리사이즈를 수행한다.
+$S = 1920$이면 $S' = 1918$ (1918/14 = 137.0).
+
+이 리사이즈의 스케일:
+\begin{equation}
+s = \frac{S'}{S} = \frac{1918}{1920} = 0.99896
+\end{equation}
+
+이 미세한 스케일이 $\mK$에 적용된다:
+\begin{equation}
+f_x^{\text{DA3}} = s \cdot f_x^{\text{padded}}, \quad c_x^{\text{DA3}} = s \cdot c_x^{\text{padded}}
+\end{equation}
+
+따라서 정밀한 역변환:
+\begin{equation}
+f_x^{\text{orig}} = f_x^{\text{DA3}} / s, \quad c_x^{\text{orig}} = c_x^{\text{DA3}} / s - \text{pad}_x
+\end{equation}
+
+다만 $s = 0.999$이므로 실용적으로는 무시 가능한 수준이다 (0.1\% 오차).
+\end{warningbox}
+
+
+% ====================================================================
+\chapter{삼각측량 (Triangulation)}
+\label{ch:triangulation}
+% ====================================================================
+
+\section{DLT 삼각측량}
+
+\begin{definition}[DLT 삼각측량 문제]
+$C$개 카메라에서 관찰된 2D 좌표 $\{(u_c, v_c)\}_{c=1}^{C}$와
+투영 행렬 $\{\mP_c\}_{c=1}^{C}$가 주어질 때,
+3D 점 $\vX$를 추정하는 문제.
+\end{definition}
+
+각 카메라 $c$의 투영 관계 $\lambda_c \tilde{\vu}_c = \mP_c \tilde{\vX}$에서
+$\lambda_c$를 소거하면:
+
+\begin{equation}
+u_c (\mathbf{p}_{3,c}^\top \tilde{\vX}) - \mathbf{p}_{1,c}^\top \tilde{\vX} = 0, \qquad
+v_c (\mathbf{p}_{3,c}^\top \tilde{\vX}) - \mathbf{p}_{2,c}^\top \tilde{\vX} = 0
+\end{equation}
+
+$C$개 카메라로부터 $2C$개 방정식을 쌓으면:
+
+\begin{equation}
+\mA \tilde{\vX} = \mathbf{0}, \quad
+\mA \in \RR^{2C \times 4}
+\label{eq:dlt}
+\end{equation}
+
+\begin{equation}
+\mA = \begin{pmatrix}
+u_1 \mathbf{p}_{3,1}^\top - \mathbf{p}_{1,1}^\top \\
+v_1 \mathbf{p}_{3,1}^\top - \mathbf{p}_{2,1}^\top \\
+\vdots \\
+u_C \mathbf{p}_{3,C}^\top - \mathbf{p}_{1,C}^\top \\
+v_C \mathbf{p}_{3,C}^\top - \mathbf{p}_{2,C}^\top
+\end{pmatrix}
+\end{equation}
+
+\begin{theorem}[DLT 해]
+$\mA$의 SVD $\mA = \mathbf{U} \bm{\Sigma} \mathbf{V}^\top$에서,
+$\mathbf{V}$의 마지막 열이 $\tilde{\vX}$의 최소 노름 해이다:
+\begin{equation}
+\tilde{\vX}^* = \mathbf{v}_4, \quad \vX^* = \frac{1}{v_{4,4}} (v_{4,1}, v_{4,2}, v_{4,3})^\top
+\end{equation}
+\end{theorem}
+
+
+\section{재투영 오차}
+
+\begin{definition}[재투영 오차]
+삼각측량된 3D 점 $\vX^*$를 각 카메라로 재투영한 2D 좌표와
+검출된 2D 좌표의 차이:
+\begin{equation}
+e_c = \|\pi_c(\vX^*) - \vu_c\|_2 \quad (\text{pixels})
+\label{eq:reproj_error}
+\end{equation}
+\end{definition}
+
+\begin{keyidea}
+\textbf{재투영 오차는 카메라 파라미터의 정확도를 직접 측정한다.}
+
+$\mK$나 $[\mR|\vt]$가 틀리면:
+\begin{itemize}[nosep]
+  \item $\mP_c = \mK_c[\mR_c|\vt_c]$가 틀어짐
+  \item DLT 삼각측량이 잘못된 $\vX^*$를 추정
+  \item 재투영 시 $\pi_c(\vX^*)$와 검출 $\vu_c$가 불일치
+  \item 재투영 오차가 큼
+\end{itemize}
+
+\textbf{판정 기준}:
+$< 5$\,px (우수), $5$--$20$\,px (수용), $> 50$\,px (카메라 파라미터 불일치)
+\end{keyidea}
+
+
+\section{삼각측량의 조건}
+
+\begin{proposition}[최소 카메라 수]
+$\mA \in \RR^{2C \times 4}$의 rank가 최소 3이어야 비자명 해가 존재한다.
+$C \geq 2$이면 rank $\leq 4$이므로 해가 존재하지만,
+$C = 2$일 때 baseline이 작으면 깊이 추정 오차가 크다.
+$C \geq 3$이 실용적 최소 조건이다.
+\end{proposition}
+
+\begin{proposition}[7대 카메라의 이점]
+$C = 7$이면 $\mA \in \RR^{14 \times 4}$로 과결정(overdetermined).
+$\binom{7}{2} = 21$개의 에피폴라 제약이 깊이를 강력하게 결정한다.
+\end{proposition}
+
+
+% ====================================================================
+\chapter{2D 재투영 기반 SMPL 피팅}
+\label{ch:smpl_fitting}
+% ====================================================================
+
+\section{왜 2D 재투영인가}
+
+\begin{theorem}[3D 피팅 vs 2D 재투영 피팅의 방정식 수]
+\label{thm:equations}
+~\\
+\textbf{3D 직접 피팅}: OpenPose 25관절 중 14개 매핑 가능 $\rightarrow$ $14 \times 3 = 42$개 방정식.
+미지수: $\vtheta$(72) + $\vbeta$(10) + $\mR$(3) + $\vt$(3) = 88.
+$\rightarrow$ \textbf{부정계 (42 $<$ 88)}, prior 필수.
+
+\textbf{다시점 2D 재투영 피팅}: $7 \times 25 \times 2 = 350$개 방정식.
+미지수: 88 (동일).
+$\rightarrow$ \textbf{과결정 (350 $\gg$ 88)}, prior 없이도 해 결정 가능.
+\end{theorem}
+
+\section{EasyMocap의 목적 함수}
+
+\begin{equation}
+\boxed{
+(\vtheta^*, \vbeta^*) = \arg\min_{\vtheta, \vbeta}
+\sum_{c=1}^{7} \sum_{k=1}^{K} w_{ck} \left\| \vu_{ck} - \pi_c\!\big(J_k(\vtheta, \vbeta)\big) \right\|^2
++ \lambda_\theta \|\vtheta\|^2 + \lambda_\beta \|\vbeta\|^2
+}
+\label{eq:easymocap}
+\end{equation}
+
+여기서:
+\begin{itemize}[nosep]
+  \item $\vu_{ck} \in \RR^2$: 카메라 $c$에서 관절 $k$의 2D 검출 좌표 (OpenPose)
+  \item $\pi_c(\cdot) = \mK_c [\mR_c | \vt_c] (\cdot)$: 카메라 $c$의 투영 함수
+  \item $J_k(\vtheta, \vbeta) \in \RR^3$: SMPL forward kinematics의 $k$번째 관절 3D 위치
+  \item $w_{ck}$: 검출 신뢰도 (OpenPose confidence)
+\end{itemize}
+
+\begin{keyidea}
+이 수식에서 $\mK_c$가 $\vu_{ck}$와 \textbf{같은 좌표계}여야 하는 이유:
+
+$\pi_c(J_k)$는 $\mK_c$를 사용하여 3D$\rightarrow$2D를 계산한다.
+$\vu_{ck}$는 OpenPose가 원본 이미지에서 검출한 좌표이다.
+$\mK_c$가 다른 해상도/크롭 기준이면,
+$\pi_c(J_k)$와 $\vu_{ck}$가 다른 좌표계에 있게 되어
+\textbf{어떤 $(\vtheta, \vbeta)$도 오차를 0으로 만들 수 없다}.
+
+이것이 카메라 파라미터 변환이 정확해야 하는 수학적 이유이다.
+\end{keyidea}
+
+
+\section{3D 직접 피팅이 구조적으로 실패하는 이유}
+
+\begin{theorem}[관절 정의 오프셋]
+OpenPose의 관절 $j$의 3D 위치 $\vp_j^{\text{OP}}$와
+SMPL의 대응 관절 $J_k(\vtheta, \vbeta)$ 사이에는 체계적 오프셋 $\bm{\delta}_k$가 존재한다:
+\begin{equation}
+\vp_j^{\text{OP}} = J_k(\vtheta, \vbeta) + \bm{\delta}_k + \bm{\epsilon}
+\end{equation}
+여기서 $\bm{\delta}_k$는 관절 정의 차이 (시각적 랜드마크 vs 골격 회전 중심),
+$\bm{\epsilon}$은 삼각측량 노이즈.
+
+3D 피팅의 목적 함수 $\|J_k - \vp_j^{\text{OP}}\|^2$는 $\bm{\delta}_k$ 때문에 0에 도달할 수 없다.
+\end{theorem}
+
+\begin{proofbox}[title={2D 재투영에서 오프셋이 희석되는 이유}]
+2D 재투영에서는:
+\begin{equation}
+\pi_c(J_k + \bm{\delta}_k) - \pi_c(J_k) \approx \mJ_\pi \bm{\delta}_k
+\end{equation}
+여기서 $\mJ_\pi$는 투영의 야코비안이다.
+카메라 $c$마다 $\mJ_\pi$가 다르므로, $\bm{\delta}_k$의 2D 투영이 시점마다 다른 방향으로 나타난다.
+7대 카메라에서 이 오프셋들이 \textbf{평균적으로 상쇄}되어
+$(\vtheta, \vbeta)$ 추정에 미치는 영향이 줄어든다.
+
+반면 3D에서는 $\bm{\delta}_k$가 모든 프레임에서 동일한 방향으로 누적된다. $\square$
+\end{proofbox}
+
+
+% ====================================================================
+\chapter{전체 파이프라인 요약}
+\label{ch:pipeline}
+% ====================================================================
+
+\begin{figure}[H]
+\centering
+\begin{tikzpicture}[
+  block/.style={rectangle, rounded corners=3pt, draw=defblue, fill=lightblue,
+    minimum width=3.5cm, minimum height=0.8cm, align=center, font=\small},
+  math/.style={rectangle, rounded corners=3pt, draw=cvpurple, fill=cvpurple!8,
+    minimum width=3.5cm, minimum height=0.8cm, align=center, font=\small},
+  arrow/.style={-{Stealth[length=2.5mm]}, thick, defblue!70}
+]
+\node[block] (orig) at (0,0) {원본 이미지\\$W \times H$};
+\node[block] (pad) at (0,-1.5) {Letterbox 패딩\\$S \times S$};
+\node[block] (da3) at (0,-3) {DA3 추론\\$\mK_{\text{DA3}}, [\mR|\vt]$};
+\node[math] (unpad) at (0,-4.5) {Unpad: $c_x \mathrel{-}= \text{pad}_x$\\$c_y \mathrel{-}= \text{pad}_y$};
+\node[block] (K_orig) at (0,-6) {$\mK_{\text{orig}}$\\원본 해상도 기준};
+
+\node[block] (op2d) at (6,-1.5) {OpenPose 2D\\$\vu_{ck}$ (원본 좌표)};
+\node[math] (proj) at (3,-7.5) {$\pi_c(\cdot) = \mK_{\text{orig}}[\mR_c|\vt_c](\cdot)$};
+\node[block] (smpl) at (3,-9) {SMPL 피팅\\$\min \sum \|u_{ck} - \pi_c(J_k)\|^2$};
+
+\draw[arrow] (orig) -- (pad);
+\draw[arrow] (pad) -- (da3);
+\draw[arrow] (da3) -- (unpad);
+\draw[arrow] (unpad) -- (K_orig);
+\draw[arrow] (K_orig) -- (proj);
+\draw[arrow] (op2d) -- (proj);
+\draw[arrow] (proj) -- (smpl);
+
+\node[font=\scriptsize\color{darkred}] at (-2.3, -4.5) {핵심 변환};
+\node[font=\scriptsize\color{darkred}] at (4.8, -7.5) {좌표계 일치 필수};
+\end{tikzpicture}
+\caption{Letterbox DA3 보정 $\rightarrow$ 좌표 변환 $\rightarrow$ EasyMocap SMPL 피팅 전체 흐름}
+\end{figure}
+
+\begin{keyidea}
+\textbf{전체 파이프라인의 수학적 일관성 조건}:
+
+$\mK_{\text{orig}}$의 좌표계 $=$ $\vu_{ck}$의 좌표계 $=$ 원본 이미지의 픽셀 좌표계
+
+이 세 가지가 일치할 때, 그리고 \textbf{오직 그때만},
+EasyMocap의 재투영 오차 $\|\vu_{ck} - \pi_c(J_k)\|$가 의미를 가지며,
+SMPL 파라미터가 올바르게 수렴한다.
+\end{keyidea}
+
+
+\end{document}

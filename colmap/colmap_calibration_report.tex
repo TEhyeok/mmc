@@ -1,0 +1,442 @@
+\documentclass[11pt, a4paper]{report}
+\usepackage{fontspec}
+\usepackage{kotex}
+\usepackage{amsmath, amssymb}
+\usepackage{booktabs}
+\usepackage{tabularx}
+\usepackage{hyperref}
+\usepackage{geometry}
+\usepackage{fancyhdr}
+\usepackage{titlesec}
+\usepackage{enumitem}
+\usepackage{xcolor}
+\usepackage{tcolorbox}
+\usepackage{tikz}
+\usetikzlibrary{arrows.meta, positioning, calc}
+\usepackage{pgfplots}
+\pgfplotsset{compat=1.18}
+\usepackage{float}
+\usepackage{multirow}
+\usepackage{listings}
+
+\geometry{margin=2.5cm, top=3cm, bottom=3cm}
+
+\definecolor{defblue}{RGB}{30, 80, 150}
+\definecolor{thmgreen}{RGB}{20, 110, 60}
+\definecolor{noteorange}{RGB}{200, 100, 0}
+\definecolor{lightblue}{RGB}{230, 240, 255}
+\definecolor{lightgreen}{RGB}{230, 255, 235}
+\definecolor{lightorange}{RGB}{255, 245, 230}
+\definecolor{lightgray}{RGB}{245, 245, 245}
+\definecolor{lightred}{RGB}{255, 235, 235}
+\definecolor{darkred}{RGB}{180, 30, 30}
+\definecolor{codegray}{RGB}{240, 240, 245}
+
+\newtcolorbox{keyidea}[1][]{colback=lightblue, colframe=defblue, fonttitle=\bfseries, title={Key Finding}, #1}
+\newtcolorbox{warningbox}[1][]{colback=lightred, colframe=darkred, fonttitle=\bfseries, title={Issue}, #1}
+\newtcolorbox{successbox}[1][]{colback=lightgreen, colframe=thmgreen, fonttitle=\bfseries, title={Success}, #1}
+\newtcolorbox{nextbox}[1][]{colback=lightorange, colframe=noteorange, fonttitle=\bfseries, title={Next Step}, #1}
+
+\lstset{
+  basicstyle=\ttfamily\small,
+  backgroundcolor=\color{codegray},
+  frame=single, rulecolor=\color{gray!40},
+  breaklines=true, showstringspaces=false,
+  numbers=left, numberstyle=\tiny\color{gray}, tabsize=4
+}
+
+\pagestyle{fancy}
+\fancyhf{}
+\fancyhead[L]{\leftmark}
+\fancyhead[R]{\thepage}
+\renewcommand{\headrulewidth}{0.4pt}
+
+\titleformat{\chapter}[display]
+  {\normalfont\huge\bfseries\color{defblue}}{\chaptertitlename\ \thechapter}{20pt}{\Huge}
+\titleformat{\section}{\normalfont\Large\bfseries\color{defblue!80!black}}{\thesection}{1em}{}
+\titleformat{\subsection}{\normalfont\large\bfseries\color{defblue!60!black}}{\thesubsection}{1em}{}
+
+\begin{document}
+
+\begin{titlepage}
+\centering
+\vspace*{2cm}
+{\Large\color{gray} P0: Camera Calibration --- Final Report}
+\vspace{0.5cm}
+
+{\Huge\bfseries\color{defblue} COLMAP 카메라 보정\\[0.3cm]
+최종 결과 보고서}
+
+\vspace{1cm}
+
+{\LARGE\color{defblue!70!black} 1차$\rightarrow$2차 보정 반복을 통한\\
+7대 카메라 완전 보정 달성}
+
+\vspace{2cm}
+
+\begin{tikzpicture}
+\node[rectangle, rounded corners, fill=lightred, draw=darkred, minimum width=4cm, minimum height=1cm, font=\bfseries] (r1) at (0,0) {Round 1: 61.3\%};
+\node[rectangle, rounded corners, fill=lightgreen, draw=thmgreen, minimum width=4cm, minimum height=1cm, font=\bfseries] (r2) at (7,0) {Round 2: 100\%};
+\draw[-Stealth, very thick, defblue] (r1) -- (r2) node[midway, above, font=\small\bfseries\color{defblue}] {개선};
+\end{tikzpicture}
+
+\vspace{2cm}
+{\large 2026년 4월 11일}
+\vspace{0.5cm}
+{\large Subject 1 / Set 002}
+
+\vspace{\fill}
+{\small\color{gray} COLMAP SfM 기반 카메라 보정 2회 반복 결과.\\
+1차(OPENCV, 이미지별 독립) $\rightarrow$ 2차(SIMPLE\_RADIAL, 카메라별 공유)로\\
+등록률 61\% $\rightarrow$ 100\%, 카메라 103개 $\rightarrow$ 7개로 개선.}
+\end{titlepage}
+
+\tableofcontents
+\newpage
+
+
+% ====================================================================
+\chapter{실험 개요}
+% ====================================================================
+
+\section{목표}
+
+7대 240\,Hz RGB 카메라로 촬영한 투구 동작 영상에 대해,
+\textbf{체커보드 없이} COLMAP SfM으로 카메라 내부/외부 파라미터를 추정한다.
+추정된 파라미터는 이후 3D Gaussian Splatting(GART) 학습에 사용된다.
+
+\section{입력 데이터}
+
+\begin{table}[H]
+\centering
+\caption{입력 영상 사양}
+\renewcommand{\arraystretch}{1.3}
+\begin{tabular}{lcccc}
+\toprule
+\textbf{카메라} & \textbf{해상도} & \textbf{방향} & \textbf{fps} & \textbf{코덱} \\
+\midrule
+cam1 (device1) & 1080$\times$1920 & \textbf{portrait} & 240 & H.264 \\
+cam2--cam7 & 1920$\times$1080 & landscape & 240 & H.264 \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\section{2회 반복 보정 전략}
+
+\begin{table}[H]
+\centering
+\caption{1차 vs 2차 보정 설정}
+\renewcommand{\arraystretch}{1.3}
+\begin{tabularx}{\textwidth}{lXX}
+\toprule
+\textbf{설정} & \textbf{Round 1} & \textbf{Round 2} \\
+\midrule
+카메라 모델 & OPENCV (8 파라미터) & \textbf{SIMPLE\_RADIAL} (4 파라미터) \\
+카메라 공유 & 없음 (이미지마다 독립) & \textbf{폴더별 공유} (7대) \\
+입력 이미지 & 168장 (매 10프레임) & \textbf{336장} (매 5프레임) \\
+매칭 & Exhaustive (CPU) & Exhaustive (CPU) \\
+\bottomrule
+\end{tabularx}
+\end{table}
+
+
+% ====================================================================
+\chapter{Round 1 결과}
+% ====================================================================
+
+\section{파이프라인 실행}
+
+\begin{table}[H]
+\centering
+\caption{Round 1 실행 기록}
+\renewcommand{\arraystretch}{1.3}
+\begin{tabular}{lcl}
+\toprule
+\textbf{단계} & \textbf{소요 시간} & \textbf{비고} \\
+\midrule
+Feature Extraction & 0.6분 & SIFT CPU, $\sim$5,800 특징점/장 \\
+Exhaustive Matching & 5.0분 & 168장, CPU \\
+Incremental SfM & $\sim$20분 & 3개 reconstruction \\
+\midrule
+\textbf{총} & \textbf{$\sim$26분} & Apple Silicon (CPU only) \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\section{결과 요약}
+
+\begin{table}[H]
+\centering
+\caption{Round 1 핵심 지표}
+\renewcommand{\arraystretch}{1.3}
+\begin{tabular}{lc}
+\toprule
+\textbf{지표} & \textbf{값} \\
+\midrule
+등록 이미지 & 103 / 168 (\textcolor{noteorange}{61.3\%}) \\
+3D 점 & 6,218 \\
+카메라 수 & 103 (이미지마다 독립) \\
+재투영 오차 (중앙값) & 0.40 px \\
+재투영 오차 (평균) & 0.62 px \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\subsection{카메라별 등록률}
+
+\begin{table}[H]
+\centering
+\caption{Round 1 --- 카메라별 등록 현황}
+\renewcommand{\arraystretch}{1.3}
+\begin{tabular}{lccl}
+\toprule
+\textbf{카메라} & \textbf{등록 / 총} & \textbf{등록률} & \textbf{판정} \\
+\midrule
+cam1, cam2 & 24/24 & \textcolor{thmgreen}{100\%} & 완벽 \\
+cam3, cam6 & 20/24 & \textcolor{thmgreen}{83\%} & 양호 \\
+cam5 & 7/24 & \textcolor{noteorange}{29\%} & 부분 \\
+cam7 & 6/24 & \textcolor{noteorange}{25\%} & 부분 \\
+cam4 & 2/24 & \textcolor{darkred}{8\%} & 실패 \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\begin{warningbox}
+\textbf{Round 1의 문제점}:
+\begin{enumerate}[nosep]
+  \item 각 이미지마다 독립 카메라 $\rightarrow$ 103개 카메라 모델 (과도)
+  \item OPENCV 8 파라미터 과적합 $\rightarrow$ $f_x \neq f_y$ (비물리적)
+  \item cam4/5/7 낮은 등록률 $\rightarrow$ 3D 재구성 커버리지 불완전
+\end{enumerate}
+\end{warningbox}
+
+
+% ====================================================================
+\chapter{Round 2 결과}
+% ====================================================================
+
+\section{개선 사항}
+
+Round 1의 문제를 해결하기 위해 세 가지를 변경:
+\begin{enumerate}[leftmargin=*]
+  \item \textbf{SIMPLE\_RADIAL 모델}: $f, c_x, c_y, k$ 4개 파라미터 ($f_x = f_y$ 강제)
+  \item \textbf{카메라 폴더 공유}: 동일 물리 카메라의 모든 이미지가 같은 내부 파라미터 공유
+  \item \textbf{더 많은 이미지}: 168장 $\rightarrow$ 336장 (매 5프레임)
+\end{enumerate}
+
+\section{파이프라인 실행}
+
+\begin{table}[H]
+\centering
+\caption{Round 2 실행 기록}
+\renewcommand{\arraystretch}{1.3}
+\begin{tabular}{lcl}
+\toprule
+\textbf{단계} & \textbf{소요 시간} & \textbf{비고} \\
+\midrule
+Feature Extraction & $\sim$2분 & SIFT CPU, 336장 \\
+Exhaustive Matching & $\sim$38분 & 336장, CPU, 49 블록 \\
+Incremental SfM & $\sim$31분 & 전체 등록 + Global BA \\
+\midrule
+\textbf{총} & \textbf{$\sim$71분} & Apple Silicon (CPU only) \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\section{핵심 결과}
+
+\begin{successbox}
+\textbf{336장 전체 등록 성공 (100\%)!}
+\begin{itemize}[nosep]
+  \item 7대 카메라 모두 48장씩 완벽 등록
+  \item 7개 물리 카메라에 대해 각각 1세트의 내부 파라미터 추정
+  \item 7,005개 3D 점 재구성
+\end{itemize}
+\end{successbox}
+
+\begin{table}[H]
+\centering
+\caption{Round 2 핵심 지표}
+\renewcommand{\arraystretch}{1.3}
+\begin{tabular}{lc}
+\toprule
+\textbf{지표} & \textbf{값} \\
+\midrule
+등록 이미지 & \textbf{336 / 336} (\textcolor{thmgreen}{\textbf{100\%}}) \\
+3D 점 & 7,005 \\
+카메라 수 & \textbf{7} (물리 카메라) \\
+재투영 오차 (중앙값) & 0.75 px \\
+재투영 오차 (평균) & 0.95 px \\
+평균 트랙 길이 & 45.6 (각 3D 점이 평균 46장에서 관측) \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+
+\section{추정된 카메라 파라미터}
+
+\begin{table}[H]
+\centering
+\caption{7대 카메라 내부 파라미터 (SIMPLE\_RADIAL: $f, c_x, c_y, k$)}
+\label{tab:r2_cameras}
+\renewcommand{\arraystretch}{1.3}
+\small
+\begin{tabular}{lcccccc}
+\toprule
+\textbf{카메라} & \textbf{해상도} & \textbf{$f$ (px)} & \textbf{$c_x$} & \textbf{$c_y$} & \textbf{$k$} & \textbf{FOV (H$\times$V)} \\
+\midrule
+cam1 & 1080$\times$1920 & 733.2 & 540.0 & 960.0 & $-$0.003 & 72.7$^\circ \times$ 105.3$^\circ$ \\
+cam2 & 1920$\times$1080 & 744.5 & 960.0 & 540.0 & $-$0.006 & 104.4$^\circ \times$ 71.9$^\circ$ \\
+cam3 & 1920$\times$1080 & 741.0 & 960.0 & 540.0 & $+$0.015 & 104.7$^\circ \times$ 72.2$^\circ$ \\
+cam4 & 1920$\times$1080 & 530.8 & 960.0 & 540.0 & $-$0.004 & 122.1$^\circ \times$ 91.0$^\circ$ \\
+cam5 & 1920$\times$1080 & 586.4 & 960.0 & 540.0 & $-$0.064 & 117.2$^\circ \times$ 85.3$^\circ$ \\
+cam6 & 1920$\times$1080 & 1367.2 & 960.0 & 540.0 & $-$0.346 & 70.2$^\circ \times$ 43.1$^\circ$ \\
+cam7 & 1920$\times$1080 & 811.3 & 960.0 & 540.0 & $-$0.105 & 99.6$^\circ \times$ 67.3$^\circ$ \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\begin{keyidea}
+\textbf{카메라별 특성 분석}:
+\begin{itemize}[nosep]
+  \item \textbf{cam1} (portrait): 세로 방향으로 넓은 시야 (105$^\circ$) --- 투수 전신 포착에 적합
+  \item \textbf{cam2, cam3}: 비슷한 초점거리 ($\sim$740 px) --- 유사한 렌즈
+  \item \textbf{cam4, cam5}: 더 넓은 화각 (117--122$^\circ$) --- 광각 렌즈
+  \item \textbf{cam6}: 가장 좁은 화각 (70$^\circ$), 가장 긴 초점거리 --- 망원 또는 줌
+  \item \textbf{cam6의 왜곡 $k=-0.346$}: 매우 큰 배럴 왜곡 $\rightarrow$ 의도적 광각 효과 또는 줌 렌즈 특성
+  \item 대부분의 카메라에서 $|k| < 0.1$로 왜곡이 적음
+\end{itemize}
+\end{keyidea}
+
+\section{재투영 오차 분석}
+
+\begin{figure}[H]
+\centering
+\begin{tikzpicture}
+\begin{axis}[
+  width=12cm, height=6cm,
+  xlabel={재투영 오차 (px)},
+  ylabel={비율},
+  ybar interval,
+  xmin=0, xmax=4,
+  ymin=0, ymax=0.25,
+  grid=major, grid style={gray!20},
+  title={\small Round 2 재투영 오차 분포},
+  title style={font=\small\bfseries}
+]
+\addplot+[fill=defblue!40, draw=defblue] coordinates {
+  (0, 0.08) (0.25, 0.15) (0.5, 0.18) (0.75, 0.17) (1.0, 0.13)
+  (1.25, 0.10) (1.5, 0.07) (1.75, 0.05) (2.0, 0.03) (2.25, 0.02)
+  (2.5, 0.01) (2.75, 0.005) (3.0, 0.003) (3.25, 0.001) (3.5, 0.001) (3.75, 0) (4.0, 0)
+};
+\addplot[red, thick, dashed] coordinates {(1.0, 0) (1.0, 0.25)};
+\node[red, font=\scriptsize] at (axis cs:1.3, 0.23) {1.0 px};
+\addplot[thmgreen, thick, dashed] coordinates {(0.75, 0) (0.75, 0.25)};
+\node[thmgreen, font=\scriptsize] at (axis cs:0.45, 0.23) {median};
+\end{axis}
+\end{tikzpicture}
+\caption{Round 2 재투영 오차 분포. 중앙값 0.75\,px, 대부분 2\,px 이내.}
+\end{figure}
+
+
+% ====================================================================
+\chapter{Round 1 vs Round 2 비교}
+% ====================================================================
+
+\begin{table}[H]
+\centering
+\caption{\textbf{1차 vs 2차 보정 최종 비교}}
+\label{tab:comparison}
+\renewcommand{\arraystretch}{1.4}
+\begin{tabularx}{\textwidth}{lXX}
+\toprule
+\textbf{지표} & \textbf{Round 1} & \textbf{Round 2} \\
+\midrule
+카메라 모델 & OPENCV (8 파라미터) & \textbf{SIMPLE\_RADIAL (4 파라미터)} \\
+카메라 공유 & 없음 (이미지별) & \textbf{폴더별 (7대)} \\
+입력 이미지 & 168 & \textbf{336} \\
+\textbf{등록률} & 103/168 (\textcolor{darkred}{61.3\%}) & \textbf{336/336} (\textcolor{thmgreen}{\textbf{100\%}}) \\
+추정된 카메라 수 & 103 (과도) & \textbf{7 (정확)} \\
+3D 점 & 6,218 & \textbf{7,005} \\
+재투영 오차 (중앙값) & \textbf{0.40 px} & 0.75 px \\
+재투영 오차 (평균) & \textbf{0.62 px} & 0.95 px \\
+$f_x = f_y$ 일관성 & $\times$ (크게 다름) & \checkmark (SIMPLE\_RADIAL) \\
+cam4 등록률 & \textcolor{darkred}{8\%} & \textcolor{thmgreen}{\textbf{100\%}} \\
+cam5 등록률 & \textcolor{noteorange}{29\%} & \textcolor{thmgreen}{\textbf{100\%}} \\
+cam7 등록률 & \textcolor{noteorange}{25\%} & \textcolor{thmgreen}{\textbf{100\%}} \\
+총 소요 시간 & 26분 & 71분 \\
+\bottomrule
+\end{tabularx}
+\end{table}
+
+\begin{keyidea}
+\textbf{핵심 트레이드오프}:
+
+Round 2는 재투영 오차가 Round 1보다 높다 (0.75 vs 0.40 px).
+이는 SIMPLE\_RADIAL의 \textbf{4개 파라미터가 OPENCV의 8개 파라미터보다 유연성이 적기 때문}이다.
+그러나 이 트레이드오프는 의도적이며 바람직하다:
+
+\begin{enumerate}[nosep]
+  \item \textbf{100\% 등록률}: 7대 카메라 전체가 하나의 좌표계에 통합
+  \item \textbf{물리적 타당성}: $f_x = f_y$, 카메라별 1세트 파라미터
+  \item \textbf{과적합 방지}: 4 파라미터로 일반화 능력 향상
+  \item \textbf{3DGS 호환}: 3DGS는 카메라당 고정 파라미터를 기대
+\end{enumerate}
+
+재투영 오차 0.75 px는 3DGS 학습에 \textbf{충분히 양호}하다 (일반적 기준 $< 1.0$ px).
+\end{keyidea}
+
+
+% ====================================================================
+\chapter{결론 및 다음 단계}
+% ====================================================================
+
+\begin{successbox}
+\textbf{카메라 보정 완료}:
+\begin{enumerate}[nosep]
+  \item 체커보드 없이 COLMAP SfM만으로 7대 카메라 보정 성공
+  \item 336/336 이미지 전체 등록 (100\%)
+  \item 7개 물리 카메라에 대한 내부 파라미터 추정 완료
+  \item 7,005개 3D 점군 재구성
+  \item 재투영 오차 중앙값 0.75 px --- 3DGS 학습에 충분
+\end{enumerate}
+\end{successbox}
+
+\section{결과 파일 위치}
+
+\begin{lstlisting}[language=bash, numbers=none]
+colmap/
+  colmap_workspace/       # Round 1 (참고용)
+  round2/                 # Round 2 (최종 결과)
+    sparse/1/             # Main reconstruction
+      cameras.bin         # 7개 카메라 내부 파라미터
+      images.bin          # 336개 이미지 외부 파라미터 [R|t]
+      points3D.bin        # 7,005개 3D 점
+    analysis.json         # 상세 분석 결과
+  README.md               # 디렉토리 설명
+\end{lstlisting}
+
+\section{다음 단계 (P0 후속)}
+
+\begin{nextbox}
+\begin{enumerate}[leftmargin=*]
+  \item \textbf{P0: 시간 동기화} (Vicon $\leftrightarrow$ RGB)\\
+    $\rightarrow$ 동작 신호 크로스-상관으로 시간 오프셋 추정\\
+    $\rightarrow$ 카메라 보정이 완료되었으므로, 2D 키포인트 추출 $\rightarrow$ 삼각측량 가능
+
+  \item \textbf{P0: 좌표계 정합} (Vicon 좌표 $\leftrightarrow$ COLMAP 좌표)\\
+    $\rightarrow$ 3D 관절 위치 대응 + Procrustes 정합
+
+  \item \textbf{P1: 2D 자세 추정} (ViTPose)\\
+    $\rightarrow$ COLMAP 카메라 파라미터를 사용한 다시점 삼각측량
+
+  \item \textbf{P1: SMPL-X 피팅} (EasyMocap)\\
+    $\rightarrow$ COLMAP \texttt{sparse/1/}을 직접 입력으로 사용
+
+  \item \textbf{P2: GART 학습}\\
+    $\rightarrow$ COLMAP 결과 $\rightarrow$ 3DGS 형식 변환 $\rightarrow$ GART
+\end{enumerate}
+\end{nextbox}
+
+
+\end{document}

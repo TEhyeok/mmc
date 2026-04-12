@@ -1,0 +1,484 @@
+\documentclass[11pt, a4paper]{report}
+
+\input{preamble/packages}
+\usepackage{multirow}
+\input{preamble/colors}
+\input{preamble/tcolorboxes}
+\input{preamble/commands}
+\input{preamble/listings}
+\input{preamble/formatting}
+
+\begin{document}
+
+% ==================== TITLE PAGE ====================
+\begin{titlepage}
+\centering
+\vspace*{1.5cm}
+{\Large\color{gray} GART-Pitch Development Log}
+\vspace{0.5cm}
+
+{\Huge\bfseries\color{defblue} 3DGS 기반 투구 동작 분석\\[0.3cm]
+개발 진행 보고서}
+
+\vspace{0.8cm}
+
+{\LARGE\color{defblue!70!black} 카메라 보정, 세그멘테이션, 자세 추정까지\\
+현재까지의 진행 상황과 다음 단계}
+
+\vspace{2cm}
+
+\begin{tikzpicture}[
+  done/.style={rectangle, rounded corners=4pt, draw=thmgreen, fill=thmgreen!15,
+    minimum width=2.5cm, minimum height=0.7cm, font=\small\bfseries, text=thmgreen!80!black, align=center},
+  curr/.style={rectangle, rounded corners=4pt, draw=noteorange, fill=noteorange!15,
+    minimum width=2.5cm, minimum height=0.7cm, font=\small\bfseries, text=noteorange!80!black, align=center},
+  todo/.style={rectangle, rounded corners=4pt, draw=gray!50, fill=gray!10,
+    minimum width=2.5cm, minimum height=0.7cm, font=\small\bfseries, text=gray, align=center},
+  arrow/.style={-Stealth, thick}
+]
+\node[done] (cam) at (0,0) {Camera\\Calibration};
+\node[done] (seg) at (3.5,0) {Segmentation\\(SAM3)};
+\node[done] (op2d) at (7,0) {OpenPose\\2D \& 3D};
+\node[curr] (smpl) at (10.5,0) {SMPL\\Fitting};
+\node[todo] (gart) at (14,0) {GART\\Learning};
+
+\draw[arrow, thmgreen] (cam) -- (seg);
+\draw[arrow, thmgreen] (seg) -- (op2d);
+\draw[arrow, noteorange] (op2d) -- (smpl);
+\draw[arrow, gray!50] (smpl) -- (gart);
+
+\node[font=\tiny\color{thmgreen}] at (0, -0.6) {완료};
+\node[font=\tiny\color{thmgreen}] at (3.5, -0.6) {완료};
+\node[font=\tiny\color{thmgreen}] at (7, -0.6) {완료};
+\node[font=\tiny\color{noteorange}] at (10.5, -0.6) {진행 중};
+\node[font=\tiny\color{gray}] at (14, -0.6) {대기};
+\end{tikzpicture}
+
+\vspace{2cm}
+{\large 2026년 4월 11일}
+\vspace{0.5cm}
+{\large Subject 1 / Set 002}
+
+\vspace{\fill}
+{\small\color{gray} Part 1--4 교재 시리즈의 후속 실전 개발 보고서.\\
+실제 데이터에 대한 카메라 보정, 세그멘테이션, 자세 추정 결과를 정리합니다.}
+\end{titlepage}
+
+\tableofcontents
+\newpage
+
+
+% ====================================================================
+\chapter{프로젝트 개요}
+% ====================================================================
+
+\section{목표}
+
+7대 240\,Hz RGB 카메라로 촬영한 야구 투구 동작에 대해,
+GART(Gaussian Articulated Representation Templates) 기반 3D 인체 재구성을 수행하고,
+Vicon 마커 기반 결과와 비교하여 마커리스 동작 분석의 정확도를 검증한다.
+
+\section{데이터 현황}
+
+\begin{table}[H]
+\centering
+\caption{보유 데이터}
+\renewcommand{\arraystretch}{1.3}
+\begin{tabularx}{\textwidth}{lXl}
+\toprule
+\textbf{데이터} & \textbf{내용} & \textbf{위치} \\
+\midrule
+마커리스 영상 & 7대 240\,Hz MOV (cam1: portrait, cam2--7: landscape) & \texttt{data/markerless/} \\
+마커 기반 & Vicon 240\,Hz, 42 마커 Plug-in Gait, 포스플레이트 $\times$2 & \texttt{data/markerbased/} \\
+세그멘테이션 & SAM3 마스크 + 배경 제거 이미지, 7대 $\times$ 1000프레임 & \texttt{data/segments/} \\
+OpenPose & 2D keypoints 7대 + 3D 삼각측량 결과 & \texttt{data/openpose/} \\
+카메라 보정 & DA3 PnP refined + COLMAP 형식 변환 & \texttt{data/da3\_calibration/} \\
+\bottomrule
+\end{tabularx}
+\end{table}
+
+
+\section{파이프라인 진행 상태}
+
+\begin{table}[H]
+\centering
+\caption{GART-Pitch 파이프라인 진행 현황}
+\renewcommand{\arraystretch}{1.4}
+\begin{tabularx}{\textwidth}{clXl}
+\toprule
+\textbf{\#} & \textbf{단계} & \textbf{내용} & \textbf{상태} \\
+\midrule
+0 & 카메라 보정 & DA3 PnP refined 채택 (COLMAP 부적합 판정) & \textcolor{thmgreen}{\textbf{완료}} \\
+1 & 세그멘테이션 & SAM3 7대 전체 마스크 (cam7 tracked OpenPose 재생성) & \textcolor{thmgreen}{\textbf{완료}} \\
+2 & 2D 자세 추정 & OpenPose Body25 $\times$ 7카메라 & \textcolor{thmgreen}{\textbf{완료}} \\
+3 & 3D 삼각측량 & DLT 기반 7뷰 삼각측량 $\rightarrow$ 25관절 3D & \textcolor{thmgreen}{\textbf{완료}} \\
+4 & SMPL 피팅 & 3D keypoints $\rightarrow$ SMPL 파라미터 & \textcolor{noteorange}{\textbf{진행 중}} \\
+5 & GART 학습 & 캐노니컬 Gaussian + LBS + 자세 정제 & 대기 \\
+6 & 생체역학 분석 & 관절 각도, 토크, 임상 지표 & 대기 \\
+7 & Vicon 검증 & MPJPE, RMSE, ICC, Bland--Altman & 대기 \\
+\bottomrule
+\end{tabularx}
+\end{table}
+
+
+% ====================================================================
+\chapter{카메라 보정}
+% ====================================================================
+
+\section{두 가지 접근법 비교}
+
+\begin{table}[H]
+\centering
+\caption{COLMAP vs DA3 PnP Refined 비교}
+\renewcommand{\arraystretch}{1.3}
+\begin{tabularx}{\textwidth}{lXX}
+\toprule
+\textbf{지표} & \textbf{COLMAP Round 2} & \textbf{DA3 PnP Refined} \\
+\midrule
+등록률 & 336/336 (100\%) & 7/7 (100\%) \\
+카메라 모델 & SIMPLE\_RADIAL & PINHOLE (fx$\approx$fy) \\
+$f$ 범위 & 531--1367 px (불일치) & $\sim$790 px 전체 일관 \\
+카메라 배치 & GT와 불일치 (거리 오차 50\%) & 물리적 배치와 일치 \\
+좌표계 & COLMAP 자체 & DA3 월드 좌표 \\
+\textbf{판정} & \textcolor{darkred}{\textbf{부적합}} & \textcolor{thmgreen}{\textbf{채택}} \\
+\bottomrule
+\end{tabularx}
+\end{table}
+
+\begin{warningbox}
+\textbf{COLMAP이 실패한 원인}:
+\begin{enumerate}[nosep]
+  \item \textbf{동적 장면}: 투수가 움직여서 SfM의 정적 장면 가정 위반
+  \item \textbf{동일 카메라 미인식}: 7대 모두 같은 기종인데 COLMAP이 서로 다른 초점거리 추정
+  \item \textbf{시야 겹침 부족}: 일부 카메라 간 특징점 매칭 실패
+\end{enumerate}
+\end{warningbox}
+
+\section{DA3 PnP Refined 카메라 파라미터}
+
+\begin{table}[H]
+\centering
+\caption{최종 채택된 카메라 파라미터 (DA3 PnP Refined, 원본 해상도)}
+\renewcommand{\arraystretch}{1.3}
+\small
+\begin{tabular}{lcccccc}
+\toprule
+\textbf{카메라} & \textbf{해상도} & \textbf{$f_x$} & \textbf{$f_y$} & \textbf{$c_x$} & \textbf{$c_y$} & \textbf{$f_x/f_y$} \\
+\midrule
+cam1 & 1080$\times$1920 & 797.4 & 785.1 & 534.9 & 964.6 & 1.016 \\
+cam2 & 1920$\times$1080 & 792.3 & 797.6 & 961.1 & 533.9 & 0.993 \\
+cam3 & 1920$\times$1080 & 781.6 & 786.2 & 957.6 & 542.7 & 0.994 \\
+cam4 & 1920$\times$1080 & 784.1 & 801.4 & 952.3 & 542.9 & 0.978 \\
+cam5 & 1920$\times$1080 & 787.0 & 791.1 & 962.2 & 542.6 & 0.995 \\
+cam6 & 1920$\times$1080 & 783.5 & 788.8 & 950.1 & 544.0 & 0.993 \\
+cam7 & 1920$\times$1080 & 787.5 & 792.8 & 955.7 & 548.4 & 0.993 \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\begin{keyidea}
+DA3 PnP Refined는 280$\times$280 이미지에서 보정되었다.
+원본 해상도로의 역변환 과정을 정확히 추적하였다:
+\begin{enumerate}[nosep]
+  \item \texttt{upper\_bound\_resize}: longest side $\rightarrow$ 504 (scale=0.2625)
+  \item \texttt{make\_divisible\_by\_14}: 504$\times$284 $\rightarrow$ 504$\times$280
+  \item \texttt{center\_crop}: 504$\times$280 $\rightarrow$ 280$\times$280 (landscape: $c_x$ -= 112)
+\end{enumerate}
+이 역변환을 적용하여 COLMAP 형식(\texttt{cameras.txt}, \texttt{images.txt})으로 변환 완료.
+\end{keyidea}
+
+
+\section{3D 점군 (DA3 Depth Fusion)}
+
+Depth Anything V3로 7대 카메라에서 추정한 깊이맵을 역투영하여
+329,280개의 컬러 3D 점군을 생성하였다.
+
+\begin{table}[H]
+\centering
+\caption{DA3 3D 점군 사양}
+\renewcommand{\arraystretch}{1.3}
+\begin{tabular}{ll}
+\toprule
+점 수 & 329,280 \\
+색상 & RGB (원본 이미지에서) \\
+좌표 범위 & X: $[-0.72, 1.16]$, Y: $[-0.13, 0.95]$, Z: $[-1.13, 0.96]$ \\
+저장 형식 & PLY (binary, 4.7\,MB) \\
+카메라 와이어프레임 & GLB에 포함 (7대) \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+
+% ====================================================================
+\chapter{세그멘테이션 (SAM3)}
+% ====================================================================
+
+\section{파이프라인}
+
+\begin{cvbox}[title={SAM3 세그멘테이션 파이프라인}]
+\begin{enumerate}[nosep]
+  \item OpenPose Body25로 각 프레임에서 사람 검출
+  \item \texttt{pitcher\_indices.json}으로 투수의 person index 식별
+  \item SAM3 \texttt{set\_text\_prompt("person")} $\rightarrow$ 복수 마스크 생성
+  \item 투수 키포인트와 가장 많이 겹치는 마스크 선택
+  \item 바이너리 마스크 (PNG, 0/255) 저장
+\end{enumerate}
+\end{cvbox}
+
+
+\section{cam7 문제와 해결}
+
+\begin{warningbox}
+\textbf{cam7 문제점} (기존):
+\begin{itemize}[nosep]
+  \item cam7 시야에 \textbf{3명}이 존재 (투수 + 앉은 사람 + 서있는 사람)
+  \item OpenPose가 프레임마다 person 순서를 바꿔 \textbf{투수가 아닌 사람}이 선택됨
+  \item 마스크 해상도가 \textbf{portrait (1080$\times$1920)}로 생성되어 이미지(landscape 1920$\times$1080)와 \textbf{방향 불일치}
+\end{itemize}
+\end{warningbox}
+
+\begin{successbox}
+\textbf{해결}:
+\begin{enumerate}[nosep]
+  \item \textbf{Tracked OpenPose} 적용: 프레임 간 person tracking으로 P0 = 항상 투수 보장
+  \item \textbf{SAM3 재실행} (GPU 서버, A100 80GB): tracked OpenPose 기반으로 1000프레임 전체 재생성
+  \item \textbf{결과}: 1000/1000 성공, 0 실패 (237초, 4.2\,fps)
+  \item \textbf{해상도 정상}: 1920$\times$1080 (landscape, 이미지와 일치)
+\end{enumerate}
+\end{successbox}
+
+\section{최종 세그멘테이션 결과}
+
+\begin{table}[H]
+\centering
+\caption{세그멘테이션 결과 요약}
+\renewcommand{\arraystretch}{1.3}
+\begin{tabular}{lcccl}
+\toprule
+\textbf{카메라} & \textbf{마스크} & \textbf{Masked Image} & \textbf{해상도} & \textbf{상태} \\
+\midrule
+cam1 & 999 & 999 & 1080$\times$1920 & \textcolor{thmgreen}{정상} \\
+cam2 & 999 & 999 & 1920$\times$1080 & \textcolor{thmgreen}{정상} \\
+cam3 & 1000 & 1000 & 1920$\times$1080 & \textcolor{thmgreen}{정상} \\
+cam4 & 1000 & 1000 & 1920$\times$1080 & \textcolor{thmgreen}{정상} \\
+cam5 & 1000 & 1000 & 1920$\times$1080 & \textcolor{thmgreen}{정상} \\
+cam6 & 1000 & 1000 & 1920$\times$1080 & \textcolor{thmgreen}{정상} \\
+cam7 & 1000 & 1000 & 1920$\times$1080 & \textcolor{thmgreen}{\textbf{재생성 완료}} \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+
+% ====================================================================
+\chapter{자세 추정 (OpenPose)}
+% ====================================================================
+
+\section{2D 자세 추정}
+
+7대 카메라에서 OpenPose Body25 (25 관절)를 사용하여 프레임별 2D 키포인트를 추출하였다.
+
+\begin{table}[H]
+\centering
+\caption{2D OpenPose 결과}
+\renewcommand{\arraystretch}{1.3}
+\begin{tabular}{lcl}
+\toprule
+\textbf{카메라} & \textbf{프레임 수} & \textbf{비고} \\
+\midrule
+device1--6 & 999--1000 & 원본 OpenPose \\
+device7 & 1000 & \textbf{Tracked} (P0=투수 보장) \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+
+\section{3D 삼각측량}
+
+\begin{cvbox}[title={DLT 삼각측량}]
+7대 카메라의 2D 키포인트를 DA3 PnP Refined 카메라 파라미터로
+DLT (Direct Linear Transform) 삼각측량하여 3D 관절 위치를 산출하였다.
+\begin{itemize}[nosep]
+  \item \textbf{알고리즘}: DLT (SVD), $P = K[R|t]$
+  \item \textbf{최소 뷰}: 3대 이상에서 검출된 관절만 삼각측량
+  \item \textbf{최대 재투영 오차}: 80\,px 이상은 제거
+  \item \textbf{결과}: 1000 프레임 $\times$ 25 관절 $\times$ XYZ
+\end{itemize}
+\end{cvbox}
+
+\begin{table}[H]
+\centering
+\caption{3D OpenPose 결과 --- Body25 관절 목록}
+\renewcommand{\arraystretch}{1.1}
+\small
+\begin{tabular}{cl|cl}
+\toprule
+\textbf{\#} & \textbf{관절명} & \textbf{\#} & \textbf{관절명} \\
+\midrule
+0 & Nose & 13 & LKne \\
+1 & Neck & 14 & LAnk \\
+2 & RSho & 15 & REye \\
+3 & RElb & 16 & LEye \\
+4 & RWri & 17 & REar \\
+5 & LSho & 18 & LEar \\
+6 & LElb & 19 & LBToe \\
+7 & LWri & 20 & LSToe \\
+8 & MHip & 21 & LHeel \\
+9 & RHip & 22 & RBToe \\
+10 & RKne & 23 & RSToe \\
+11 & RAnk & 24 & RHeel \\
+12 & LHip & & \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\begin{successbox}
+OpenPose 3D 결과를 3D 뷰어로 시각적 검증한 결과,
+스켈레톤 동작이 \textbf{투구 동작과 자연스럽게 일치}하는 것을 확인하였다.
+이 3D keypoints를 SMPL 피팅의 입력으로 사용한다.
+\end{successbox}
+
+
+% ====================================================================
+\chapter{SMPL 피팅 (현재 진행 중)}
+% ====================================================================
+
+\section{기존 EasyMocap SMPL 결과 분석}
+
+CJH4에서 수행된 EasyMocap SMPL 피팅 결과(998프레임)를 분석한 결과,
+\textbf{좌표계 불일치}로 인해 스켈레톤이 올바르지 않았다.
+
+\begin{warningbox}
+\textbf{EasyMocap SMPL 실패 원인}:
+
+\begin{table}[H]
+\centering
+\renewcommand{\arraystretch}{1.3}
+\begin{tabular}{lcc}
+\toprule
+& \textbf{OpenPose 3D (MidHip)} & \textbf{SMPL (Th)} \\
+\midrule
+Frame 0 좌표 & $(0.12,\; 2.81,\; 1.21)$ & $(0.16,\; 0.79,\; 2.71)$ \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\begin{itemize}[nosep]
+  \item \textbf{Y축과 Z축이 뒤바뀜}: OpenPose Y=2.81(높이) vs SMPL Y=0.79
+  \item \textbf{좌표 차이 2.5}: 같은 점(골반)인데 위치가 크게 다름
+  \item \textbf{글로벌 회전 과도}: Rh 평균 123$^\circ$ --- 좌표계 보정을 Rh로 흡수
+  \item \textbf{원인}: EasyMocap이 2D에서 재구성하면서 다른 좌표 규약을 사용
+\end{itemize}
+\end{warningbox}
+
+\section{올바른 SMPL 피팅 전략}
+
+\begin{keyidea}
+이미 정확한 \textbf{OpenPose 3D} (25관절, 1000프레임)가 있으므로,
+EasyMocap(2D $\rightarrow$ 3D 재구성)을 거칠 필요 없이
+\textbf{3D keypoints에서 직접 SMPL을 피팅}하는 것이 올바른 접근이다.
+
+\begin{equation}
+\hat{\vartheta}, \hat{\beta}, \hat{t} = \arg\min_{\vartheta, \beta, t}
+\sum_{j \in \mathcal{M}} w_j \left\| J_j^{\text{SMPL}}(\vartheta, \beta) + t - \mathbf{p}_j^{\text{OP3D}} \right\|^2
++ \lambda_\beta \|\beta\|^2 + \lambda_\theta \|\vartheta\|^2
+\end{equation}
+
+여기서 $\mathcal{M}$은 OpenPose Body25 $\rightarrow$ SMPL 24 관절 매핑,
+$w_j$는 관절별 가중치 (신뢰도 기반)이다.
+\end{keyidea}
+
+\begin{table}[H]
+\centering
+\caption{OpenPose Body25 $\rightarrow$ SMPL 24 관절 매핑}
+\renewcommand{\arraystretch}{1.2}
+\small
+\begin{tabular}{cl|cl}
+\toprule
+\textbf{OP25} & \textbf{관절명} & \textbf{SMPL} & \textbf{SMPL 관절명} \\
+\midrule
+1 & Neck & 12 & Neck \\
+8 & MidHip & 0 & Pelvis \\
+2 & RSho & 17 & R\_Shoulder \\
+3 & RElb & 19 & R\_Elbow \\
+4 & RWri & 21 & R\_Wrist \\
+5 & LSho & 16 & L\_Shoulder \\
+6 & LElb & 18 & L\_Elbow \\
+7 & LWri & 20 & L\_Wrist \\
+9 & RHip & 2 & R\_Hip \\
+10 & RKne & 5 & R\_Knee \\
+11 & RAnk & 8 & R\_Ankle \\
+12 & LHip & 1 & L\_Hip \\
+13 & LKne & 4 & L\_Knee \\
+14 & LAnk & 7 & L\_Ankle \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+
+% ====================================================================
+\chapter{프로젝트 디렉토리 구조}
+% ====================================================================
+
+\begin{lstlisting}
+3dgs_to_gart_textbook/
+|-- data/
+|   |-- markerless/subject_1/set_002/    # 원본 MOV (7대)
+|   |-- markerbased/subject_1/set_002/   # Vicon C3D + CSV
+|   |-- segments/
+|   |   |-- masked_images/cam1~7/        # 배경 제거 이미지
+|   |   |-- masks/cam1~7/                # SAM3 바이너리 마스크
+|   |-- openpose/
+|   |   |-- 2d/device1~7/                # 2D keypoints JSON
+|   |   |-- 3d/openpose3d_data.json      # 3D 삼각측량 결과
+|   |-- da3_calibration/
+|   |   |-- cameras_da3_pnp_refined.json # 원본 보정 파일
+|   |   |-- camera_params.npz            # DA3 depth + intrinsics
+|   |   |-- da3_pointcloud.ply           # 329K 컬러 점군
+|   |   |-- colmap_format/               # 3DGS용 변환
+|   |-- secret_key/                      # GPU 서버 접속 키
+|
+|-- colmap/
+|   |-- colmap_calibration_report.pdf    # COLMAP 보정 보고서
+|   |-- round2/sparse/1/                 # COLMAP 결과 (참고용)
+|   |-- visualizations/                  # 3D 뷰어 HTML들
+|
+|-- part5_research_proposal.tex/.pdf     # 연구 제안서
+|-- part5_dev_setup.tex/.pdf             # 개발 환경 가이드
+|-- part5_constraints_setup.tex/.pdf     # 제한사항 분석
+\end{lstlisting}
+
+
+% ====================================================================
+\chapter{다음 단계}
+% ====================================================================
+
+\begin{nextbox}
+\textbf{즉시 필요한 작업}:
+
+\begin{enumerate}[leftmargin=*]
+  \item \textbf{SMPL 직접 피팅} (GPU 서버)\\
+    OpenPose 3D (25관절) $\rightarrow$ SMPL (24관절) 최적화.
+    smplx 라이브러리 + PyTorch Adam optimizer.
+    프레임별 $\vartheta$ (72), $\beta$ (10), translation (3) 추정.
+
+  \item \textbf{Vicon--RGB 시간 동기화}\\
+    동작 신호 크로스-상관으로 시간 오프셋 추정.
+    Vicon 240\,Hz = RGB 240\,Hz이므로 1:1 프레임 대응 가능.
+
+  \item \textbf{GART 학습}\\
+    SMPL 자세 + 7대 영상 $\rightarrow$ 캐노니컬 Gaussian + LBS 변환.
+    렌더링 기반 자세 정제 (photometric loss).
+\end{enumerate}
+\end{nextbox}
+
+\begin{nextbox}
+\textbf{이후 단계}:
+\begin{enumerate}[leftmargin=*, start=4]
+  \item 생체역학 지표 산출 (ISB 관절각, MER, 외반 토크)
+  \item Vicon 대비 정량적 검증 (MPJPE, RMSE, ICC, Bland--Altman)
+  \item 결과 논문 작성 (Part 5 연구 제안서 기반)
+\end{enumerate}
+\end{nextbox}
+
+
+\end{document}

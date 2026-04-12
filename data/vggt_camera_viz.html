@@ -1,0 +1,255 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<title>VGGT Camera Calibration - 3D Visualization</title>
+<style>
+  body { margin: 0; overflow: hidden; background: #1a1a2e; font-family: monospace; }
+  #info {
+    position: absolute; top: 10px; left: 10px; color: #eee;
+    background: rgba(0,0,0,0.7); padding: 12px 16px; border-radius: 8px;
+    font-size: 13px; line-height: 1.6; z-index: 10;
+  }
+  #info h3 { margin: 0 0 8px 0; color: #4fc3f7; }
+  .cam-label { font-weight: bold; }
+  .portrait { color: #ff9800; }
+  .landscape { color: #4caf50; }
+</style>
+</head>
+<body>
+<div id="info">
+  <h3>VGGT Calibration Result (7 Cameras)</h3>
+  <span class="portrait">&#9632; cam1 (portrait, rear)</span><br>
+  <span class="landscape">&#9632; cam2-7 (landscape)</span><br>
+  <br>
+  Drag: rotate | Scroll: zoom | Right-drag: pan<br>
+  fx range: 730-741 px | fx/fy ratio: 0.995-1.006
+</div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
+<script>
+const cameraData = {
+  "cam1": {
+    "R": [[0.0130,0.9999,-0.0042],[-0.9999,0.0130,-0.0005],[-0.0004,0.0042,1.0000]],
+    "t": [0.0007, 0.0002, -0.0003],
+    "portrait": true
+  },
+  "cam2": {
+    "R": [[0.1133,0.8331,0.5413],[-0.9929,0.1141,0.0322],[-0.0349,-0.5411,0.8402]],
+    "t": [-0.3964, -0.0447, 0.2957],
+    "portrait": false
+  },
+  "cam3": {
+    "R": [[-0.0078,0.3223,-0.9466],[-0.9997,-0.0233,0.0003],[-0.0219,0.9463,0.3224]],
+    "t": [0.2782, -0.0408, 0.6008],
+    "portrait": false
+  },
+  "cam4": {
+    "R": [[0.0563,-0.3613,0.9307],[-0.9816,0.1502,0.1177],[-0.1823,-0.9203,-0.3462]],
+    "t": [-0.5737, -0.0850, 0.8011],
+    "portrait": false
+  },
+  "cam5": {
+    "R": [[-0.1390,-0.4762,-0.8683],[-0.9836,-0.0353,0.1768],[-0.1148,0.8786,-0.4635]],
+    "t": [0.5841, -0.1165, 0.8601],
+    "portrait": false
+  },
+  "cam6": {
+    "R": [[0.0051,-0.5423,0.8402],[-0.9823,0.1546,0.1057],[-0.1873,-0.8258,-0.5319]],
+    "t": [-0.8046, -0.1038, 1.2083],
+    "portrait": false
+  },
+  "cam7": {
+    "R": [[-0.1115,-0.7723,-0.6253],[-0.9894,0.0278,0.1422],[-0.0925,0.6346,-0.7673]],
+    "t": [0.4907, -0.0671, 1.3327],
+    "portrait": false
+  }
+};
+
+// Scene setup
+const scene = new THREE.Scene();
+scene.background = new THREE.Color(0x1a1a2e);
+
+const camera = new THREE.PerspectiveCamera(60, window.innerWidth/window.innerHeight, 0.01, 100);
+camera.position.set(0, 2.5, -2);
+camera.lookAt(0, 0, 0.7);
+
+const renderer = new THREE.WebGLRenderer({ antialias: true });
+renderer.setSize(window.innerWidth, window.innerHeight);
+renderer.setPixelRatio(window.devicePixelRatio);
+document.body.appendChild(renderer.domElement);
+
+const controls = new THREE.OrbitControls(camera, renderer.domElement);
+controls.target.set(0, 0, 0.7);
+controls.enableDamping = true;
+
+// Lights
+scene.add(new THREE.AmbientLight(0xffffff, 0.6));
+const dirLight = new THREE.DirectionalLight(0xffffff, 0.8);
+dirLight.position.set(2, 3, -1);
+scene.add(dirLight);
+
+// Grid
+const grid = new THREE.GridHelper(4, 20, 0x333355, 0x222244);
+grid.rotation.x = 0; // XZ plane
+scene.add(grid);
+
+// Axes helper at origin
+const axes = new THREE.AxesHelper(0.3);
+scene.add(axes);
+
+// Pitcher position marker (approximate center)
+const pitcherGeom = new THREE.CylinderGeometry(0.05, 0.05, 0.3, 16);
+const pitcherMat = new THREE.MeshPhongMaterial({ color: 0xff5722, transparent: true, opacity: 0.7 });
+const pitcher = new THREE.Mesh(pitcherGeom, pitcherMat);
+pitcher.position.set(0, 0.15, 0);
+scene.add(pitcher);
+
+// Label sprite helper
+function makeLabel(text, color) {
+  const canvas = document.createElement('canvas');
+  canvas.width = 256; canvas.height = 64;
+  const ctx = canvas.getContext('2d');
+  ctx.fillStyle = color;
+  ctx.font = 'bold 36px monospace';
+  ctx.textAlign = 'center';
+  ctx.fillText(text, 128, 42);
+  const tex = new THREE.CanvasTexture(canvas);
+  const sprite = new THREE.Sprite(new THREE.SpriteMaterial({ map: tex, transparent: true }));
+  sprite.scale.set(0.4, 0.1, 1);
+  return sprite;
+}
+
+// Draw cameras
+const camPositions = [];
+
+Object.entries(cameraData).forEach(([name, data]) => {
+  const R = data.R;
+  const t = data.t;
+
+  // Camera position in world: C = -R^T * t
+  const Rt = [
+    [R[0][0], R[1][0], R[2][0]],
+    [R[0][1], R[1][1], R[2][1]],
+    [R[0][2], R[1][2], R[2][2]]
+  ];
+  const pos = [
+    -(Rt[0][0]*t[0] + Rt[0][1]*t[1] + Rt[0][2]*t[2]),
+    -(Rt[1][0]*t[0] + Rt[1][1]*t[1] + Rt[1][2]*t[2]),
+    -(Rt[2][0]*t[0] + Rt[2][1]*t[1] + Rt[2][2]*t[2])
+  ];
+
+  // Camera viewing direction (z-axis of camera in world) = R^T * [0,0,1]
+  const viewDir = [Rt[0][2], Rt[1][2], Rt[2][2]];
+  // Camera up direction = -R^T * [0,1,0] (OpenCV: y-down)
+  const upDir = [-Rt[0][1], -Rt[1][1], -Rt[2][1]];
+  // Camera right direction = R^T * [1,0,0]
+  const rightDir = [Rt[0][0], Rt[1][0], Rt[2][0]];
+
+  camPositions.push(pos);
+
+  const color = data.portrait ? 0xff9800 : 0x4caf50;
+  const frustumLen = 0.25;
+  const aspect = data.portrait ? 0.5625 : 1.778; // 9:16 or 16:9
+  const halfW = frustumLen * 0.3;
+  const halfH = halfW / aspect;
+
+  // Camera body (small box)
+  const bodyGeom = new THREE.BoxGeometry(0.06, 0.04, 0.08);
+  const bodyMat = new THREE.MeshPhongMaterial({ color: color });
+  const body = new THREE.Mesh(bodyGeom, bodyMat);
+  body.position.set(pos[0], pos[1], pos[2]);
+
+  // Orient camera body
+  const lookTarget = new THREE.Vector3(
+    pos[0] + viewDir[0], pos[1] + viewDir[1], pos[2] + viewDir[2]
+  );
+  body.lookAt(lookTarget);
+  scene.add(body);
+
+  // Frustum lines
+  const corners = [
+    [-halfW, -halfH, frustumLen],
+    [ halfW, -halfH, frustumLen],
+    [ halfW,  halfH, frustumLen],
+    [-halfW,  halfH, frustumLen]
+  ];
+
+  const worldCorners = corners.map(c => {
+    return [
+      pos[0] + rightDir[0]*c[0] + upDir[0]*c[1] + viewDir[0]*c[2],
+      pos[1] + rightDir[1]*c[0] + upDir[1]*c[1] + viewDir[1]*c[2],
+      pos[2] + rightDir[2]*c[0] + upDir[2]*c[1] + viewDir[2]*c[2]
+    ];
+  });
+
+  const lineMat = new THREE.LineBasicMaterial({ color: color, linewidth: 2 });
+
+  // Frustum edges from camera center to corners
+  worldCorners.forEach(wc => {
+    const geom = new THREE.BufferGeometry().setFromPoints([
+      new THREE.Vector3(pos[0], pos[1], pos[2]),
+      new THREE.Vector3(wc[0], wc[1], wc[2])
+    ]);
+    scene.add(new THREE.Line(geom, lineMat));
+  });
+
+  // Frustum rectangle
+  for (let j = 0; j < 4; j++) {
+    const a = worldCorners[j];
+    const b = worldCorners[(j+1)%4];
+    const geom = new THREE.BufferGeometry().setFromPoints([
+      new THREE.Vector3(a[0], a[1], a[2]),
+      new THREE.Vector3(b[0], b[1], b[2])
+    ]);
+    scene.add(new THREE.Line(geom, lineMat));
+  }
+
+  // Frustum face (semi-transparent)
+  const faceGeom = new THREE.BufferGeometry();
+  const vertices = new Float32Array([
+    ...worldCorners[0], ...worldCorners[1], ...worldCorners[2],
+    ...worldCorners[0], ...worldCorners[2], ...worldCorners[3]
+  ]);
+  faceGeom.setAttribute('position', new THREE.BufferAttribute(vertices, 3));
+  const faceMat = new THREE.MeshBasicMaterial({
+    color: color, transparent: true, opacity: 0.15, side: THREE.DoubleSide
+  });
+  scene.add(new THREE.Mesh(faceGeom, faceMat));
+
+  // Label
+  const label = makeLabel(name, data.portrait ? '#ff9800' : '#4caf50');
+  label.position.set(pos[0], pos[1] + 0.12, pos[2]);
+  scene.add(label);
+});
+
+// Draw lines connecting cameras (ring topology based on position)
+const ringOrder = [0, 1, 3, 5, 6, 4, 2, 0]; // approximate ring
+const ringMat = new THREE.LineBasicMaterial({ color: 0x555577, linewidth: 1 });
+for (let i = 0; i < ringOrder.length - 1; i++) {
+  const a = camPositions[ringOrder[i]];
+  const b = camPositions[ringOrder[i+1]];
+  const geom = new THREE.BufferGeometry().setFromPoints([
+    new THREE.Vector3(a[0], a[1], a[2]),
+    new THREE.Vector3(b[0], b[1], b[2])
+  ]);
+  scene.add(new THREE.Line(geom, ringMat));
+}
+
+// Animation
+function animate() {
+  requestAnimationFrame(animate);
+  controls.update();
+  renderer.render(scene, camera);
+}
+animate();
+
+window.addEventListener('resize', () => {
+  camera.aspect = window.innerWidth / window.innerHeight;
+  camera.updateProjectionMatrix();
+  renderer.setSize(window.innerWidth, window.innerHeight);
+});
+</script>
+</body>
+</html>

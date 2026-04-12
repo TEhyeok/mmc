@@ -1,0 +1,649 @@
+\documentclass[11pt, a4paper]{report}
+
+\input{preamble/packages}
+\usepackage{multirow}
+\usepackage{siunitx}
+\usepackage{listings}
+\input{preamble/colors}
+\input{preamble/tcolorboxes}
+\input{preamble/commands}
+\input{preamble/formatting}
+
+\definecolor{codegray}{RGB}{240, 240, 245}
+\lstset{
+  basicstyle=\ttfamily\small,
+  keywordstyle=\color{defblue}\bfseries,
+  commentstyle=\color{thmgreen}\itshape,
+  stringstyle=\color{noteorange},
+  backgroundcolor=\color{codegray},
+  frame=single,
+  rulecolor=\color{gray!40},
+  breaklines=true,
+  showstringspaces=false,
+  numbers=left,
+  numberstyle=\tiny\color{gray},
+  tabsize=4,
+  captionpos=b,
+  language=Python
+}
+
+\begin{document}
+
+\begin{titlepage}
+\centering
+\vspace*{1.5cm}
+{\Large\color{gray} Integration Guide}
+\vspace{0.5cm}
+
+{\Huge\bfseries\color{defblue} VGGT + EasyMocap\\[0.3cm]
+통합 파이프라인}
+
+\vspace{1cm}
+
+{\LARGE\color{defblue!70!black} VGGT 카메라 캘리브레이션 결과를\\
+EasyMocap SMPL 피팅에 활용하는\\
+방법론, 이론, 구현}
+
+\vspace{1.5cm}
+
+\begin{tikzpicture}[
+  block/.style={rectangle, rounded corners=4pt, draw=defblue, fill=lightblue,
+    minimum width=2.2cm, minimum height=0.7cm, font=\small\bfseries, text=defblue!80!black, align=center},
+  done/.style={block, draw=thmgreen, fill=thmgreen!15, text=thmgreen!80!black},
+  curr/.style={block, draw=noteorange, fill=noteorange!15, text=noteorange!80!black},
+  arrow/.style={-Stealth, thick, defblue!60}
+]
+\node[done] (vggt) at (0,0) {VGGT\\K, R, t};
+\node[curr] (conv) at (3.5,0) {Format\\Converter};
+\node[curr] (emc) at (7,0) {EasyMocap\\SMPL Fitting};
+\node[block] (gart) at (10.5,0) {GART\\3DGS};
+
+\draw[arrow, thmgreen] (vggt) -- (conv);
+\draw[arrow, noteorange] (conv) -- (emc);
+\draw[arrow, gray!50] (emc) -- (gart);
+
+\node[font=\tiny\color{thmgreen}] at (0, -0.6) {완료};
+\node[font=\tiny\color{noteorange}] at (3.5, -0.6) {본 문서};
+\node[font=\tiny\color{noteorange}] at (7, -0.6) {실행 대기};
+\node[font=\tiny\color{gray}] at (10.5, -0.6) {다음 단계};
+\end{tikzpicture}
+
+\vspace{2cm}
+{\large 2026년 4월 12일}
+
+\vspace{\fill}
+{\small\color{gray} VGGT (CVPR 2025)의 카메라 파라미터를 EasyMocap의 intri.yml / extri.yml 포맷으로\\
+변환하여, 기존에 좌표계 불일치로 실패했던 SMPL 피팅을 재시도합니다.}
+\end{titlepage}
+
+\tableofcontents
+\newpage
+
+
+% ====================================================================
+\chapter{문제 정의와 전략}
+% ====================================================================
+
+\section{이전 실패 원인 요약}
+
+\begin{warningbox}
+이전 EasyMocap SMPL 피팅이 실패한 핵심 원인:
+\begin{enumerate}[leftmargin=*]
+  \item DA3의 K가 280$\times$280에서 추정되어, 원본 해상도로의 역변환 과정에서 $s_x \neq s_y$ 발생
+  \item 역변환된 K와 OpenPose 2D 키포인트의 좌표계 불일치
+  \item 결과적으로 삼각측량된 3D 점과 SMPL 포즈가 다른 좌표 공간에 존재
+  \item EasyMocap 출력의 Y/Z 축 교환 현상 (Th의 좌표가 기대값과 불일치)
+\end{enumerate}
+\end{warningbox}
+
+\section{새 전략: VGGT $\rightarrow$ EasyMocap}
+
+\begin{keyidea}
+VGGT의 K는 원본 해상도 좌표계에서 직접 매칭되므로, OpenPose 2D 키포인트와 좌표계가 자동으로 일치한다. 이 K와 R, t를 EasyMocap의 포맷으로 변환하면, 좌표계 불일치 문제가 구조적으로 해결된다.
+\end{keyidea}
+
+\begin{figure}[H]
+\centering
+\begin{tikzpicture}[
+  block/.style={rectangle, rounded corners=4pt, draw=defblue, fill=lightblue,
+    minimum width=3.5cm, minimum height=1cm, font=\small, text=defblue!80!black, align=center},
+  file/.style={rectangle, rounded corners=2pt, draw=gray!60, fill=lightgray,
+    minimum width=2.5cm, minimum height=0.6cm, font=\small\ttfamily, align=center},
+  arrow/.style={-Stealth, thick}
+]
+% VGGT
+\node[block] (vggt) at (0, 3) {\textbf{VGGT Inference}\\7장 이미지 $\rightarrow$ K, R, t};
+\node[file] (vjson) at (0, 1.5) {vggt\_result.json};
+
+% Converter
+\node[block] (conv) at (0, 0) {\textbf{Format Converter}\\VGGT $\rightarrow$ OpenCV YAML};
+\node[file] (intri) at (-2.5, -1.5) {intri.yml};
+\node[file] (extri) at (2.5, -1.5) {extri.yml};
+
+% EasyMocap
+\node[block] (emc) at (0, -3) {\textbf{EasyMocap}\\triangulate + fitSMPL};
+\node[file] (smpl) at (0, -4.5) {smpl/000000.json};
+
+% OpenPose
+\node[file] (op) at (6, -3) {annots/\{1..7\}/\\*.json};
+
+\draw[arrow, defblue] (vggt) -- (vjson);
+\draw[arrow, defblue] (vjson) -- (conv);
+\draw[arrow, defblue] (conv) -- (intri);
+\draw[arrow, defblue] (conv) -- (extri);
+\draw[arrow, noteorange] (intri) -- (emc);
+\draw[arrow, noteorange] (extri) -- (emc);
+\draw[arrow, gray] (op) -- (emc);
+\draw[arrow, thmgreen] (emc) -- (smpl);
+\end{tikzpicture}
+\caption{VGGT $\rightarrow$ EasyMocap 통합 파이프라인}
+\end{figure}
+
+
+% ====================================================================
+\chapter{이론: 좌표계와 변환}
+% ====================================================================
+
+\section{VGGT의 좌표 규약}
+
+VGGT는 \textbf{OpenCV 규약}을 사용한다:
+\begin{itemize}[leftmargin=*]
+  \item $x$: 오른쪽, $y$: 아래쪽, $z$: 앞쪽 (카메라 시선 방향)
+  \item Extrinsic $[\mR \mid \vt]$는 \textbf{world-to-camera} 변환
+  \item $\vp_\text{cam} = \mR \cdot \vp_\text{world} + \vt$
+\end{itemize}
+
+카메라의 월드 좌표 위치는:
+\begin{equation}
+\vp_\text{cam\_center} = -\mR^\top \vt
+\end{equation}
+
+\section{EasyMocap의 좌표 규약}
+
+EasyMocap도 \textbf{OpenCV 규약}을 사용한다:
+\begin{itemize}[leftmargin=*]
+  \item \texttt{extri.yml}의 \texttt{Rot\_X}: $3 \times 3$ 회전 행렬 (world-to-camera)
+  \item \texttt{extri.yml}의 \texttt{T\_X}: $3 \times 1$ 평행이동 벡터
+  \item \texttt{extri.yml}의 \texttt{R\_X}: Rodrigues 벡터 ($3 \times 1$, 축-각도 표현)
+  \item \texttt{intri.yml}의 \texttt{K\_X}: $3 \times 3$ 내부 행렬
+  \item \texttt{intri.yml}의 \texttt{dist\_X}: $1 \times 5$ 왜곡 계수 ($k_1, k_2, p_1, p_2, k_3$)
+\end{itemize}
+
+\begin{summary}
+\textbf{VGGT와 EasyMocap은 같은 좌표 규약 (OpenCV)}을 사용한다.
+따라서 좌표 변환이 필요 없고, 포맷만 변환하면 된다.
+\end{summary}
+
+
+\section{투영 모델}
+
+두 시스템 모두 동일한 핀홀 투영 모델을 사용:
+\begin{equation}
+\lambda \begin{pmatrix} u \\ v \\ 1 \end{pmatrix}
+= \underbrace{\begin{pmatrix} f_x & 0 & c_x \\ 0 & f_y & c_y \\ 0 & 0 & 1 \end{pmatrix}}_{\mK}
+\underbrace{\begin{pmatrix} \mR & \vt \end{pmatrix}}_{[\mR|\vt]_\text{3$\times$4}}
+\begin{pmatrix} X \\ Y \\ Z \\ 1 \end{pmatrix}
+\end{equation}
+
+여기서 $(u, v)$는 OpenPose가 검출한 2D 키포인트 좌표 (원본 해상도 기준).
+VGGT의 K가 원본 해상도 기준이므로, $(u, v)$와 K가 같은 좌표계에 있다.
+
+
+\section{EasyMocap의 삼각측량}
+
+EasyMocap의 \texttt{SimpleTriangulate}는 다음을 수행:
+
+\begin{enumerate}[leftmargin=*]
+  \item 각 카메라 $i$에서 투영 행렬 구성: $\mP_i = \mK_i [\mR_i \mid \vt_i]$
+  \item 2D 키포인트 $(u_j^i, v_j^i)$와 $\mP_i$로 DLT 삼각측량
+  \item Iterative refinement: confidence 가중 + 재투영 오차 기반 outlier 제거
+  \item 결과: 3D 키포인트 $\vp_j \in \RR^3$ (월드 좌표)
+\end{enumerate}
+
+\begin{importantnote}
+삼각측량의 정확도는 전적으로 \textbf{K와 2D 키포인트의 좌표계 일치}에 의존한다.
+이전에 DA3의 K가 틀려서 삼각측량이 부정확했고, 그 부정확한 3D 점으로 SMPL을 피팅하니 실패한 것이다.
+VGGT의 K를 사용하면 이 문제가 해결된다.
+\end{importantnote}
+
+
+\section{EasyMocap의 SMPL 피팅}
+
+삼각측량된 3D 키포인트로부터 SMPL 파라미터를 추정:
+
+\begin{equation}
+\min_{\vtheta, \vbeta, \mR_h, \vt_h} \underbrace{\sum_{j} w_j \| J_j(\vtheta, \vbeta) - \vp_j \|^2}_{\text{3D joint loss}}
++ \underbrace{\lambda_\theta \|\vtheta\|^2}_{\text{pose prior}}
++ \underbrace{\lambda_\beta \|\vbeta\|^2}_{\text{shape prior}}
+\end{equation}
+
+여기서:
+\begin{itemize}[leftmargin=*]
+  \item $J_j(\vtheta, \vbeta)$: SMPL의 forward kinematics로 계산된 관절 위치
+  \item $\vp_j$: 삼각측량된 3D 키포인트 (25개, Body25 포맷)
+  \item $\mR_h, \vt_h$: global rotation (Rodrigues), global translation
+  \item $\vtheta \in \RR^{69}$: body pose (23 joints $\times$ 3 axis-angle)
+  \item $\vbeta \in \RR^{10}$: body shape
+\end{itemize}
+
+EasyMocap의 추가 단계:
+\begin{enumerate}[leftmargin=*]
+  \item \textbf{Init}: 삼각측량된 pelvis 위치로 $\vt_h$ 초기화
+  \item \textbf{Shape optimization}: $\vbeta$ 먼저 최적화 (골격 비율)
+  \item \textbf{Pose optimization}: $\vtheta$ 최적화
+  \item \textbf{Joint optimization}: 모든 파라미터 동시 최적화
+  \item (Optional) \textbf{2D reprojection refinement}: 각 카메라의 2D 키포인트에 대한 재투영 오차도 추가
+\end{enumerate}
+
+
+% ====================================================================
+\chapter{개발 방향}
+% ====================================================================
+
+\section{Phase 1: VGGT $\rightarrow$ EasyMocap 포맷 변환}
+
+\begin{setupbox}[title={변환 요구사항}]
+\begin{enumerate}[leftmargin=*]
+  \item VGGT JSON $\rightarrow$ \texttt{intri.yml}: 카메라별 K, dist (왜곡 = 0)
+  \item VGGT JSON $\rightarrow$ \texttt{extri.yml}: 카메라별 R (Rodrigues), Rot (회전행렬), T (평행이동)
+  \item 카메라 이름 매핑: cam1$\rightarrow$``1'', cam2$\rightarrow$``2'', ...
+\end{enumerate}
+\end{setupbox}
+
+\texttt{intri.yml} 포맷:
+\begin{lstlisting}[language={}]
+%YAML:1.0
+---
+names: ["1", "2", "3", "4", "5", "6", "7"]
+K_1: !!opencv-matrix
+  rows: 3
+  cols: 3
+  dt: d
+  data: [fx, 0, cx, 0, fy, cy, 0, 0, 1]
+dist_1: !!opencv-matrix
+  rows: 1
+  cols: 5
+  dt: d
+  data: [0, 0, 0, 0, 0]
+\end{lstlisting}
+
+\texttt{extri.yml} 포맷:
+\begin{lstlisting}[language={}]
+R_1: !!opencv-matrix     # Rodrigues vector (3x1)
+  rows: 3
+  cols: 1
+  dt: d
+  data: [rx, ry, rz]
+Rot_1: !!opencv-matrix   # Rotation matrix (3x3)
+  rows: 3
+  cols: 3
+  dt: d
+  data: [r00, r01, r02, r10, r11, r12, r20, r21, r22]
+T_1: !!opencv-matrix     # Translation (3x1)
+  rows: 3
+  cols: 1
+  dt: d
+  data: [tx, ty, tz]
+\end{lstlisting}
+
+
+\section{Phase 2: EasyMocap 실행}
+
+\begin{pipelinebox}[title={실행 명령}]
+\begin{lstlisting}[language=bash]
+cd ~/EasyMocap
+python3 apps/demo/mv1p.py \
+  ~/easymocap_data \
+  --out ~/easymocap_data/output/vggt_smpl \
+  --cfg config/exp/mv1p/detect_triangulate_fitSMPL.yml \
+  --vis_det --vis_repro
+\end{lstlisting}
+\end{pipelinebox}
+
+
+\section{Phase 3: 검증}
+
+\begin{enumerate}[leftmargin=*]
+  \item \textbf{삼각측량 검증}: 재투영 오차 (reprojection error) 계산
+    \begin{equation}
+    e_\text{reproj} = \frac{1}{N \cdot C} \sum_{j=1}^{N} \sum_{i=1}^{C} \| \pi(\mK_i, \mR_i, \vt_i, \vp_j) - (u_j^i, v_j^i) \|
+    \end{equation}
+    목표: $e_\text{reproj} < 10$ px
+
+  \item \textbf{SMPL 피팅 검증}: MPJPE 계산
+    \begin{equation}
+    \text{MPJPE} = \frac{1}{J} \sum_{j=1}^{J} \| J_j^\text{SMPL} - \vp_j^\text{triangulated} \|
+    \end{equation}
+    목표: MPJPE $< 50$ mm (이전 실패: 219.6 mm)
+
+  \item \textbf{시각적 검증}: SMPL 메시를 각 카메라 뷰에 재투영하여 오버레이
+\end{enumerate}
+
+
+\section{Phase 4: 스케일 보정 (필요시)}
+
+\begin{warningbox}
+VGGT의 translation은 정규화된 좌표 ($\|t\| \sim 1$)이므로, SMPL의 크기가 현실과 다를 수 있다. SMPL의 pelvis 높이가 실제 피사체와 일치하도록 global scale factor를 곱해야 할 수 있다.
+
+\begin{equation}
+s = \frac{h_\text{subject\_cm} / 100}{\|J_\text{head} - J_\text{ankle}\|_\text{SMPL}}
+\end{equation}
+\end{warningbox}
+
+
+% ====================================================================
+\chapter{구현 코드}
+% ====================================================================
+
+\section{VGGT $\rightarrow$ EasyMocap 변환 스크립트}
+
+\begin{lstlisting}[caption={vggt\_to\_easymocap.py --- VGGT 결과를 EasyMocap intri.yml/extri.yml로 변환}, label=lst:converter]
+#!/usr/bin/env python3
+"""
+Convert VGGT calibration JSON to EasyMocap intri.yml / extri.yml.
+
+Usage:
+  python vggt_to_easymocap.py \
+    --input vggt_calibration_result.json \
+    --output_dir ~/easymocap_data
+"""
+
+import json
+import argparse
+import numpy as np
+import cv2
+from pathlib import Path
+
+
+def write_opencv_matrix(f, name, mat, rows, cols):
+    """Write a matrix in OpenCV YAML format."""
+    f.write(f"{name}: !!opencv-matrix\n")
+    f.write(f"  rows: {rows}\n")
+    f.write(f"  cols: {cols}\n")
+    f.write(f"  dt: d\n")
+    flat = mat.flatten().tolist()
+    data_str = ", ".join(f"{v:.10f}" for v in flat)
+    f.write(f"  data: [{data_str}]\n")
+
+
+def rotation_matrix_to_rodrigues(R):
+    """Convert 3x3 rotation matrix to Rodrigues vector."""
+    rvec, _ = cv2.Rodrigues(np.array(R, dtype=np.float64))
+    return rvec.flatten()
+
+
+def main():
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--input", required=True,
+                        help="VGGT calibration JSON")
+    parser.add_argument("--output_dir", required=True,
+                        help="EasyMocap data directory")
+    args = parser.parse_args()
+
+    with open(args.input) as f:
+        vggt = json.load(f)
+
+    out = Path(args.output_dir)
+    cam_names = sorted(vggt.keys(),
+                       key=lambda x: int(x.replace("cam", "")))
+    names = [c.replace("cam", "") for c in cam_names]
+
+    # ---- Write intri.yml ----
+    intri_path = out / "intri.yml"
+    with open(intri_path, "w") as f:
+        f.write("%YAML:1.0\n---\n")
+        name_list = ", ".join(f'"{n}"' for n in names)
+        f.write(f"names:\n")
+        for n in names:
+            f.write(f'  - "{n}"\n')
+
+        for cam_key, name in zip(cam_names, names):
+            cam = vggt[cam_key]
+            K = np.array(cam["K"], dtype=np.float64)
+            write_opencv_matrix(f, f"K_{name}", K, 3, 3)
+            dist = np.zeros(5)
+            write_opencv_matrix(f, f"dist_{name}", dist, 1, 5)
+
+    print(f"Written: {intri_path}")
+
+    # ---- Write extri.yml ----
+    extri_path = out / "extri.yml"
+    with open(extri_path, "w") as f:
+        f.write("%YAML:1.0\n---\n")
+        f.write(f"names:\n")
+        for n in names:
+            f.write(f'  - "{n}"\n')
+
+        for cam_key, name in zip(cam_names, names):
+            cam = vggt[cam_key]
+            R_mat = np.array(cam["R"], dtype=np.float64)
+            t_vec = np.array(cam["t"], dtype=np.float64)
+
+            # Rodrigues vector from rotation matrix
+            rvec = rotation_matrix_to_rodrigues(R_mat)
+
+            write_opencv_matrix(f, f"R_{name}",
+                                rvec.reshape(3, 1), 3, 1)
+            write_opencv_matrix(f, f"Rot_{name}",
+                                R_mat, 3, 3)
+            write_opencv_matrix(f, f"T_{name}",
+                                t_vec.reshape(3, 1), 3, 1)
+
+    print(f"Written: {extri_path}")
+
+    # ---- Verification ----
+    print("\n=== Verification ===")
+    for cam_key, name in zip(cam_names, names):
+        cam = vggt[cam_key]
+        K = np.array(cam["K"])
+        R = np.array(cam["R"])
+        t = np.array(cam["t"])
+
+        # Camera center in world coordinates
+        center = -R.T @ t
+        rvec = rotation_matrix_to_rodrigues(R)
+
+        print(f"cam{name}: fx={K[0,0]:.1f} fy={K[1,1]:.1f} "
+              f"| center=[{center[0]:.3f},{center[1]:.3f},"
+              f"{center[2]:.3f}] "
+              f"| rvec=[{rvec[0]:.4f},{rvec[1]:.4f},"
+              f"{rvec[2]:.4f}]")
+
+    # Rodrigues roundtrip check
+    R_orig = np.array(vggt["cam2"]["R"], dtype=np.float64)
+    rvec = rotation_matrix_to_rodrigues(R_orig)
+    R_back, _ = cv2.Rodrigues(rvec)
+    err = np.max(np.abs(R_orig - R_back))
+    print(f"\nRodrigues roundtrip error: {err:.2e}")
+
+
+if __name__ == "__main__":
+    main()
+\end{lstlisting}
+
+
+\section{실행 스크립트}
+
+\begin{lstlisting}[caption={run\_vggt\_easymocap.sh --- 전체 파이프라인 실행}, label=lst:run, language=bash]
+#!/bin/bash
+set -e
+
+# === Step 1: Convert VGGT -> EasyMocap format ===
+echo "[Step 1] Converting VGGT calibration to EasyMocap format..."
+cd /home/elicer
+python3 vggt_to_easymocap.py \
+  --input /home/elicer/vggt_calibration_result.json \
+  --output_dir /home/elicer/easymocap_data
+
+# Backup old calibration
+cp /home/elicer/easymocap_data/intri.yml \
+   /home/elicer/easymocap_data/intri_da3_backup.yml 2>/dev/null || true
+cp /home/elicer/easymocap_data/extri.yml \
+   /home/elicer/easymocap_data/extri_da3_backup.yml 2>/dev/null || true
+
+echo "[Step 1] Done. intri.yml and extri.yml updated."
+
+# === Step 2: Run EasyMocap triangulation + SMPL fitting ===
+echo "[Step 2] Running EasyMocap..."
+cd /home/elicer/EasyMocap
+
+python3 apps/demo/mv1p.py \
+  /home/elicer/easymocap_data \
+  --out /home/elicer/easymocap_data/output/vggt_smpl \
+  --cfg config/exp/mv1p/detect_triangulate_fitSMPL.yml \
+  --vis_det --vis_repro
+
+echo "[Step 2] Done. Results in output/vggt_smpl/"
+
+# === Step 3: Quick validation ===
+echo "[Step 3] Checking SMPL output..."
+ls -la /home/elicer/easymocap_data/output/vggt_smpl/smpl/
+head -50 /home/elicer/easymocap_data/output/vggt_smpl/smpl/000000.json
+
+echo "=== Pipeline complete ==="
+\end{lstlisting}
+
+
+\section{검증 스크립트: 재투영 오차}
+
+\begin{lstlisting}[caption={validate\_reprojection.py --- 삼각측량 결과 검증}, label=lst:validate]
+#!/usr/bin/env python3
+"""
+Validate triangulation quality by computing reprojection error.
+"""
+
+import json
+import numpy as np
+from pathlib import Path
+
+
+def load_cameras_yml(intri_path, extri_path):
+    """Load EasyMocap camera YAML files."""
+    import cv2
+    fs_intri = cv2.FileStorage(str(intri_path),
+                               cv2.FILE_STORAGE_READ)
+    fs_extri = cv2.FileStorage(str(extri_path),
+                               cv2.FILE_STORAGE_READ)
+
+    cameras = {}
+    for i in range(1, 8):
+        name = str(i)
+        K = fs_intri.getNode(f"K_{name}").mat()
+        dist = fs_intri.getNode(f"dist_{name}").mat()
+        Rot = fs_extri.getNode(f"Rot_{name}").mat()
+        T = fs_extri.getNode(f"T_{name}").mat()
+
+        cameras[name] = {
+            "K": K, "dist": dist,
+            "R": Rot, "t": T.flatten()
+        }
+
+    fs_intri.release()
+    fs_extri.release()
+    return cameras
+
+
+def project_3d_to_2d(point3d, K, R, t):
+    """Project a 3D point to 2D pixel coordinates."""
+    p_cam = R @ point3d + t
+    p_proj = K @ p_cam
+    return p_proj[:2] / p_proj[2]
+
+
+def compute_reprojection_error(cameras, kp3d, kp2d_per_cam):
+    """Compute mean reprojection error across all cameras."""
+    errors = []
+    for cam_name, cam in cameras.items():
+        if cam_name not in kp2d_per_cam:
+            continue
+        kp2d = kp2d_per_cam[cam_name]  # (N, 3): u, v, conf
+        K = cam["K"]
+        R = cam["R"]
+        t = cam["t"]
+
+        for j in range(len(kp3d)):
+            if kp2d[j][2] < 0.3:  # low confidence
+                continue
+            proj = project_3d_to_2d(kp3d[j], K, R, t)
+            err = np.linalg.norm(proj - kp2d[j][:2])
+            errors.append(err)
+
+    return np.mean(errors), np.median(errors), errors
+\end{lstlisting}
+
+
+% ====================================================================
+\chapter{개발 방향 로드맵}
+% ====================================================================
+
+\begin{table}[H]
+\centering
+\caption{개발 로드맵}
+\renewcommand{\arraystretch}{1.5}
+\begin{tabular}{c p{7cm} p{4cm}}
+\toprule
+\textbf{Phase} & \textbf{작업} & \textbf{성공 기준} \\
+\midrule
+1 & VGGT $\rightarrow$ intri.yml / extri.yml 변환 & 포맷 정상, roundtrip 검증 \\
+2 & EasyMocap 삼각측량 실행 & reprojection error $< 10$ px \\
+3 & EasyMocap SMPL 피팅 실행 & MPJPE $< 50$ mm \\
+4 & SMPL 메시 오버레이 시각화 & 시각적으로 인체에 정렬됨 \\
+5 & 스케일 보정 (필요시) & 신장/사지 비율 현실적 \\
+6 & GART 입력 준비 ($\vtheta, \vbeta$ per frame) & GART 학습 시작 가능 \\
+\midrule
+\multicolumn{3}{l}{\textbf{Fallback}: Phase 2--3 실패 시} \\
+\midrule
+F1 & VGGT K로 직접 삼각측량 (EasyMocap 우회) & 3D 키포인트 시각적 검증 \\
+F2 & smplx 직접 피팅 (PyTorch, 서버 GPU) & MPJPE $< 50$ mm \\
+F3 & 3DGS-Avatar JMBO (HMR 초기값 + joint opt.) & photometric loss 수렴 \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+
+\section{잠재적 문제와 대비책}
+
+\begin{enumerate}[leftmargin=*]
+  \item \textbf{VGGT 스케일 문제}: VGGT의 translation이 정규화되어 있어 EasyMocap의 3D 재구성 스케일이 현실과 다를 수 있음.
+    \begin{itemize}
+      \item 대비: 피사체 키 또는 어깨 너비로 스케일 보정
+      \item SMPL 피팅 자체는 상대적 관절 각도이므로 스케일 영향 적음
+    \end{itemize}
+
+  \item \textbf{EasyMocap의 SMPL 모델}: 기존에 \texttt{SMPL\_NEUTRAL.pkl} (304KB 경량)을 사용하여 뼈 길이가 부정확했음.
+    \begin{itemize}
+      \item 대비: \texttt{SMPL\_NEUTRAL.pkl} (full, $\sim$21MB)로 교체
+    \end{itemize}
+
+  \item \textbf{투구 동작의 극단적 포즈}: EasyMocap의 기본 pose prior가 일상 동작 기준이라 7,000 deg/s 어깨 회전에 적합하지 않을 수 있음.
+    \begin{itemize}
+      \item 대비: \texttt{lambda\_theta}를 0.0001로 낮추어 극단 포즈 허용
+    \end{itemize}
+
+  \item \textbf{왜곡 미보정}: VGGT는 왜곡 계수를 제공하지 않으므로, 이미지 가장자리의 키포인트에서 수 px 오차 발생 가능.
+    \begin{itemize}
+      \item 대비: 투수가 이미지 중앙에 있으면 영향 최소 ($< 5$ px)
+      \item 필요시 OpenCV \texttt{calibrateCamera}로 사후 왜곡 추정 가능
+    \end{itemize}
+\end{enumerate}
+
+
+% ====================================================================
+\chapter{기대 효과}
+% ====================================================================
+
+\begin{summary}
+이전 실패 (DA3 K $\rightarrow$ EasyMocap)와 비교한 개선점:
+
+\begin{enumerate}[leftmargin=*]
+  \item \textbf{좌표계 일치}: VGGT K가 원본 해상도 $\Leftrightarrow$ OpenPose 2D 키포인트 --- 역변환 불필요, 불일치 위험 제거
+  \item \textbf{$f_x/f_y$ 정확도}: DA3 최대 2.2\% 편차 $\rightarrow$ VGGT 최대 0.6\% 편차
+  \item \textbf{다시점 일관성}: VGGT가 7장을 동시에 보고 R, t 추정 $\rightarrow$ 카메라 간 상대 위치가 더 일관적
+  \item \textbf{Y/Z 축 교환 해소}: DA3의 PnP 좌표계와 EasyMocap 좌표계 불일치 $\rightarrow$ VGGT는 OpenCV 규약으로 통일
+\end{enumerate}
+
+이전 MPJPE 219.6 mm에서 \textbf{50 mm 이하}를 목표로 한다.
+\end{summary}
+
+
+\end{document}

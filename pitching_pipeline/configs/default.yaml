@@ -1,0 +1,127 @@
+# ===== GART-Pitch Pipeline Configuration =====
+# 7-view 240Hz 3DGS-based pitching biomechanics
+
+project:
+  name: "pitching_subject1_set002"
+  data_dir: "../data"
+  output_dir: "../outputs"
+
+cameras:
+  n_cameras: 7
+  fps: 240
+  layout:
+    cam1: {resolution: [1080, 1920], orientation: portrait}
+    cam2: {resolution: [1920, 1080], orientation: landscape}
+    cam3: {resolution: [1920, 1080], orientation: landscape}
+    cam4: {resolution: [1920, 1080], orientation: landscape}
+    cam5: {resolution: [1920, 1080], orientation: landscape}
+    cam6: {resolution: [1920, 1080], orientation: landscape}
+    cam7: {resolution: [1920, 1080], orientation: landscape}
+
+vicon:
+  fps: 240
+  n_markers: 42
+  marker_set: "plug_in_gait"
+  force_plates: 2
+  force_plate_fps: 1200
+
+calibration:
+  method: "colmap_masked"  # colmap_masked | da3_pnp | checkerboard
+  colmap:
+    camera_model: "PINHOLE"
+    single_camera_per_folder: true
+    frame_step: 10  # use every 10th frame
+  da3:
+    process_res: 504
+    model: "DA3-Large-1.1"
+
+pose_estimation:
+  method: "openpose"  # openpose | vitpose | rtmpose
+  openpose:
+    model: "body25"
+    n_joints: 25
+    cam7_tracked: true  # use tracked version for cam7
+  confidence_threshold: 0.3
+
+triangulation:
+  method: "dlt"
+  min_views: 3
+  max_reprojection_error: 80  # pixels
+  ransac: false
+
+smpl_fitting:
+  method: "easymocap"  # easymocap | direct_3d | joint_optimization
+  model_type: "smpl"  # smpl | smplx
+  gender: "neutral"
+  easymocap:
+    body_type: "body25"
+  optimization:
+    lambda_theta: 0.001
+    lambda_beta: 0.01
+    lambda_smooth: 0.1
+    n_iterations: 300
+
+reconstruction:
+  method: "gart"  # gart | gauhuman | exavatar | 3dgs_avatar
+  gart:
+    n_gaussians_init: 10475  # SMPL-X vertex count
+    learning_rate: 0.001
+    pose_lr: 0.00001
+    n_iterations: 30000
+  pose_refinement:
+    enabled: true
+    coarse_to_fine: true
+    phase_adaptive: true  # pitching phase-dependent regularization
+    phases:
+      windup: {lambda_smooth: 10.0}
+      stride: {lambda_smooth: 5.0}
+      late_cocking: {lambda_smooth: 2.0}
+      acceleration: {lambda_smooth: 0.5}  # 7000 deg/s, allow rapid change
+      deceleration: {lambda_smooth: 1.0}
+      follow_through: {lambda_smooth: 3.0}
+
+# Custom joint optimization (proposed method)
+joint_optimization:
+  enabled: false  # enable for novel approach
+  losses:
+    photometric: {weight: 1.0, views: 7}
+    silhouette: {weight: 0.5, source: "sam3_masks"}
+    keypoint_2d: {weight: 0.3, source: "openpose"}
+    temporal: {weight: 0.1, adaptive: true}
+  smpl_init: "hmr"  # weak initialization sufficient
+
+biomechanics:
+  virtual_markers:
+    source: "smplx_mesh"  # smplx_mesh | refined_joints
+    marker_set: "plug_in_gait_upper"
+  opensim:
+    model: "FullBody_adjusted.osim"
+    ik_accuracy: 1e-5
+    id_enabled: true
+  pitching_events:
+    auto_detect: true
+    events: [foot_contact, max_external_rotation, ball_release, max_internal_rotation]
+  clinical_metrics:
+    - max_external_rotation  # MER (degrees)
+    - shoulder_internal_rotation_velocity  # deg/s
+    - elbow_valgus_torque  # N·m
+    - stride_length_ratio  # % of height
+    - trunk_separation  # degrees
+
+validation:
+  reference: "vicon"
+  metrics:
+    - mpjpe
+    - pa_mpjpe
+    - joint_angle_rmse
+    - nrmse_torque
+  agreement:
+    - bland_altman
+    - icc_3_1
+    - concordance_correlation
+  targets:
+    mpjpe_excellent: 20  # mm
+    mpjpe_acceptable: 40  # mm
+    shoulder_rmse_excellent: 5  # degrees
+    elbow_rmse_excellent: 3  # degrees
+    torque_nrmse_target: 10  # percent

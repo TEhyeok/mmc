@@ -1,0 +1,678 @@
+\documentclass[11pt, a4paper]{report}
+
+\input{preamble/packages}
+\usepackage{multirow}
+\usepackage{siunitx}
+\input{preamble/colors}
+\input{preamble/theorems}
+\input{preamble/tcolorboxes}
+\input{preamble/commands}
+\input{preamble/formatting}
+
+\definecolor{solvable}{RGB}{30, 140, 60}
+\definecolor{partial}{RGB}{200, 140, 0}
+\definecolor{hard}{RGB}{200, 40, 40}
+
+\newtcolorbox{limitbox}[1][]{colback=hard!8, colframe=hard, fonttitle=\bfseries, title={Current Limitation}, #1}
+
+\begin{document}
+
+\begin{titlepage}
+\centering
+\vspace*{1cm}
+{\Large\color{gray} GART-Pitch Master Plan}
+\vspace{0.5cm}
+
+{\Huge\bfseries\color{defblue} 신경 렌더링 기반\\[0.3cm]
+투구 생체역학 분석\\[0.3cm]
+종합 로드맵}
+
+\vspace{0.8cm}
+
+{\LARGE\color{defblue!70!black} 3DGS $\cdot$ 4DGS $\cdot$ GART $\cdot$ GauHuman\\
+현재 상태, 근본적 한계, 그리고 현실적 경로}
+
+\vspace{1cm}
+
+\begin{tikzpicture}[
+  doc/.style={rectangle, rounded corners=2pt, draw=gray!50, fill=gray!8,
+    minimum width=2.2cm, minimum height=0.5cm, font=\tiny, align=center},
+  stage/.style={rectangle, rounded corners=6pt, draw=defblue, fill=lightblue,
+    minimum width=3cm, minimum height=0.8cm, font=\small\bfseries, text=defblue!80!black, align=center},
+  done/.style={stage, draw=thmgreen, fill=thmgreen!15, text=thmgreen!80!black},
+  curr/.style={stage, draw=noteorange, fill=noteorange!15, text=noteorange!80!black},
+  fut/.style={stage, draw=gray!50, fill=gray!8, text=gray!70},
+  arrow/.style={-Stealth, thick}
+]
+% Pipeline stages
+\node[done] (cal) at (0, 0) {Camera\\Calibration};
+\node[done] (pose) at (3.5, 0) {2D Pose\\Estimation};
+\node[curr] (smpl) at (7, 0) {SMPL\\Fitting};
+\node[fut] (nr) at (10.5, 0) {Neural\\Rendering};
+\node[fut] (bio) at (14, 0) {Biomech\\Analysis};
+
+\draw[arrow, thmgreen] (cal) -- (pose);
+\draw[arrow, thmgreen] (pose) -- (smpl);
+\draw[arrow, noteorange] (smpl) -- (nr);
+\draw[arrow, gray!50] (nr) -- (bio);
+
+% Status labels
+\node[font=\tiny\color{thmgreen}] at (0, -0.6) {VGGT 완료};
+\node[font=\tiny\color{thmgreen}] at (3.5, -0.6) {OpenPose 완료};
+\node[font=\tiny\color{noteorange}] at (7, -0.6) {EasyMocap 재시도};
+\node[font=\tiny\color{gray}] at (10.5, -0.6) {GART/4DGS 선택};
+\node[font=\tiny\color{gray}] at (14, -0.6) {OpenSim 연결};
+
+% Document references
+\node[doc] (d1) at (0, -1.5) {VGGT vs DA3\\Analysis};
+\node[doc] (d2) at (3.5, -1.5) {ViTPose\\cam3 분석};
+\node[doc] (d3) at (7, -1.5) {VGGT+EMC\\Integration};
+\node[doc] (d4) at (10.5, -1.5) {main.tex\\Ch.5 GART};
+\node[doc] (d5) at (14, -1.5) {Research\\Proposal};
+
+\draw[gray!30, dashed] (d1) -- (cal);
+\draw[gray!30, dashed] (d2) -- (pose);
+\draw[gray!30, dashed] (d3) -- (smpl);
+\draw[gray!30, dashed] (d4) -- (nr);
+\draw[gray!30, dashed] (d5) -- (bio);
+\end{tikzpicture}
+
+\vspace{1.5cm}
+{\large 2026년 4월 12일}
+
+\vspace{\fill}
+{\small\color{gray} 17개 교재/분석 문서를 종합하여, 신경 렌더링 기반 투구 생체역학 분석의\\
+현재 위치와 앞으로의 경로를 제시합니다.}
+\end{titlepage}
+
+\tableofcontents
+\newpage
+
+
+% ====================================================================
+\chapter{현재 상태: 어디까지 왔는가}
+% ====================================================================
+
+\section{프로젝트 문서 체계}
+
+\begin{table}[H]
+\centering
+\caption{프로젝트 문서 17개 --- 작성 순서 및 역할}
+\renewcommand{\arraystretch}{1.3}
+\small
+\begin{tabular}{l p{8cm} c}
+\toprule
+\textbf{문서} & \textbf{역할} & \textbf{상태} \\
+\midrule
+\multicolumn{3}{l}{\textit{이론 교재 (Part 1--3)}} \\
+main.tex & NeRF $\rightarrow$ 3DGS $\rightarrow$ SMPL $\rightarrow$ 4DGS $\rightarrow$ GART 이론 & 완료 \\
+part2\_motion\_analysis & 마커리스 모션캡처 + 보행 분석 이론 & 완료 \\
+part3\_pitching & 7시점 투구 분석 이론 + 실험 설계 & 완료 \\
+\midrule
+\multicolumn{3}{l}{\textit{기반 기술 (Part 0)}} \\
+part0\_camera\_math & 카메라 수학 완전 가이드 (한국어) & 완료 \\
+part0\_colmap\_theory & COLMAP 이론 + DA3 좌표계 분석 & 완료 \\
+part0\_progress\_report & 개발 진행 보고서 & 완료 \\
+\midrule
+\multicolumn{3}{l}{\textit{데이터 분석 + 피팅 (Part 4--5)}} \\
+part4\_data\_analysis & 다시점 데이터 분석 & 완료 \\
+part4\_openpose\_smpl\_fitting & OpenPose$\rightarrow$SMPL 수학적 정식화 & 완료 \\
+part5\_constraints\_setup & 제약조건 분석 & 완료 \\
+part5\_dev\_setup & 개발 환경 A-to-Z & 완료 \\
+part5\_research\_proposal & GART-Pitch 연구 제안서 & 완료 \\
+\midrule
+\multicolumn{3}{l}{\textit{실전 가이드}} \\
+fitting\_guide & SMPL 피팅 오답노트 & 완료 \\
+methodology\_survey & SMPL-free 방법론 서베이 & 완료 \\
+vitpose\_cam3\_analysis & ViTPose person tracking 실패 분석 & 완료 \\
+\midrule
+\multicolumn{3}{l}{\textit{금일 작성 (VGGT 시리즈)}} \\
+vggt\_vs\_da3\_analysis & DA3 vs VGGT 캘리브레이션 비교 & \textbf{신규} \\
+vggt\_easymocap\_integration & VGGT$\rightarrow$EasyMocap 통합 가이드 & \textbf{신규} \\
+pipeline\_issues\_solutions & 12개 문제점 종합 해결 방안 & \textbf{신규} \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+
+\section{파이프라인 진행 상황}
+
+\begin{table}[H]
+\centering
+\caption{파이프라인 단계별 현황}
+\renewcommand{\arraystretch}{1.4}
+\begin{tabular}{c p{4cm} c p{5.5cm}}
+\toprule
+\textbf{단계} & \textbf{작업} & \textbf{상태} & \textbf{비고} \\
+\midrule
+0 & Camera Calibration & \textcolor{thmgreen}{\textbf{완료}} & VGGT: K, R, t (7대, 원본 해상도) \\
+1 & Segmentation (SAM3) & \textcolor{thmgreen}{\textbf{완료}} & cam7 마스크 방향 수정 완료 \\
+2 & 2D Pose (OpenPose) & \textcolor{thmgreen}{\textbf{완료}} & 25 keypoints $\times$ 7 cams $\times$ 100 frames \\
+3 & SMPL Fitting & \textcolor{noteorange}{\textbf{재시도}} & VGGT K로 EasyMocap 재실행 예정 \\
+4 & Neural Rendering & \textcolor{gray}{\textbf{대기}} & GART / 4DGS / GauHuman 선택 \\
+5 & Biomech Analysis & \textcolor{gray}{\textbf{대기}} & SMPL$\rightarrow$OpenSim 연결 \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+
+% ====================================================================
+\chapter{신경 렌더링 방법 비교: 우리 데이터에 적합한가?}
+% ====================================================================
+
+\section{후보 방법들}
+
+\begin{table}[H]
+\centering
+\caption{신경 렌더링 방법 비교 --- 투구 분석 적합성}
+\renewcommand{\arraystretch}{1.4}
+\small
+\begin{tabular}{p{2.3cm} p{1.8cm} p{1.5cm} p{1.5cm} p{1.5cm} p{1.8cm} p{2cm}}
+\toprule
+\textbf{방법} & \textbf{입력} & \textbf{SMPL 필요} & \textbf{다시점} & \textbf{고속 동작} & \textbf{학습 시간} & \textbf{적합도} \\
+\midrule
+3DGS & 정적 이미지 & No & Yes & \textcolor{hard}{불가} & 5--30분 & \textcolor{hard}{부적합} \\
+4DGS & 다시점 비디오 & No & Yes & \textcolor{partial}{불확실} & 1--2시간 & \textcolor{partial}{보통} \\
+\textbf{GART} & 단안/다시점 & \textbf{Yes} & Yes & \textcolor{partial}{미검증} & 0.5--2.5분 & \textcolor{solvable}{\textbf{높음}} \\
+GauHuman & 단안/다시점 & Yes & Yes & \textcolor{partial}{미검증} & 1--2분 & \textcolor{solvable}{높음} \\
+ExAvatar & 단안/다시점 & SMPL-X & Yes & \textcolor{partial}{미검증} & 1.5--5시간 & \textcolor{solvable}{높음} \\
+3DGS-Avatar & 다시점 & HMR급 & Yes & \textcolor{partial}{미검증} & 2--4시간 & \textcolor{solvable}{\textbf{높음}} \\
+SkelSplat & 다시점 & \textbf{No} & Yes & \textcolor{partial}{미검증} & 1--3시간 & \textcolor{partial}{보통} \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+
+\section{왜 GART가 1순위인가}
+
+\begin{keyidea}
+GART가 이 프로젝트에 가장 적합한 이유:
+\begin{enumerate}[leftmargin=*]
+  \item \textbf{SMPL 기반 관절 표현}: 출력이 곧 $(\vtheta, \vbeta)$ $\rightarrow$ 생체역학 분석에 직접 연결
+  \item \textbf{캐노니컬 공간}: 한 번 학습하면 임의 자세로 구동 가능
+  \item \textbf{포즈 정제}: photometric loss로 SMPL 초기 추정 오차를 보정
+  \item \textbf{빠른 학습}: 0.5--2.5분/장면 (다른 방법 대비 10--100배 빠름)
+  \item \textbf{잠재 뼈(latent bones)}: 루즈한 야구복의 비강체 변형 표현 가능
+\end{enumerate}
+\end{keyidea}
+
+\subsection{GART의 한계 (본 프로젝트 맥락)}
+
+\begin{warningbox}
+\begin{enumerate}[leftmargin=*]
+  \item \textbf{SMPL 초기값 의존}: 프레임별 $(\vtheta, \vbeta)$가 없으면 시작 불가
+  \item \textbf{단안 기반 설계}: 원논문은 단안 비디오 기준. 7시점 다시점 확장 필요
+  \item \textbf{고속 동작 미검증}: 기존 검증은 걷기/춤 (최대 $\sim$300 deg/s)
+  \item \textbf{포즈 정제 한계}: 초기 SMPL이 너무 틀리면 local minima에 빠질 수 있음
+\end{enumerate}
+\end{warningbox}
+
+
+\section{Fallback: 3DGS-Avatar (JMBO)}
+
+SMPL 초기값 품질이 나쁠 경우를 대비한 차선책:
+
+\begin{biomechbox}[title={3DGS-Avatar with Joint Multi-view Body Optimization}]
+\begin{itemize}[leftmargin=*]
+  \item CVPR 2024, 다시점 전용 설계
+  \item HMR 수준의 \textbf{약한 초기값}으로도 작동 (EasyMocap 실패해도 가능)
+  \item 3DGS 학습과 SMPL-X 최적화를 \textbf{동시 수행} (joint optimization)
+  \item Photometric + keypoint + silhouette loss 통합
+  \item 단점: 학습 시간 2--4시간, GART보다 복잡
+\end{itemize}
+\end{biomechbox}
+
+\section{극단적 Fallback: SkelSplat (SMPL-free)}
+
+SMPL 피팅이 근본적으로 실패할 경우:
+
+\begin{cvbox}[title={SkelSplat (WACV 2026)}]
+\begin{itemize}[leftmargin=*]
+  \item SMPL 없이 스켈레톤을 가우시안으로 직접 모델링
+  \item 3D GT 불필요, 2D 키포인트만으로 학습 가능
+  \item 단점: 생체역학 연결이 어려움 (SMPL 파라미터 출력 없음)
+  \item 단점: 논문 수준의 구현만 존재, 투구 동작 미검증
+\end{itemize}
+\end{cvbox}
+
+
+% ====================================================================
+\chapter{GART 다시점 확장: 구체 설계}
+% ====================================================================
+
+GART 소스코드(\texttt{github.com/JiahuiLei/GART})를 분석한 결과, 다시점 확장은 \textbf{예상보다 훨씬 간단하다}. GART는 이미 ZJU-MoCap (21대 카메라) 포맷을 지원하며, 단안 모드는 \texttt{training\_view=[4]}로 카메라 1대만 선택한 특수 케이스일 뿐이다.
+
+\section{GART의 카메라-공간 아키텍처}
+
+\begin{keyidea}[title={핵심 설계: 모든 것이 카메라 좌표계에서 동작}]
+GART는 월드 좌표계를 사용하지 않는다. 대신:
+\begin{enumerate}[leftmargin=*]
+  \item 데이터 로딩 시: SMPL의 global orientation $\mR_h$, translation $\vt_h$를 카메라 좌표로 변환
+  \begin{equation}
+  [\mR_h^{(cam)}, \vt_h^{(cam)}] = [\mR_{cw}, \vt_{cw}] \circ [\mR_h^{(world)}, \vt_h^{(world)}]
+  \end{equation}
+  \item 렌더링 시: 카메라가 항상 원점 --- viewmatrix = $\mI_{4 \times 4}$
+  \item 결과: 각 (프레임, 카메라) 쌍이 독립적인 학습 샘플
+\end{enumerate}
+이 설계 덕분에, 카메라 수를 늘려도 렌더러를 수정할 필요가 없다.
+\end{keyidea}
+
+
+\section{필요한 코드 변경: 단 1줄}
+
+\begin{setupbox}[title={최소 변경}]
+\texttt{lib\_data/zju\_mocap.py}, line 81:
+\begin{verbatim}
+# 기존 (단안):
+training_view=[4],
+
+# 변경 (7대 카메라):
+training_view=[0, 1, 2, 3, 4, 5, 6],
+\end{verbatim}
+\textbf{이것만으로 다시점 학습이 작동한다.}
+\end{setupbox}
+
+나머지 코드가 이미 다시점을 지원하는 이유:
+
+\begin{table}[H]
+\centering
+\caption{GART 코드의 다시점 호환성 분석}
+\renewcommand{\arraystretch}{1.4}
+\small
+\begin{tabular}{p{3.5cm} p{4cm} p{5cm}}
+\toprule
+\textbf{모듈} & \textbf{현재 동작} & \textbf{7대 카메라 시 변화} \\
+\midrule
+\texttt{zju\_mocap.py}\\데이터 로더 & \texttt{ims}를 \texttt{training\_view}로 필터 & 7배 많은 샘플 (100 $\times$ 7 = 700) \\
+\midrule
+\texttt{zju\_mocap.py}\\SMPL 변환 (190--211줄) & 각 이미지의 \texttt{cam\_ind}로 $T_{cw}$ 적용 & 카메라별 올바른 $T_{cw}$ 자동 적용 \\
+\midrule
+\texttt{data\_provider.py}\\\texttt{\_\_getitem\_\_} & 샘플별 K, pose, trans 반환 & 카메라별 다른 K, 다른 카메라-공간 pose \\
+\midrule
+\texttt{solver.py}\\\texttt{\_fit\_step} & 배치 내 각 샘플 독립 렌더링, loss 평균 & 7개 뷰의 loss가 자동 평균됨 \\
+\midrule
+\texttt{gauspl\_renderer.py}\\렌더러 & 카메라 원점 고정, K만 사용 & K가 카메라별로 다르지만 이미 per-sample \\
+\midrule
+\texttt{model.py}\\캐노니컬 가우시안 & 뷰와 무관 (공유) & \textbf{변경 없음} --- 7개 뷰가 같은 캐노니컬 구속 \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+
+\section{데이터 준비: VGGT 결과 $\rightarrow$ ZJU-MoCap 포맷}
+
+\begin{figure}[H]
+\centering
+\begin{tikzpicture}[
+  file/.style={rectangle, rounded corners=2pt, draw=gray!60, fill=lightgray,
+    minimum width=3.5cm, minimum height=0.6cm, font=\small\ttfamily, align=center},
+  arrow/.style={-Stealth, thick, defblue!60}
+]
+\node[file] (vggt) at (0, 2) {vggt\_result.json\\K, R, t (7대)};
+\node[file] (smpl) at (0, 0) {EasyMocap output\\smpl/000000.json...};
+\node[file] (img) at (0, -2) {images/cam\{1..7\}/\\00001.png...};
+
+\node[file] (annot) at (8, 1) {annots.npy};
+\node[file] (smpld) at (8, -0.5) {smpl\_params/0.npy...};
+\node[file] (imgd) at (8, -2) {images/\{0..6\}/\\000000.jpg...};
+
+\draw[arrow] (vggt) -- node[above, font=\tiny] {카메라 포맷 변환} (annot);
+\draw[arrow] (smpl) -- node[above, font=\tiny] {Rh,Th,poses 추출} (smpld);
+\draw[arrow] (img) -- node[above, font=\tiny] {이름 변환} (imgd);
+
+\node[font=\small\bfseries, text=defblue] at (4, 3) {우리 데이터 $\rightarrow$ ZJU-MoCap 포맷};
+\end{tikzpicture}
+\caption{데이터 변환 파이프라인}
+\end{figure}
+
+\texttt{annots.npy} 구조:
+\begin{verbatim}
+annots = {
+  "cams": {
+    "K": [K_cam0, K_cam1, ..., K_cam6],    # 7 x (3,3)
+    "R": [R_cam0, R_cam1, ..., R_cam6],    # 7 x (3,3), world-to-cam
+    "T": [T_cam0, T_cam1, ..., T_cam6],    # 7 x (3,1), 밀리미터 단위!
+    "D": [zeros(5), zeros(5), ..., zeros(5)]  # 왜곡 = 0
+  },
+  "ims": [
+    {"ims": ["0/000000.jpg", "1/000000.jpg", ..., "6/000000.jpg"]},
+    {"ims": ["0/000001.jpg", "1/000001.jpg", ..., "6/000001.jpg"]},
+    ...  # 100 frames
+  ]
+}
+\end{verbatim}
+
+\begin{warningbox}
+\textbf{주의}: ZJU-MoCap의 T는 \textbf{밀리미터} 단위. VGGT의 t는 정규화된 좌표 ($\sim$0--1.3). 변환 시 스케일 팩터를 곱해야 한다 (또는 코드에서 \texttt{T / 1000.0} 하는 부분을 조정).
+\end{warningbox}
+
+
+\section{학습 전략 (Config 변경)}
+
+\begin{table}[H]
+\centering
+\caption{단안 vs 다시점 Config 비교}
+\renewcommand{\arraystretch}{1.3}
+\begin{tabular}{l c c p{4cm}}
+\toprule
+\textbf{파라미터} & \textbf{단안 (기본)} & \textbf{7시점 (제안)} & \textbf{이유} \\
+\midrule
+\texttt{TOTAL\_steps} & 3,000 & \textbf{7,000} & 7배 데이터 $\rightarrow$ $\sim$2.3배 스텝 \\
+\texttt{N\_POSES\_PER\_STEP} & 1 & \textbf{4} & GPU 메모리 허용 범위 내 병렬 렌더링 \\
+\texttt{IMAGE\_ZOOM\_RATIO} & 0.5 & \textbf{0.25} & 1920$\times$1080 $\rightarrow$ 480$\times$270 (메모리 절약) \\
+\texttt{MAX\_SPH\_ORDER} & 1 & \textbf{2} & 다시점 $\rightarrow$ 더 많은 SH 계수 학습 가능 \\
+\texttt{DENSIFY\_END} & 2,400 & \textbf{5,000} & 더 긴 학습에 맞춰 연장 \\
+\texttt{POSE\_OPT\_START} & 1,500 & \textbf{3,500} & 캐노니컬 가우시안 안정화 후 포즈 정제 시작 \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+
+\section{다시점이 주는 구체적 이점}
+
+\begin{enumerate}[leftmargin=*]
+  \item \textbf{스키닝 가중치 학습 강화}: 정면에서 보이지 않는 등 쪽 가우시안도 후면 카메라에서 supervision을 받음
+  \item \textbf{SH 색상 학습 향상}: 7개 시점 방향 $\rightarrow$ SH order 2 (9개 계수)를 안정적으로 학습
+  \item \textbf{자기 가림(self-occlusion) 해소}: 한 카메라에서 가려진 관절이 다른 카메라에서 보임
+  \item \textbf{포즈 정제 정확도}: 7개 뷰의 photometric loss $\rightarrow$ SMPL 포즈 자유도 88개를 더 강하게 구속
+  \item \textbf{정량적}: 1프레임 $\times$ 7카메라 $\times$ 480$\times$270 = \textbf{$\sim$907K pixel supervision} (단안의 7배)
+\end{enumerate}
+
+\begin{summary}[title={다시점 확장 요약}]
+\begin{itemize}[leftmargin=*]
+  \item \textbf{코드 변경}: \texttt{training\_view} 1줄 + config 조정
+  \item \textbf{데이터 변환}: VGGT + EasyMocap 출력 $\rightarrow$ annots.npy + smpl\_params/ 변환 스크립트 작성
+  \item \textbf{학습 시간}: A100에서 $\sim$30--60분 (7,000 스텝)
+  \item \textbf{근본적 아키텍처 수정}: 불필요. GART는 이미 다시점을 지원.
+\end{itemize}
+\end{summary}
+
+
+% ====================================================================
+\chapter{근본적 한계와 신경 렌더링}
+% ====================================================================
+
+\section{한계 1: 240Hz에서 7프레임 (가속 단계)}
+
+\begin{table}[H]
+\centering
+\caption{투구 단계별 프레임 수 및 신경 렌더링 영향}
+\renewcommand{\arraystretch}{1.3}
+\begin{tabular}{l c c p{5cm}}
+\toprule
+\textbf{투구 단계} & \textbf{시간} & \textbf{프레임 (@240Hz)} & \textbf{신경 렌더링 영향} \\
+\midrule
+Wind-up & $\sim$1.0s & $\sim$240 & 충분. GART 학습에 이상적 \\
+Stride & $\sim$0.5s & $\sim$120 & 충분 \\
+Arm cocking & $\sim$0.15s & $\sim$36 & 가능하나 temporal 정규화 필요 \\
+\textbf{Acceleration} & \textbf{$\sim$0.03s} & \textbf{$\sim$7} & \textcolor{hard}{\textbf{부족. 모션 블러 + 학습 데이터 부족}} \\
+Deceleration & $\sim$0.35s & $\sim$84 & 충분 \\
+Follow-through & $\sim$0.5s & $\sim$120 & 충분 \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\begin{limitbox}
+\textbf{가속 단계에서 신경 렌더링의 한계}:
+\begin{itemize}[leftmargin=*]
+  \item 7프레임으로는 GART의 per-frame 가우시안 외형을 학습하기 어려움
+  \item 모션 블러로 photometric loss의 gradient가 부정확
+  \item 프레임 간 29\textdegree/frame 변화 $\rightarrow$ 이전 프레임의 가우시안 위치가 다음 프레임의 초기값으로 부적합
+\end{itemize}
+\end{limitbox}
+
+\subsection{대응 전략}
+
+\begin{enumerate}[leftmargin=*]
+  \item \textbf{다시점 보상}: 7대 카메라 $\times$ 7프레임 = 49장의 학습 이미지. 단안 GART(1장/프레임)보다 7배 많은 supervision.
+
+  \item \textbf{Phase-aware training}: 투구 단계별로 GART 학습 전략 분리.
+  \begin{itemize}
+    \item Wind-up$\sim$Stride: 표준 학습 (캐노니컬 가우시안 초기화에 사용)
+    \item Acceleration: 높은 학습률 + temporal smoothing 완화 + 캐노니컬 가우시안 고정 (포즈만 최적화)
+  \end{itemize}
+
+  \item \textbf{목표 재정의}: 가속 단계의 \textit{외형 재구성}은 포기. 대신 \textit{포즈 정제}에 집중.
+  7대 카메라의 silhouette + keypoint loss만으로 가속 구간의 $\vtheta$를 정제.
+\end{enumerate}
+
+
+\section{한계 2: 7대 카메라 (기존 연구는 20+대)}
+
+\begin{table}[H]
+\centering
+\caption{카메라 수 vs 신경 렌더링 품질}
+\renewcommand{\arraystretch}{1.3}
+\begin{tabular}{l c l}
+\toprule
+\textbf{방법} & \textbf{사용 카메라} & \textbf{비고} \\
+\midrule
+ZJU-MoCap (원본 GART 벤치마크) & 21대 & 동기화, 고정 위치 \\
+Human3.6M & 4대 & 낮은 해상도 \\
+\textbf{우리 데이터} & \textbf{7대} & 240Hz, 고해상도 \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\begin{keyidea}
+7대는 21대보다 적지만, 각 카메라가 1920$\times$1080 @ 240Hz라는 점이 보상 요인.
+\begin{itemize}[leftmargin=*]
+  \item 1프레임에서 7 viewpoint $\times$ 2M pixel = \textbf{14M pixel supervision}
+  \item ZJU-MoCap: 21 viewpoint $\times$ 1024$\times$1024 = 22M pixel (비슷한 규모)
+  \item 시간 축으로 누적하면 7대 $\times$ 100프레임 = 700장 $\gg$ 충분
+\end{itemize}
+\end{keyidea}
+
+
+\section{한계 3: SMPL 초기값 품질}
+
+이것이 \textbf{현재 가장 중요한 병목}이다.
+
+\begin{figure}[H]
+\centering
+\begin{tikzpicture}[
+  block/.style={rectangle, rounded corners=4pt, minimum width=4cm, minimum height=1cm,
+    font=\small, align=center},
+  good/.style={block, draw=thmgreen, fill=thmgreen!10, text=thmgreen!80!black},
+  bad/.style={block, draw=hard, fill=hard!10, text=hard!80!black},
+  mid/.style={block, draw=noteorange, fill=noteorange!10, text=noteorange!80!black},
+  arrow/.style={-Stealth, thick}
+]
+\node[good] (good) at (0, 2) {\textbf{Good SMPL init}\\MPJPE $< 50$mm};
+\node[mid] (mid) at (0, 0) {\textbf{Moderate SMPL init}\\MPJPE 50--100mm};
+\node[bad] (bad) at (0, -2) {\textbf{Bad SMPL init}\\MPJPE $> 100$mm};
+
+\node[good, minimum width=5cm] (g1) at (8, 2) {GART 학습 성공\\포즈 정제로 $< 30$mm 달성 가능};
+\node[mid, minimum width=5cm] (g2) at (8, 0) {3DGS-Avatar (JMBO)\\joint opt.로 보정 가능};
+\node[bad, minimum width=5cm] (g3) at (8, -2) {SkelSplat 또는\\HMR $\rightarrow$ 3DGS-Avatar로 우회};
+
+\draw[arrow, thmgreen] (good) -- (g1);
+\draw[arrow, noteorange] (mid) -- (g2);
+\draw[arrow, hard] (bad) -- (g3);
+\end{tikzpicture}
+\caption{SMPL 초기값 품질에 따른 신경 렌더링 전략}
+\end{figure}
+
+
+% ====================================================================
+\chapter{VGGT 이후: 구체적 실행 계획}
+% ====================================================================
+
+\section{Phase A: SMPL 피팅 확보 (즉시 실행)}
+
+\begin{pipelinebox}[title={A1. VGGT $\rightarrow$ EasyMocap (1일)}]
+\begin{enumerate}[leftmargin=*]
+  \item \texttt{vggt\_to\_easymocap.py} 실행: VGGT JSON $\rightarrow$ intri.yml + extri.yml
+  \item EasyMocap \texttt{mv1p.py} 실행: 삼각측량 + SMPL 피팅
+  \item 검증: reprojection error, MPJPE, SMPL 오버레이 시각화
+\end{enumerate}
+\textbf{성공 기준}: MPJPE $< 50$mm, reprojection error $< 10$px
+\end{pipelinebox}
+
+\begin{pipelinebox}[title={A2. Fallback: smplx 직접 피팅 (2--3일)}]
+EasyMocap 실패 시:
+\begin{enumerate}[leftmargin=*]
+  \item VGGT K, R, t로 OpenPose 2D $\rightarrow$ DLT 삼각측량 (직접 구현)
+  \item smplx + PyTorch로 3D keypoint $\rightarrow$ SMPL 직접 피팅
+  \item Full SMPL\_NEUTRAL.pkl (21MB) + $\lambda_\theta = 0.0001$
+  \item 4-stage coarse-to-fine: global $\rightarrow$ shape $\rightarrow$ pose $\rightarrow$ joint
+\end{enumerate}
+\end{pipelinebox}
+
+\begin{pipelinebox}[title={A3. Extreme Fallback: HMR 초기값 (1일)}]
+삼각측량 자체가 실패 시:
+\begin{enumerate}[leftmargin=*]
+  \item 각 카메라에서 독립적으로 HMR2.0 / SMPLest-X 실행
+  \item 7대 카메라의 SMPL 추정값 평균으로 초기화
+  \item 3DGS-Avatar (JMBO)로 joint optimization
+\end{enumerate}
+\end{pipelinebox}
+
+
+\section{Phase B: 신경 렌더링 (SMPL 확보 후)}
+
+\begin{pipelinebox}[title={B1. GART 학습 (1순위, 1--2일)}]
+\begin{enumerate}[leftmargin=*]
+  \item 데이터 준비: 7 cameras $\times$ 100 frames, SMPL per frame, K/R/t
+  \item GART 포맷으로 변환 (ZJU-MoCap 스타일)
+  \item 캐노니컬 가우시안 학습 (wind-up 구간 중심)
+  \item 전체 시퀀스 포즈 정제 (photometric + silhouette loss)
+\end{enumerate}
+
+\textbf{코드}: \texttt{github.com/JiahuiLei/GART}\\
+\textbf{입력}: images, masks, SMPL params, cameras\\
+\textbf{출력}: 정제된 $(\vtheta, \vbeta)$ per frame + animatable avatar
+\end{pipelinebox}
+
+\begin{pipelinebox}[title={B2. 다시점 확장 (GART 수정)}]
+원본 GART는 단안 기반. 다시점으로 확장:
+\begin{enumerate}[leftmargin=*]
+  \item Rendering loss를 7대 카메라 모두에서 계산
+  \item 각 프레임에서 7개 뷰의 photometric loss 합산
+  \item 카메라별 K, R, t를 학습 시 고정 (calibration 신뢰)
+\end{enumerate}
+
+\textbf{수정 범위}: GART의 \texttt{train.py}에서 데이터 로더 + loss 계산 부분
+\end{pipelinebox}
+
+
+\section{Phase C: 생체역학 분석 (GART 성공 후)}
+
+\begin{pipelinebox}[title={C1. SMPL $\rightarrow$ OpenSim 연결 (3--5일)}]
+\begin{enumerate}[leftmargin=*]
+  \item GART 출력 $(\vtheta, \vbeta)$ $\rightarrow$ smplx FK $\rightarrow$ 메시 정점
+  \item SMPL2AddBiomechanics: 가상 마커 추출 $\rightarrow$ TRC
+  \item AddBiomechanics: TRC $\rightarrow$ 스케일링된 .osim + IK .mot
+  \item 관절 각도, angular velocity 추출
+\end{enumerate}
+
+\textbf{코드}: \texttt{github.com/MarilynKeller/SMPL2AddBiomechanics}\\
+\textbf{출력}: ISB 관절 각도, MER, 어깨 내회전 속도
+\end{pipelinebox}
+
+\begin{pipelinebox}[title={C2. Vicon 검증 (1--2일)}]
+서버에 Vicon 데이터 존재 (\texttt{pipeline/data/vicon/}).
+\begin{enumerate}[leftmargin=*]
+  \item RGB $\leftrightarrow$ Vicon 시간 동기화 (LED 또는 이벤트 기반)
+  \item Vicon 마커 기반 관절 각도 추출 (GT)
+  \item GART-Pitch vs Vicon: Bland-Altman, ICC, RMSE 비교
+\end{enumerate}
+\end{pipelinebox}
+
+
+% ====================================================================
+\chapter{의사결정 트리}
+% ====================================================================
+
+\begin{figure}[H]
+\centering
+\begin{tikzpicture}[
+  decision/.style={diamond, draw=defblue, fill=lightblue, minimum width=3cm,
+    minimum height=1.2cm, font=\small, align=center, inner sep=2pt},
+  action/.style={rectangle, rounded corners=4pt, draw=thmgreen, fill=thmgreen!10,
+    minimum width=3cm, minimum height=0.8cm, font=\small, align=center},
+  fail/.style={rectangle, rounded corners=4pt, draw=noteorange, fill=noteorange!10,
+    minimum width=3cm, minimum height=0.8cm, font=\small, align=center},
+  arrow/.style={-Stealth, thick},
+  yeslabel/.style={font=\tiny\color{thmgreen}, midway, above},
+  nolabel/.style={font=\tiny\color{hard}, midway, above}
+]
+
+% Level 1
+\node[decision] (d1) at (0, 0) {VGGT K로\\EasyMocap\\성공?};
+\node[action] (a1) at (4, 1) {GART 학습\\(Phase B1)};
+\node[decision] (d2) at (4, -1.5) {smplx 직접\\피팅 성공?};
+
+\draw[arrow] (d1) -- node[yeslabel] {Yes} (a1);
+\draw[arrow] (d1) -- node[nolabel, below] {No} (d2);
+
+% Level 2
+\node[action] (a2) at (8, -0.5) {GART 학습\\(Phase B1)};
+\node[decision] (d3) at (8, -3) {HMR 초기값\\+ 3DGS-Avatar?};
+
+\draw[arrow] (d2) -- node[yeslabel] {Yes} (a2);
+\draw[arrow] (d2) -- node[nolabel, below] {No} (d3);
+
+% Level 3
+\node[action] (a3) at (12, -2) {3DGS-Avatar\\JMBO (Phase B alt)};
+\node[fail] (f1) at (12, -4) {SkelSplat\\(SMPL-free)};
+
+\draw[arrow] (d3) -- node[yeslabel] {Yes} (a3);
+\draw[arrow] (d3) -- node[nolabel, below] {No} (f1);
+
+% After GART
+\node[decision] (d4) at (4, 3) {GART 포즈\\정제 성공?};
+\node[action] (a4) at (8, 4) {SMPL2AddBiomech\\$\rightarrow$ OpenSim};
+\node[fail] (f2) at (8, 2) {multi-cue loss\\추가 (kp+sil)};
+
+\draw[arrow] (a1) -- (d4);
+\draw[arrow] (a2) -- (d4);
+\draw[arrow] (d4) -- node[yeslabel] {Yes} (a4);
+\draw[arrow] (d4) -- node[nolabel, below] {No} (f2);
+\draw[arrow, dashed, gray] (f2) -- (a4);
+
+\end{tikzpicture}
+\caption{SMPL 품질에 따른 의사결정 트리}
+\end{figure}
+
+
+% ====================================================================
+\chapter{최종 요약: 무엇을 해야 하는가}
+% ====================================================================
+
+\begin{summary}
+\textbf{즉시 실행 (오늘--내일)}:
+\begin{enumerate}[leftmargin=*]
+  \item \texttt{vggt\_to\_easymocap.py} 서버 실행 $\rightarrow$ intri.yml, extri.yml 생성
+  \item EasyMocap \texttt{mv1p.py} 실행 $\rightarrow$ SMPL 피팅
+  \item Reprojection error + SMPL 오버레이 검증
+\end{enumerate}
+
+\textbf{SMPL 확보 후 (2--3일)}:
+\begin{enumerate}[leftmargin=*]
+  \setcounter{enumi}{3}
+  \item GART 데이터 포맷 변환 (7 cams $\rightarrow$ ZJU-MoCap 스타일)
+  \item GART 학습 (A100에서 $\sim$30분)
+  \item 다시점 rendering loss 확장 (코드 수정)
+  \item 포즈 정제 결과 검증 (MPJPE, 시각화)
+\end{enumerate}
+
+\textbf{신경 렌더링 성공 후 (3--5일)}:
+\begin{enumerate}[leftmargin=*]
+  \setcounter{enumi}{7}
+  \item SMPL2AddBiomechanics $\rightarrow$ TRC $\rightarrow$ OpenSim IK
+  \item 관절 각도 + angular velocity 추출
+  \item Vicon 데이터와 비교 검증
+\end{enumerate}
+
+\textbf{논문 작성 가능 시점}: Phase C 완료 후, ``다시점 RGB만으로 투구 생체역학 분석''이라는 제목의 논문 가능. 핵심 기여:
+\begin{itemize}[leftmargin=*]
+  \item VGGT 기반 mixed-orientation 카메라 캘리브레이션
+  \item GART의 다시점 확장 (7 cameras, 240Hz)
+  \item 고속 스포츠 동작에서의 신경 렌더링 기반 포즈 정제
+  \item GART $\rightarrow$ SMPL2AddBiomechanics $\rightarrow$ OpenSim 통합 파이프라인
+\end{itemize}
+\end{summary}
+
+
+\end{document}

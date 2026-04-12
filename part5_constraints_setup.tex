@@ -1,0 +1,713 @@
+\documentclass[11pt, a4paper]{report}
+
+\input{preamble/packages}
+\usepackage{multirow}
+\input{preamble/colors}
+\input{preamble/tcolorboxes}
+\input{preamble/commands}
+\input{preamble/listings}
+\input{preamble/formatting}
+
+\begin{document}
+
+% ==================== TITLE PAGE ====================
+\begin{titlepage}
+\centering
+\vspace*{1.5cm}
+{\Large\color{constraintred} GART-Pitch --- Revised}
+\vspace{0.5cm}
+
+{\Huge\bfseries\color{defblue} 실제 데이터 기반\\[0.3cm]
+제한사항 분석 및\\[0.3cm]
+개발 세팅 가이드}
+
+\vspace{0.8cm}
+
+{\LARGE\color{defblue!70!black} 현재 보유 데이터의 실측 사양, 제약조건,\\
+그리고 이를 극복하기 위한 구체적 전략}
+
+\vspace{1.5cm}
+
+\begin{tikzpicture}[
+  constraint/.style={rectangle, rounded corners=4pt, draw=constraintred, fill=constraintred!10,
+    minimum width=3.5cm, minimum height=0.7cm, font=\small\bfseries, text=constraintred!80!black, align=center},
+  solution/.style={rectangle, rounded corners=4pt, draw=thmgreen, fill=thmgreen!10,
+    minimum width=3.5cm, minimum height=0.7cm, font=\small\bfseries, text=thmgreen!80!black, align=center},
+  arrow/.style={-Stealth, very thick}
+]
+\node[constraint] (c1) at (0, 2) {Vicon 240Hz\\(250--500Hz 아님)};
+\node[constraint] (c2) at (0, 0.5) {체커보드 없음\\(공간 보정 미비)};
+\node[constraint] (c3) at (0, -1) {Vicon $\leftrightarrow$ RGB\\시간 미동기화};
+
+\node[solution] (s1) at (7, 2) {동일 프레임레이트\\$\rightarrow$ 1:1 대응 가능};
+\node[solution] (s2) at (7, 0.5) {COLMAP SfM\\+ Vicon 3D 정합};
+\node[solution] (s3) at (7, -1) {동작 기반\\크로스-상관 동기화};
+
+\draw[arrow, constraintred!60] (c1.east) -- (s1.west);
+\draw[arrow, constraintred!60] (c2.east) -- (s2.west);
+\draw[arrow, constraintred!60] (c3.east) -- (s3.west);
+\end{tikzpicture}
+
+\vspace{1.5cm}
+{\large 2026}
+
+\vspace{\fill}
+{\small\color{gray} 실제 촬영된 데이터(\texttt{data/} 폴더)의 정확한 사양을 기반으로\\
+연구 제안서(Part 5)와 개발 세팅 가이드를 현실에 맞게 수정합니다.}
+\end{titlepage}
+
+\tableofcontents
+\newpage
+
+
+% ====================================================================
+% CHAPTER 1: 실제 데이터 사양
+% ====================================================================
+\chapter{실제 데이터 사양}
+\label{ch:data_spec}
+
+\section{보유 데이터 전체 현황}
+
+\begin{databox}[title={데이터 위치: \texttt{data/}}]
+\begin{lstlisting}[language=bash, numbers=none]
+data/
+  markerless/subject_1/set_002/    # 마커리스 7대 카메라
+    device1_synced.MOV  (10.5 MB)  # portrait 1080x1920
+    device2_synced.MOV  ( 8.8 MB)  # landscape 1920x1080
+    device3_synced.MOV  ( 6.5 MB)  # landscape 1920x1080
+    device4_synced.MOV  ( 6.0 MB)  # landscape 1920x1080
+    device5_synced.MOV  ( 7.7 MB)  # landscape 1920x1080
+    device6_synced.MOV  ( 5.7 MB)  # landscape 1920x1080
+    device7_synced.MOV  ( 6.3 MB)  # landscape 1920x1080
+    sync_offsets.json               # 카메라 간 동기화 오프셋
+    _synced_meta.json               # 원본 경로 및 트림 정보
+  markerbased/subject_1/set_002/   # Vicon 마커 기반
+    set_002.c3d  (2.9 MB)          # 3D 마커 궤적 + 포스플레이트
+    set_002.csv  (4.3 MB)          # Nexus 내보내기 (이벤트+데이터)
+\end{lstlisting}
+\end{databox}
+
+
+\section{마커리스 데이터 상세 사양}
+
+\begin{table}[H]
+\centering
+\caption{RGB 카메라 영상 사양 (실측)}
+\label{tab:rgb_spec}
+\renewcommand{\arraystretch}{1.3}
+\begin{tabular}{lccccc}
+\toprule
+\textbf{카메라} & \textbf{해상도} & \textbf{방향} & \textbf{fps} & \textbf{코덱} & \textbf{프레임 수} \\
+\midrule
+device1 & 1080$\times$1920 & \textbf{portrait} & 240 & H.264 & 999 \\
+device2 & 1920$\times$1080 & landscape & 240 & H.264 & 999 \\
+device3 & 1920$\times$1080 & landscape & 240 & H.264 & 1000 \\
+device4 & 1920$\times$1080 & landscape & 240 & H.264 & 1000 \\
+device5 & 1920$\times$1080 & landscape & 240 & H.264 & 1000 \\
+device6 & 1920$\times$1080 & landscape & 240 & H.264 & 1000 \\
+device7 & 1920$\times$1080 & landscape & 240 & H.264 & 1000 \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\begin{itemize}[leftmargin=*]
+  \item \textbf{영상 길이}: 약 4.17초 ($\sim$1000 프레임 / 240 fps)
+  \item \textbf{카메라 간 동기화}: \textbf{완료됨} (\texttt{\_synced\_meta.json}에 트림 타임스탬프 기록)
+  \item \textbf{device1은 portrait 모드}: 후방 카메라로, 투수의 전신 수직 궤적 포착용
+  \item \textbf{트림 구간}: 약 3.2--7.5초 구간이 잘려 나옴 (원본에서 투구 동작 포함 구간)
+\end{itemize}
+
+
+\section{마커 기반 데이터 상세 사양}
+
+\begin{table}[H]
+\centering
+\caption{Vicon 데이터 사양 (실측)}
+\label{tab:vicon_spec}
+\renewcommand{\arraystretch}{1.3}
+\begin{tabular}{ll}
+\toprule
+\textbf{항목} & \textbf{값} \\
+\midrule
+프레임 레이트 & \textbf{240 Hz} \\
+프레임 범위 & 512 -- 1386 \\
+총 프레임 수 & 875 (= 3.65초) \\
+3D 마커 수 & 42개 (Plug-in Gait 전신) \\
+포스 플레이트 & 2개 (AMTI 400600), 1200 Hz (5$\times$ 서브프레임) \\
+스케일 팩터 & $-0.01$ (음수 = float 형식) \\
+단위 & mm \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\subsection{마커 목록 (Plug-in Gait 전신)}
+
+\begin{biomechbox}[title={42개 마커 --- 실측}]
+\textbf{머리(4)}: LFHD, RFHD, LBHD, RBHD
+
+\textbf{몸통(5)}: C7, T10, CLAV, STRN, RBAK
+
+\textbf{좌측 상지(7)}: LSHO, LUPA, LELB, LFRM, LWRA, LWRB, LFIN
+
+\textbf{우측 상지(7)}: RSHO, RUPA, RELB, RFRM, RWRA, RWRB, RFIN
+
+\textbf{골반(4)}: LASI, RASI, LPSI, RPSI
+
+\textbf{좌측 하지(7)}: LTHI, LKNE, LTIB, LANK, LHEE, LTOE, LGT
+
+\textbf{우측 하지(7)}: RTHI, RKNE, RTIB, RANK, RHEE, RTOE, RGT
+
+\textbf{기타}: 보정 마커 없음 (보정은 별도 세션에서 수행된 것으로 추정)
+\end{biomechbox}
+
+\subsection{CSV 파일 구조}
+
+\begin{table}[H]
+\centering
+\caption{CSV 파일 섹션 구조}
+\label{tab:csv_structure}
+\renewcommand{\arraystretch}{1.2}
+\begin{tabular}{lll}
+\toprule
+\textbf{라인} & \textbf{섹션} & \textbf{내용} \\
+\midrule
+1--2 & Events 헤더 & 이벤트 섹션 시작, 240 Hz \\
+3--14 & Events 데이터 & Foot Strike / Foot Off 이벤트 시각(초) \\
+15--4399 & Devices (포스플레이트) & AMTI $\times$2, Force/Moment/CoP @ 1200 Hz \\
+4400--5277 & Model Outputs & 바이오메카니컬 모델 출력 (세그먼트 회전 등) \\
+5278--6158 & \textbf{Trajectories} & \textbf{42개 마커 3D 궤적 @ 240 Hz (X,Y,Z mm)} \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\begin{importantnote}
+CSV의 Events 섹션에 \textbf{Foot Strike / Foot Off} 이벤트가 수동으로 라벨링되어 있다.
+이는 투구 동작의 단계 분할에 활용할 수 있는 중요한 정보이다.
+다만, 이 이벤트들의 시각은 \textbf{Vicon 시간 기준}이므로
+RGB와의 시간 정합 후에만 의미가 있다.
+\end{importantnote}
+
+
+% ====================================================================
+% CHAPTER 2: 3가지 핵심 제한사항 분석
+% ====================================================================
+\chapter{3가지 핵심 제한사항 분석}
+\label{ch:constraints}
+
+\begin{figure}[H]
+\centering
+\begin{tikzpicture}[
+  cbox/.style={rectangle, rounded corners=5pt, draw=constraintred, fill=constraintred!8,
+    minimum width=4cm, minimum height=1.2cm, align=center, font=\small\bfseries},
+  impact/.style={rectangle, rounded corners=3pt, draw=noteorange, fill=lightorange,
+    minimum width=3.5cm, align=center, font=\scriptsize},
+  severity/.style={circle, draw, minimum size=0.7cm, font=\scriptsize\bfseries}
+]
+% Constraints
+\node[cbox] (c1) at (0, 4) {제한 1\\Vicon 240 Hz\\(250--500 Hz 아님)};
+\node[cbox] (c2) at (0, 0) {제한 2\\체커보드 없음\\(공간 보정 미비)};
+\node[cbox] (c3) at (0, -4) {제한 3\\Vicon $\leftrightarrow$ RGB\\시간 미동기화};
+
+% Severity
+\node[severity, fill=lightgreen, text=thmgreen] at (-3, 4) {낮};
+\node[severity, fill=lightorange, text=noteorange] at (-3, 0) {중};
+\node[severity, fill=lightred, text=darkred] at (-3, -4) {높};
+
+% Impacts
+\node[impact] (i1) at (6, 4.5) {프레임 레이트 동일\\$\rightarrow$ 오히려 장점};
+\node[impact] (i1b) at (6, 3.2) {기존 교재 가정\\(250--500Hz)과 다름};
+
+\node[impact] (i2) at (6, 0.5) {COLMAP으로\\카메라 보정 가능};
+\node[impact] (i2b) at (6, -0.8) {Vicon-RGB 좌표계\\직접 정합 불가};
+
+\node[impact] (i3) at (6, -3.5) {프레임 대응 불가\\$\rightarrow$ 검증 불가능};
+\node[impact] (i3b) at (6, -4.8) {\textbf{반드시 해결 필요}};
+
+\draw[-Stealth, gray] (c1.east) -- (i1.west);
+\draw[-Stealth, gray] (c1.east) -- (i1b.west);
+\draw[-Stealth, gray] (c2.east) -- (i2.west);
+\draw[-Stealth, gray] (c2.east) -- (i2b.west);
+\draw[-Stealth, gray] (c3.east) -- (i3.west);
+\draw[-Stealth, gray] (c3.east) -- (i3b.west);
+\end{tikzpicture}
+\caption{3가지 제한사항의 심각도와 영향. 시간 동기화 미비가 가장 심각하다.}
+\label{fig:constraints}
+\end{figure}
+
+
+% ====================================================================
+\section{제한 1: Vicon 240 Hz (심각도: 낮음)}
+\label{sec:constraint1}
+
+\begin{constraintbox}[title={제한 1: Vicon 프레임레이트}]
+교재에서는 Vicon을 250--500 Hz로 가정했으나, 실제 데이터는 \textbf{240 Hz}로 촬영되었다.
+\end{constraintbox}
+
+\subsection{영향 분석}
+
+\begin{solutionbox}[title={오히려 장점이 된다}]
+\textbf{Vicon과 RGB가 모두 240 Hz}이므로:
+\begin{enumerate}[nosep]
+  \item 프레임 간 \textbf{1:1 대응}이 가능하다 (보간 불필요)
+  \item 시간 오프셋만 찾으면, 프레임 번호 = 프레임 번호로 직접 매칭
+  \item 기존 교재의 250/500 Hz 대비 시간 해상도가 약간 낮지만,
+        투구 가속 단계(30 ms)에서도 240 fps $\times$ 0.03 s = \textbf{7.2 프레임}이므로 충분
+\end{enumerate}
+\end{solutionbox}
+
+\subsection{필요한 수정}
+
+\begin{itemize}[leftmargin=*]
+  \item 교재/논문의 ``250--500 Hz'' 언급을 ``240 Hz''로 수정
+  \item 보간(interpolation) 관련 코드 불필요 (동일 fps이므로)
+  \item 포스 플레이트는 1200 Hz (5$\times$ 서브프레임) --- 역동역학에서 다운샘플링 또는 업샘플링 선택 필요
+\end{itemize}
+
+
+% ====================================================================
+\section{제한 2: 체커보드 없음 (심각도: 중간)}
+\label{sec:constraint2}
+
+\begin{constraintbox}[title={제한 2: 공간 보정 도구 부재}]
+체커보드/ChArUco 보드 촬영이 없어, 전통적인 스테레오 보정 방법을 사용할 수 없다.
+특히 \textbf{Vicon 좌표계와 RGB 좌표계 간의 직접적인 정합 수단이 없다.}
+\end{constraintbox}
+
+\subsection{영향 분석}
+
+두 가지 별도의 보정 문제가 존재한다:
+
+\begin{enumerate}[leftmargin=*]
+  \item \textbf{RGB 카메라 간 보정 (내부/외부 파라미터)}:
+        $\rightarrow$ \textbf{COLMAP SfM으로 해결 가능}. 영상 내 자연 특징점으로 보정.
+
+  \item \textbf{Vicon 좌표계 $\leftrightarrow$ RGB 좌표계 정합}:
+        $\rightarrow$ \textbf{간접적 방법 필요}. 체커보드 위에 Vicon 마커를 붙여 동시에 보는 것이 일반적이지만,
+        이 데이터에서는 불가능.
+\end{enumerate}
+
+\subsection{해결 전략}
+
+\begin{solutionbox}[title={Strategy A: 마커 위치 기반 3D-3D 정합}]
+Vicon 마커의 3D 위치와 RGB에서 추정한 3D 관절 위치를 대응시켜 좌표계를 정합한다.
+
+\textbf{절차}:
+\begin{enumerate}[nosep]
+  \item RGB 7대에서 COLMAP으로 카메라 파라미터 추정
+  \item RGB에서 2D 키포인트 추출 (ViTPose) $\rightarrow$ 삼각측량으로 3D 관절 위치
+  \item Vicon 마커 중 대응하는 관절 식별 (예: RELB $\leftrightarrow$ right elbow)
+  \item 대응점 쌍으로 Procrustes 정합 (회전 $\mathbf{R}$, 이동 $\mathbf{t}$, 스케일 $s$):
+\end{enumerate}
+\begin{equation}
+  \mathbf{R}^*, \mathbf{t}^*, s^* = \arg\min_{\mathbf{R}, \mathbf{t}, s}
+  \sum_{i=1}^{N} \left\| s\mathbf{R}\,\vp_i^{\text{RGB}} + \mathbf{t} - \vp_i^{\text{Vicon}} \right\|^2
+\end{equation}
+\textbf{대응 마커 쌍 (최소 4개, 권장 8+개)}:
+\begin{center}
+\small
+\begin{tabular}{ll}
+\toprule
+\textbf{Vicon 마커} & \textbf{키포인트 (COCO)} \\
+\midrule
+RSHO & right\_shoulder (5) \\
+RELB & right\_elbow (7) \\
+RWRA/RWRB 중점 & right\_wrist (9) \\
+LSHO & left\_shoulder (6) \\
+LELB & left\_elbow (8) \\
+LWRA/LWRB 중점 & left\_wrist (10) \\
+RKNE & right\_knee (13) \\
+LKNE & left\_knee (14) \\
+RANK & right\_ankle (15) \\
+LANK & left\_ankle (16) \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+\textbf{주의}: 대응점의 정확도는 RGB 삼각측량의 정확도에 의존하므로,
+여러 프레임의 대응을 사용하여 강건한 정합을 수행한다 (RANSAC 적용 가능).
+\end{solutionbox}
+
+\begin{solutionbox}[title={Strategy B: SMPL-X 매개 정합 (더 정확)}]
+SMPL-X를 중간 표현으로 사용하여 두 좌표계를 연결한다.
+
+\begin{enumerate}[nosep]
+  \item RGB에서 SMPL-X 피팅 $\rightarrow$ SMPL-X 메시의 가상 마커 위치 추출
+  \item Vicon Plug-in Gait 마커 위치와 SMPL-X 가상 마커 위치를 대응
+  \item Procrustes 정합 (더 많은 대응점 사용 가능, 메시 표면 전체 활용)
+\end{enumerate}
+이 방법은 Strategy A보다 더 많은 대응점을 생성할 수 있어 정합 정확도가 높다.
+\end{solutionbox}
+
+
+% ====================================================================
+\section{제한 3: Vicon $\leftrightarrow$ RGB 시간 미동기화 (심각도: 높음)}
+\label{sec:constraint3}
+
+\begin{constraintbox}[title={제한 3: 시간 동기화 미비 --- \textbf{가장 심각}}]
+RGB 7대 카메라는 서로 동기화되어 있지만,
+\textbf{Vicon 시스템과 RGB 카메라 간의 시간 동기화가 이루어지지 않았다.}
+따라서 ``Vicon 프레임 $n$이 RGB 프레임 $m$에 대응한다''는 것을 현재 알 수 없다.
+\end{constraintbox}
+
+\subsection{영향 분석}
+
+\begin{warningbox}
+시간 동기화 없이는 \textbf{GART-Pitch의 핵심 검증이 불가능하다}:
+\begin{itemize}[nosep]
+  \item Vicon 관절 각도와 RGB 기반 관절 각도를 프레임별로 비교할 수 없음
+  \item MPJPE, RMSE, ICC 등 모든 정량적 지표 산출 불가
+  \item 투구 위상별 정확도 분석 불가
+\end{itemize}
+\textbf{반드시 해결해야 하는 제한사항이다.}
+\end{warningbox}
+
+\subsection{현재 상태 분석}
+
+\begin{table}[H]
+\centering
+\caption{시간 범위 비교}
+\label{tab:time_ranges}
+\renewcommand{\arraystretch}{1.3}
+\begin{tabular}{lcccc}
+\toprule
+\textbf{소스} & \textbf{시작} & \textbf{끝} & \textbf{길이} & \textbf{프레임 수} \\
+\midrule
+RGB (동기화 후) & 0.0초 & 4.17초 & 4.17초 & $\sim$1000 \\
+Vicon & 프레임 512 & 프레임 1386 & 3.65초 & 875 \\
+& (2.13초) & (5.78초) & & \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+RGB 영상이 Vicon 데이터보다 약간 길다 (4.17초 vs 3.65초).
+두 시스템이 동시에 촬영을 시작하지 않았으므로,
+\textbf{시간 오프셋 $\Delta t$}를 찾아야 한다:
+$\text{Frame}_{\text{RGB}} = \text{Frame}_{\text{Vicon}} + \Delta t \times 240$
+
+\subsection{해결 전략}
+
+\begin{solutionbox}[title={Strategy 1: 동작 기반 크로스-상관 동기화 (권장)}]
+두 시스템에서 추출한 동일 물리량의 시간 신호를 크로스-상관하여 시간 오프셋을 찾는다.
+
+\textbf{절차}:
+\begin{enumerate}[nosep]
+  \item \textbf{RGB에서 신호 추출}: ViTPose로 2D 관절 추출 $\rightarrow$ 특정 관절(예: 우측 손목)의
+        $y$좌표 또는 이동 속도를 시간 신호로 생성
+  \item \textbf{Vicon에서 동일 신호 추출}: 대응 마커(RWRA)의 $z$좌표 (수직 성분) 시간 신호
+  \item \textbf{크로스-상관}: 두 신호의 상관 계수를 시간 이동(lag)의 함수로 계산
+  \item \textbf{최적 오프셋}: 상관 계수가 최대인 lag = 시간 오프셋
+\end{enumerate}
+
+\begin{equation}
+  \Delta t^* = \arg\max_{\Delta t} \sum_t s_{\text{RGB}}(t) \cdot s_{\text{Vicon}}(t + \Delta t)
+\end{equation}
+
+\textbf{정밀도}: 240 Hz에서 1 프레임 = 4.17 ms.
+크로스-상관의 전형적 정밀도는 $\pm$1--2 프레임이므로 $\sim$\textbf{4--8 ms} 정밀도.
+투구 분석에는 충분하다.
+\end{solutionbox}
+
+\begin{codebox}[title={크로스-상관 시간 동기화 코드}]
+\begin{lstlisting}[language=Python]
+import numpy as np
+from scipy.signal import correlate
+
+def find_time_offset(signal_rgb, signal_vicon, fps=240):
+    """
+    Find temporal offset between RGB and Vicon signals.
+
+    Args:
+        signal_rgb: 1D array, e.g. wrist_y from ViTPose
+        signal_vicon: 1D array, e.g. RWRA_z from Vicon
+        fps: frame rate (both must be same!)
+
+    Returns:
+        offset_frames: int, Vicon leads by this many frames
+        offset_sec: float
+        correlation: float, peak correlation value
+    """
+    # Normalize signals
+    s1 = (signal_rgb - np.mean(signal_rgb)) / np.std(signal_rgb)
+    s2 = (signal_vicon - np.mean(signal_vicon)) / np.std(signal_vicon)
+
+    # Cross-correlation
+    corr = correlate(s1, s2, mode='full')
+    corr /= max(len(s1), len(s2))  # normalize
+
+    # Find peak
+    lags = np.arange(-len(s2)+1, len(s1))
+    peak_idx = np.argmax(np.abs(corr))
+    offset_frames = lags[peak_idx]
+    offset_sec = offset_frames / fps
+
+    return offset_frames, offset_sec, corr[peak_idx]
+
+# Usage:
+# offset_f, offset_s, corr = find_time_offset(
+#     wrist_y_rgb, rwra_z_vicon, fps=240)
+# print(f"Offset: {offset_f} frames ({offset_s:.4f} sec)")
+# print(f"Correlation: {corr:.4f}")
+\end{lstlisting}
+\end{codebox}
+
+\begin{solutionbox}[title={Strategy 2: 이벤트 기반 동기화 (보조)}]
+CSV에 기록된 \textbf{Foot Strike / Foot Off 이벤트}를 활용한다.
+
+\begin{enumerate}[nosep]
+  \item Vicon CSV에서 이벤트 시각 추출 (예: ``Right Foot Strike'' at 2.129초)
+  \item RGB 영상에서 동일 이벤트를 시각적으로 식별 (발이 바닥에 닿는 프레임)
+  \item 두 시각의 차이 = 시간 오프셋
+\end{enumerate}
+
+이 방법은 크로스-상관 결과를 \textbf{검증}하는 데 사용한다.
+단독으로는 $\pm$2--3 프레임의 불확실성이 있다 (시각적 판별의 한계).
+\end{solutionbox}
+
+\begin{solutionbox}[title={Strategy 3: 복합 접근 (최종 권장)}]
+\begin{enumerate}[nosep]
+  \item \textbf{1차 추정}: 이벤트 기반으로 대략적 오프셋 추정 ($\pm$10 프레임)
+  \item \textbf{정밀 추정}: 크로스-상관으로 서브프레임 정밀도 달성
+  \item \textbf{검증}: 정합된 데이터에서 여러 관절의 동작 궤적을 시각적으로 오버레이하여 확인
+  \item \textbf{미세 조정}: Procrustes 정합 오차를 최소화하는 방향으로 $\pm$1 프레임 조정
+\end{enumerate}
+\end{solutionbox}
+
+
+% ====================================================================
+% CHAPTER 3: 수정된 파이프라인
+% ====================================================================
+\chapter{수정된 파이프라인}
+\label{ch:revised_pipeline}
+
+\begin{figure}[H]
+\centering
+\begin{tikzpicture}[
+  block/.style={rectangle, rounded corners=3pt, draw, minimum width=3cm, minimum height=0.8cm,
+    align=center, font=\small},
+  newblock/.style={block, draw=constraintred, very thick},
+  arrow/.style={-{Stealth[length=2mm]}, thick},
+  note/.style={font=\scriptsize\color{constraintred}, align=left}
+]
+% Stage 0
+\node[block, fill=lightorange] (data) at (0,0) {0. 데이터 로드\\RGB + Vicon};
+
+% NEW: Stage 0.5 - Time sync
+\node[newblock, fill=constraintred!10] (sync) at (0,-1.8)
+  {\textbf{0.5. 시간 동기화}\\동작 크로스-상관};
+\node[note, right=0.3cm] at (sync.east) {$\leftarrow$ \textbf{새로 추가}\\체커보드 없으므로\\동작 신호 기반};
+
+% Stage 1
+\node[block, fill=lightgray] (calib) at (0,-3.6) {1. 카메라 보정\\COLMAP SfM};
+\node[note, right=0.3cm] at (calib.east) {체커보드 대신\\자연 특징점 사용};
+
+% Stage 2
+\node[block, fill=lightblue] (pose2d) at (0,-5.2) {2. 2D 자세 추정\\ViTPose};
+
+% Stage 3
+\node[block, fill=cvpurple!15] (smpl) at (0,-6.8) {3. SMPL-X 피팅\\EasyMocap};
+
+% NEW: Stage 3.5 - Coordinate alignment
+\node[newblock, fill=constraintred!10] (align) at (0,-8.6)
+  {\textbf{3.5. 좌표계 정합}\\Vicon $\leftrightarrow$ RGB\\Procrustes 정합};
+\node[note, right=0.3cm] at (align.east) {$\leftarrow$ \textbf{새로 추가}\\체커보드 없으므로\\3D 관절 대응 기반};
+
+% Stage 4
+\node[block, fill=defblue!20] (gart) at (0,-10.4) {4. GART 학습\\+ 자세 정제};
+
+% Stage 5
+\node[block, fill=lightgreen] (bio) at (0,-12) {5. 생체역학\\OpenSim IK/ID};
+
+% Stage 6
+\node[block, fill=thmgreen!20] (val) at (0,-13.6) {6. Vicon 대비 검증\\(동기화된 프레임 사용)};
+
+% Arrows
+\draw[arrow] (data) -- (sync);
+\draw[arrow] (sync) -- (calib);
+\draw[arrow] (calib) -- (pose2d);
+\draw[arrow] (pose2d) -- (smpl);
+\draw[arrow] (smpl) -- (align);
+\draw[arrow] (align) -- (gart);
+\draw[arrow] (gart) -- (bio);
+\draw[arrow] (bio) -- (val);
+
+% Highlight new stages
+\draw[constraintred, very thick, dashed, rounded corners=8pt]
+  (-2.3, -1.1) rectangle (2.3, -2.5);
+\draw[constraintred, very thick, dashed, rounded corners=8pt]
+  (-2.3, -7.9) rectangle (2.3, -9.3);
+\end{tikzpicture}
+\caption{수정된 파이프라인. 빨간 점선 = 새로 추가된 단계 (제한사항 극복을 위해 필요).}
+\label{fig:revised_pipeline}
+\end{figure}
+
+
+\section{기존 파이프라인 대비 변경 사항 요약}
+
+\begin{table}[H]
+\centering
+\caption{기존 vs 수정 파이프라인}
+\label{tab:pipeline_diff}
+\renewcommand{\arraystretch}{1.3}
+\begin{tabularx}{\textwidth}{lXX}
+\toprule
+\textbf{단계} & \textbf{기존 (교재 가정)} & \textbf{수정 (실제 데이터)} \\
+\midrule
+시간 동기화 & 하드웨어 genlock 또는 오디오 기반 & \textbf{동작 신호 크로스-상관} \\
+\addlinespace
+Vicon fps & 250--500 Hz & \textbf{240 Hz} (RGB와 동일) \\
+\addlinespace
+카메라 보정 & 체커보드/ChArUco & \textbf{COLMAP SfM} (자연 특징점) \\
+\addlinespace
+좌표계 정합 & 체커보드 + Vicon 마커 동시 촬영 & \textbf{3D 관절 대응 Procrustes} \\
+\addlinespace
+보간 & Vicon 고주파 $\rightarrow$ RGB 저주파 보간 & \textbf{불필요} (동일 240 fps) \\
+\addlinespace
+포스 플레이트 & 별도 언급 없음 & \textbf{AMTI $\times$2, 1200 Hz} 사용 가능 \\
+\bottomrule
+\end{tabularx}
+\end{table}
+
+
+% ====================================================================
+% CHAPTER 4: 구체적 실행 계획
+% ====================================================================
+\chapter{구체적 실행 계획}
+\label{ch:execution}
+
+\section{Phase 0: 데이터 탐색 및 전처리 (1--2일)}
+
+\begin{enumerate}[leftmargin=*]
+  \item \textbf{영상 프레임 추출}: 7대 카메라의 MOV $\rightarrow$ 개별 프레임 (jpg/png)
+\begin{lstlisting}[language=bash, numbers=none]
+for i in 1 2 3 4 5 6 7; do
+  mkdir -p frames/cam${i}
+  ffmpeg -i data/markerless/subject_1/set_002/device${i}_synced.MOV \
+      -qscale:v 2 frames/cam${i}/frame_%06d.jpg
+done
+\end{lstlisting}
+
+  \item \textbf{Vicon 데이터 파싱}: C3D/CSV에서 마커 궤적 + 이벤트 추출
+\begin{lstlisting}[language=Python, numbers=none]
+import c3d  # pip install c3d
+with open('data/markerbased/.../set_002.c3d', 'rb') as f:
+    reader = c3d.Reader(f)
+    for frame_no, points, analog in reader.read_frames():
+        # points: (N_markers, 5) -> x,y,z,residual,camera_mask
+        pass
+\end{lstlisting}
+
+  \item \textbf{이벤트 시각 추출}: CSV의 Foot Strike/Off 시각 $\rightarrow$ 프레임 번호 변환
+\end{enumerate}
+
+
+\section{Phase 1: 시간 동기화 (2--3일)}
+
+\begin{enumerate}[leftmargin=*]
+  \item 7대 카메라 중 1대에서 ViTPose로 2D 관절 추출 (빠른 테스트)
+  \item 우측 손목의 $y$좌표 시계열 생성 (투구 동작에서 가장 큰 움직임)
+  \item Vicon RWRA 마커의 $z$좌표 시계열 추출
+  \item 크로스-상관으로 시간 오프셋 추정
+  \item Foot Strike 이벤트로 교차 검증
+  \item 정합된 궤적 시각적 오버레이로 최종 확인
+\end{enumerate}
+
+\begin{keyidea}
+투구 동작(특히 팔의 수직 움직임)은 매우 특징적이어서
+크로스-상관이 높은 확신으로 단일 오프셋을 찾을 것으로 기대한다.
+와인드업의 무릎 들어올림, 가속의 팔 휘두름, 팔로스루의 몸통 굽힘 등
+시간적으로 고유한 패턴이 존재하기 때문이다.
+\end{keyidea}
+
+
+\section{Phase 2: 공간 보정 (3--5일)}
+
+\begin{enumerate}[leftmargin=*]
+  \item COLMAP으로 RGB 카메라 내부/외부 파라미터 추정
+  \begin{itemize}[nosep]
+    \item 인체가 없는 프레임 사용 (또는 인체 마스크 적용)
+    \item 재투영 오차 $< 0.5$ px 목표
+  \end{itemize}
+
+  \item ViTPose + 삼각측량으로 3D 관절 위치 추정
+
+  \item Vicon 마커 위치와 RGB 3D 관절 위치의 대응 생성 (10+ 대응점)
+
+  \item Procrustes 정합 (+ RANSAC)으로 좌표 변환 행렬 추정:
+  $\vp^{\text{Vicon}} = s\mathbf{R}\,\vp^{\text{RGB}} + \mathbf{t}$
+
+  \item 정합 오차 보고: 대응점별 잔차, 전체 RMSE
+\end{enumerate}
+
+
+\section{Phase 3: GART-Pitch 핵심 개발 (2--4주)}
+
+\begin{enumerate}[leftmargin=*]
+  \item \textbf{EasyMocap SMPL-X 피팅}: 동기화된 7대 영상에서 초기 자세 추정
+  \item \textbf{GART 캐노니컬 Gaussian 학습}: 정적 배경 + 동적 인체 분리
+  \item \textbf{위상별 적응형 자세 정제}: 투구 6단계별 $\lambda_{\text{temp}}$ 조절 구현
+  \item \textbf{생체역학 지표 산출}: ISB 분해 + 가상 마커 + OpenSim IK/ID
+\end{enumerate}
+
+
+\section{Phase 4: 검증 및 분석 (1--2주)}
+
+\begin{enumerate}[leftmargin=*]
+  \item 동기화된 Vicon 프레임과 GART-Pitch 결과의 프레임별 비교
+  \item MPJPE, PA-MPJPE, 관절각 RMSE 산출
+  \item Bland-Altman 플롯 + ICC 계산
+  \item 투구 위상별 정확도 분석
+  \item Ablation study (자세 정제 유/무, 위상별 정규화 유/무)
+\end{enumerate}
+
+
+% ====================================================================
+% CHAPTER 5: 우선순위와 일정
+% ====================================================================
+\chapter{우선순위와 일정}
+\label{ch:timeline}
+
+\begin{table}[H]
+\centering
+\caption{개발 일정 (예상)}
+\label{tab:timeline}
+\renewcommand{\arraystretch}{1.4}
+\begin{tabularx}{\textwidth}{clcX}
+\toprule
+\textbf{주차} & \textbf{단계} & \textbf{블로커?} & \textbf{산출물} \\
+\midrule
+1 & Phase 0: 데이터 탐색 & --- & 프레임 추출, Vicon 파싱, 이벤트 추출 \\
+\addlinespace
+1--2 & \textbf{Phase 1: 시간 동기화} & \textbf{Yes} & 시간 오프셋 $\Delta t$ (프레임 단위) \\
+\addlinespace
+2--3 & Phase 2: 공간 보정 & Yes & COLMAP 파라미터 + 좌표 변환 행렬 \\
+\addlinespace
+3--6 & Phase 3: GART-Pitch 개발 & --- & SMPL-X 피팅, GART 학습, 자세 정제 \\
+\addlinespace
+7--8 & Phase 4: 검증 & --- & MPJPE, RMSE, Bland-Altman, ICC \\
+\midrule
+\multicolumn{4}{c}{\textbf{총 예상 기간: 6--8주}} \\
+\bottomrule
+\end{tabularx}
+\end{table}
+
+\begin{warningbox}
+\textbf{Phase 1 (시간 동기화)이 가장 중요한 블로커이다.}
+이것이 해결되지 않으면 Phase 4 (검증)가 불가능하므로,
+Phase 1을 \textbf{최우선}으로 착수해야 한다.
+Phase 2 (공간 보정)도 블로커이지만, Phase 1보다는 표준 도구(COLMAP)로 해결 가능하다.
+\end{warningbox}
+
+\begin{summary}[title={실행 우선순위}]
+\begin{enumerate}[leftmargin=*]
+  \item[\textbf{P0}] \textbf{시간 동기화} --- 이것 없이는 아무것도 검증할 수 없음
+  \item[\textbf{P0}] \textbf{COLMAP 카메라 보정} --- 3D 재구성의 전제조건
+  \item[\textbf{P1}] \textbf{좌표계 정합} --- 시간 동기화 이후 가능
+  \item[\textbf{P1}] \textbf{SMPL-X 초기 피팅} --- COLMAP 보정 이후 가능
+  \item[\textbf{P2}] \textbf{GART 학습 + 자세 정제} --- SMPL-X 이후
+  \item[\textbf{P2}] \textbf{생체역학 지표 산출} --- GART 이후
+  \item[\textbf{P3}] \textbf{정량적 검증} --- 모든 것이 완료된 후
+\end{enumerate}
+\end{summary}
+
+
+\end{document}
