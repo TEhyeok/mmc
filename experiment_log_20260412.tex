@@ -1,0 +1,405 @@
+\documentclass[11pt, a4paper]{report}
+
+\input{preamble/packages}
+\usepackage{multirow}
+\usepackage{siunitx}
+\input{preamble/colors}
+\input{preamble/theorems}
+\input{preamble/tcolorboxes}
+\input{preamble/commands}
+\input{preamble/formatting}
+
+\definecolor{solvable}{RGB}{30, 140, 60}
+\definecolor{hard}{RGB}{200, 40, 40}
+\definecolor{okgreen}{RGB}{20, 110, 60}
+\definecolor{failred}{RGB}{200, 40, 40}
+
+\begin{document}
+
+\begin{titlepage}
+\centering
+\vspace*{1.5cm}
+{\Large\color{gray} Experiment Log}
+\vspace{0.5cm}
+
+{\Huge\bfseries\color{defblue} 2026년 4월 12일\\[0.3cm]
+실험 기록 및 결론}
+
+\vspace{1cm}
+
+{\LARGE\color{defblue!70!black} VGGT 캘리브레이션 $\rightarrow$ EasyMocap $\rightarrow$ SMPL 피팅\\
+시도, 실패, 분석, 그리고 최종 결론}
+
+\vspace{2cm}
+
+\textbf{VGGT K,R,t 추출} $\xrightarrow{\checkmark}$
+\textbf{삼각측량 999프레임} $\xrightarrow{\checkmark}$
+\textbf{3D SMPL 피팅} $\xrightarrow{\times}$
+\textbf{2D Reprojection으로 전환}
+
+\vspace{2cm}
+{\large 2026년 4월 12일}
+\end{titlepage}
+
+\tableofcontents
+\newpage
+
+
+% ====================================================================
+\chapter{실험 1: VGGT 카메라 캘리브레이션}
+% ====================================================================
+
+\section{목적}
+DA3의 K 역변환 문제 (비균일 스케일링, 가로/세로 혼재)를 우회하기 위해 VGGT로 카메라 파라미터를 새로 추정.
+
+\section{환경}
+\begin{itemize}[leftmargin=*]
+  \item 서버: Elice Cloud, NVIDIA A100 80GB, Python 3.10, PyTorch 2.3.1+cu121
+  \item VGGT: \texttt{facebook/VGGT-1B} (1B params, CVPR 2025 Best Paper)
+  \item 입력: 7대 카메라 각 1프레임 (\texttt{00001.png}), cam1 portrait 90\textdegree{} 회전
+  \item 모드: \texttt{crop} (pad 모드에서 $f_x/f_y$ 왜곡 발견 후 전환)
+\end{itemize}
+
+\section{결과}
+
+\begin{table}[H]
+\centering
+\caption{VGGT 캘리브레이션 결과 (원본 해상도 기준)}
+\renewcommand{\arraystretch}{1.3}
+\begin{tabular}{l cc cc}
+\toprule
+\textbf{Camera} & $f_x$ & $f_y$ & $f_x/f_y$ & \textbf{해상도} \\
+\midrule
+cam1 (portrait) & 738.0 & 741.1 & 0.996 & 1080$\times$1920 \\
+cam2 & 733.2 & 737.3 & 0.994 & 1920$\times$1080 \\
+cam3 & 730.0 & 734.5 & 0.994 & 1920$\times$1080 \\
+cam4 & 732.9 & 736.8 & 0.995 & 1920$\times$1080 \\
+cam5 & 729.7 & 725.9 & 1.005 & 1920$\times$1080 \\
+cam6 & 737.4 & 740.3 & 0.996 & 1920$\times$1080 \\
+cam7 & 740.7 & 740.1 & 0.999 & 1920$\times$1080 \\
+\midrule
+\textbf{평균} & \textbf{734.6} & \textbf{736.6} & \textbf{0.997} & \\
+\textbf{spread} & 11.0 & 14.4 & & \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\begin{summary}
+$f_x/f_y$ 비율 0.994--1.005 (DA3 대비 4배 개선). $f_x$ spread 11px (동일 카메라 모델 일관성 확인). cx, cy가 정확히 이미지 중심. \textcolor{thmgreen}{\textbf{성공}}.
+\end{summary}
+
+
+% ====================================================================
+\chapter{실험 2: EasyMocap 삼각측량}
+% ====================================================================
+
+\section{입력}
+\begin{itemize}[leftmargin=*]
+  \item \texttt{intri.yml}: VGGT K (7대)
+  \item \texttt{extri.yml}: VGGT R, t (7대, Rodrigues + rotation matrix)
+  \item \texttt{annots/\{1..7\}/}: OpenPose Body25 2D 키포인트 (999프레임)
+\end{itemize}
+
+\section{결과}
+\begin{itemize}[leftmargin=*]
+  \item 999프레임 삼각측량 완료 (1.4초)
+  \item 25개 키포인트, confidence 0.72--0.93
+  \item 3D 키포인트가 합리적인 인체 형태
+\end{itemize}
+
+\begin{table}[H]
+\centering
+\caption{삼각측량된 3D 키포인트 (Frame 0, 주요 관절)}
+\renewcommand{\arraystretch}{1.2}
+\begin{tabular}{l ccc c}
+\toprule
+\textbf{Joint} & $X$ & $Y$ & $Z$ & \textbf{Conf.} \\
+\midrule
+Nose & 0.133 & $-0.030$ & 0.404 & 0.93 \\
+MidHip & $-0.053$ & 0.022 & 0.402 & 0.83 \\
+RAnkle & $-0.252$ & 0.086 & 0.445 & 0.87 \\
+LAnkle & $-0.272$ & 0.017 & 0.408 & 0.87 \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\begin{warningbox}
+Nose-Ankle 거리 = 0.404 단위. 실제 피사체 키 183cm. \textbf{스케일 팩터 $\approx$ 4.53}. VGGT는 metric scale을 제공하지 않음.
+\end{warningbox}
+
+\begin{summary}
+삼각측량 자체는 \textcolor{thmgreen}{\textbf{성공}}. 7대 카메라의 2D 키포인트가 VGGT K와 좌표계가 일치하여 정상 작동.
+\end{summary}
+
+
+% ====================================================================
+\chapter{실험 3: EasyMocap SMPL 피팅 --- 1차 시도}
+% ====================================================================
+
+\section{설정}
+\begin{itemize}[leftmargin=*]
+  \item VGGT K, R, t (원본, 좌표계 수정 전)
+  \item EasyMocap \texttt{triangulate\_fitSMPL.yml}: 삼각측량 $\rightarrow$ shape $\rightarrow$ RT $\rightarrow$ pose 순차 최적화
+  \item SMPL\_NEUTRAL\_FIXED.pkl (21MB, full model)
+\end{itemize}
+
+\section{결과}
+
+\begin{table}[H]
+\centering
+\caption{EasyMocap SMPL 피팅 결과 --- 1차 (좌표계 수정 전)}
+\renewcommand{\arraystretch}{1.3}
+\begin{tabular}{l cccc}
+\toprule
+\textbf{Frame} & $|\mR_h|$ (deg) & MPJPE & \textbf{Th} \\
+\midrule
+0 & 154.3 & 0.394 ($\sim$1456mm) & $[-0.20, 0.00, 0.40]$ \\
+30 & 248.9 & 0.362 ($\sim$1339mm) & $[-0.32, -0.01, 0.49]$ \\
+50 & 245.8 & 0.370 ($\sim$1369mm) & $[-0.32, -0.01, 0.49]$ \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\begin{warningbox}
+$|\mR_h| = 248$\textdegree{} --- SMPL이 거의 뒤집어진 상태. MPJPE $\sim$1400mm --- 전혀 맞지 않음. \textcolor{hard}{\textbf{실패}}.
+\end{warningbox}
+
+\subsection{원인 분석}
+
+삼각측량된 3D 키포인트에서 사람의 키 방향:
+\begin{align*}
+\text{Nose} - \text{MidHip} &= [0.186, -0.052, 0.002] \quad \rightarrow \text{주로 } +X \text{ 방향}
+\end{align*}
+
+SMPL의 키 방향: $+Y$ (Y-up).
+
+\begin{keyidea}
+VGGT 월드 좌표계에서 사람이 \textbf{X축 방향으로 서 있는데}, SMPL은 \textbf{Y축 방향}을 기대. EasyMocap이 이 불일치를 $\mR_h$로 보정하려 하면서 248\textdegree{} 회전이 발생하고, optimizer가 local minimum에 빠짐.
+\end{keyidea}
+
+
+% ====================================================================
+\chapter{실험 4: 좌표계 수정 후 재시도}
+% ====================================================================
+
+\section{수정 내용}
+
+삼각측량된 스켈레톤에서 사람의 방향 벡터를 추출하여 회전 행렬 $\mR_\text{fix}$ 계산:
+\begin{align}
+\hat{\mathbf{up}} &= \text{normalize}(\text{Nose} - \text{MidHip}) \\
+\hat{\mathbf{right}} &= \text{normalize}(\text{RSho} - \text{LSho}) \\
+\hat{\mathbf{fwd}} &= \hat{\mathbf{right}} \times \hat{\mathbf{up}} \\
+\mR_\text{fix} &= [\hat{\mathbf{right}} \mid \hat{\mathbf{up}} \mid \hat{\mathbf{fwd}}]^\top
+\end{align}
+
+$\mR_\text{fix}$를 모든 카메라 extrinsics에 적용: $\mR_\text{cam}^\text{new} = \mR_\text{cam}^\text{old} \cdot \mR_\text{fix}^\top$
+
+\section{검증}
+수정 후 삼각측량된 키포인트:
+\begin{align*}
+\text{Nose} - \text{MidHip} &= [0.010, 0.192, -0.015] \quad \rightarrow \text{주로 } +Y \text{ (Y-up 확인)}
+\end{align*}
+
+\section{결과}
+
+\begin{table}[H]
+\centering
+\caption{EasyMocap SMPL 피팅 결과 --- 좌표계 수정 후}
+\renewcommand{\arraystretch}{1.3}
+\begin{tabular}{l cccc}
+\toprule
+\textbf{Frame} & $|\mR_h|$ (deg) & MPJPE & 비고 \\
+\midrule
+0 & 143.2 & 0.374 ($\sim$1384mm) & 여전히 큰 회전 \\
+30 & 175.6 & 0.447 ($\sim$1654mm) & 악화 \\
+50 & 173.5 & 0.450 ($\sim$1665mm) & 악화 \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\begin{warningbox}
+좌표계를 수정했음에도 $|\mR_h| \sim 143$--$175$\textdegree, MPJPE $\sim$1400mm. \textcolor{hard}{\textbf{여전히 실패}}.
+
+원인: EasyMocap의 초기화가 VGGT의 정규화된 스케일 (사람 키 0.4 단위)에서 혼란에 빠짐. SMPL은 미터 단위 ($\sim$1.7m)인데 데이터는 0.4 단위이므로, optimizer가 스케일 차이를 $\mR_h$로 흡수하면서 잘못된 local minimum에 수렴.
+\end{warningbox}
+
+
+% ====================================================================
+\chapter{실험 5: 직접 3D SMPL 피팅 (올바른 초기화)}
+% ====================================================================
+
+\section{설정}
+EasyMocap을 우회하고 smplx + PyTorch로 직접 피팅:
+\begin{itemize}[leftmargin=*]
+  \item 스켈레톤에서 $\mR_h$ 초기값 계산 ($|\mR_h| = 5.5$\textdegree{} --- 정상)
+  \item $\vt_h$ = MidHip 위치로 초기화
+  \item 3-stage: RT(200 steps) $\rightarrow$ body pose(500 steps) $\rightarrow$ betas(300 steps)
+  \item $\lambda_\theta = 0.001$, Adam optimizer
+\end{itemize}
+
+\section{결과}
+
+\begin{table}[H]
+\centering
+\caption{직접 3D SMPL 피팅 결과 (Frame 0)}
+\renewcommand{\arraystretch}{1.3}
+\begin{tabular}{l cc}
+\toprule
+\textbf{Joint} & \textbf{Error} & \textbf{$\sim$mm (scale$\times$3700)} \\
+\midrule
+Nose & 0.096 & 355 \\
+RElb & 0.012 & \textbf{44} \\
+LWri & 0.024 & 88 \\
+MidHip & 0.026 & 96 \\
+LKne & 0.130 & 479 \\
+LAnk & 0.135 & \textbf{499} \\
+\midrule
+\textbf{Mean (15 joints)} & \textbf{0.065} & \textbf{241} \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\begin{summary}
+EasyMocap (1384mm) $\rightarrow$ 직접 피팅 (\textbf{241mm}). 5.7배 개선. 그러나 여전히 241mm는 부적합.
+\begin{itemize}[leftmargin=*]
+  \item 상체 (RElb 44mm, LWri 88mm) --- 비교적 양호
+  \item 하체 (LKne 479mm, LAnk 499mm) --- 매우 나쁨
+  \item 원인: \textbf{스케일 불일치}. SMPL 다리 길이 $\sim$0.8m vs 데이터 다리 범위 $\sim$0.2 단위
+\end{itemize}
+\end{summary}
+
+
+% ====================================================================
+\chapter{실험 6: 비등방 스케일 분석}
+% ====================================================================
+
+\section{발견}
+
+SMPL T-pose와 삼각측량 데이터의 신체 비율 비교:
+
+\begin{table}[H]
+\centering
+\caption{SMPL vs 삼각측량 신체 비율}
+\renewcommand{\arraystretch}{1.3}
+\begin{tabular}{l cc c}
+\toprule
+\textbf{측정} & \textbf{SMPL (m)} & \textbf{삼각측량} & \textbf{비율} \\
+\midrule
+키 (Nose-Ankle) & 0.090 & 0.404 & 0.22 \\
+어깨 너비 & 0.646 & 0.099 & 6.52 \\
+엉덩이 너비 & 0.566 & 0.065 & 8.72 \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\begin{warningbox}
+비율이 0.22 $\sim$ 8.72로 \textbf{30배 이상 차이}. 이건 단순 스케일 문제가 아니라 \textbf{비등방 왜곡}:
+\begin{itemize}[leftmargin=*]
+  \item 키 방향 (Y축): 데이터가 SMPL보다 4.5배 큼
+  \item 좌우 방향 (X축): SMPL이 데이터보다 6.5배 큼
+\end{itemize}
+\end{warningbox}
+
+\begin{keyidea}
+삼각측량 결과는 정확하지만, VGGT의 정규화된 스케일에서 \textbf{비율이 보존되지 않음}. 이는 3D 공간에서 SMPL을 맞추는 모든 방법의 근본적 한계.
+\end{keyidea}
+
+
+% ====================================================================
+\chapter{최종 결론: 왜 2D Reprojection이 답인가}
+% ====================================================================
+
+\section{3D 경유 방식의 실패 패턴}
+
+\begin{table}[H]
+\centering
+\caption{모든 3D 기반 SMPL 피팅 시도 결과}
+\renewcommand{\arraystretch}{1.4}
+\small
+\begin{tabular}{c p{4.5cm} c p{4.5cm}}
+\toprule
+\textbf{\#} & \textbf{시도} & \textbf{MPJPE} & \textbf{실패 원인} \\
+\midrule
+1 & DA3 K + EasyMocap & --- & K 좌표계 불일치, Y/Z 스왑 \\
+2 & 이전 직접 3D 피팅 & 219mm & 경량 SMPL, 부족한 iteration \\
+3 & VGGT K + EasyMocap & 1384mm & 스케일 + 초기화 실패 \\
+4 & VGGT K + 좌표계 수정 & 1384mm & 여전히 local minimum \\
+5 & VGGT K + 직접 피팅 & 241mm & 비등방 스케일 왜곡 \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\begin{warningbox}[title={3D 경유 방식의 구조적 한계}]
+2D $\rightarrow$ \textbf{삼각측량} $\rightarrow$ 3D $\rightarrow$ SMPL 피팅 경로에서 발생하는 문제:
+\begin{enumerate}[leftmargin=*]
+  \item \textbf{스케일}: VGGT는 metric scale 미제공. 삼각측량 결과가 임의 단위.
+  \item \textbf{좌표계}: VGGT 월드 좌표 $\neq$ SMPL 좌표 규약. 변환 필요.
+  \item \textbf{비등방 왜곡}: 축별로 스케일이 다르게 왜곡될 수 있음.
+  \item \textbf{부족결정계}: 15관절 $\times$ 3좌표 = 45 방정식 $<$ 85 미지수.
+  \item \textbf{초기화 민감}: 위 문제들로 인해 optimizer가 local minimum에 빠짐.
+\end{enumerate}
+\end{warningbox}
+
+\section{2D Reprojection 방식의 구조적 이점}
+
+\begin{keyidea}[title={2D Reprojection SMPL 피팅}]
+\begin{equation}
+\min_{\vtheta, \vbeta, \mR_h, \vt_h} \sum_{i=1}^{7} \sum_{j=1}^{25} w_j^i \left\| \pi(\mK_i, \mR_i, \vt_i, J_j(\vtheta, \vbeta, \mR_h, \vt_h)) - \vu_j^i \right\|^2
+\end{equation}
+여기서:
+\begin{itemize}[leftmargin=*]
+  \item $\pi$: 3D $\rightarrow$ 2D 투영 함수 (K, R, t 사용)
+  \item $J_j$: SMPL forward kinematics로 계산된 3D 관절
+  \item $\vu_j^i$: 카메라 $i$에서 OpenPose가 검출한 2D 키포인트
+  \item $w_j^i$: OpenPose confidence
+\end{itemize}
+\end{keyidea}
+
+\begin{table}[H]
+\centering
+\caption{3D 경유 vs 2D Reprojection 비교}
+\renewcommand{\arraystretch}{1.4}
+\begin{tabular}{p{4cm} p{5cm} p{5cm}}
+\toprule
+& \textbf{3D 경유 (실패)} & \textbf{2D Reprojection (다음 단계)} \\
+\midrule
+경로 & 2D $\rightarrow$ 삼각측량 $\rightarrow$ 3D $\rightarrow$ SMPL & 2D $\rightarrow$ SMPL (직접) \\
+\midrule
+방정식 수 & 15 $\times$ 3 = \textbf{45} & 25 $\times$ 7 $\times$ 2 = \textbf{350} \\
+미지수 & 85 & 85 \\
+결정성 & \textcolor{hard}{부족결정} (0.53$\times$) & \textcolor{solvable}{\textbf{과결정}} (4.1$\times$) \\
+\midrule
+스케일 문제 & \textcolor{hard}{있음} (metric 필요) & \textcolor{solvable}{\textbf{없음}} (픽셀 단위) \\
+좌표계 문제 & \textcolor{hard}{있음} (Y-up/down) & \textcolor{solvable}{\textbf{없음}} (투영이 처리) \\
+비등방 왜곡 & \textcolor{hard}{있음} & \textcolor{solvable}{\textbf{없음}} \\
+\midrule
+삼각측량 필요 & Yes & \textbf{No} \\
+초기화 민감도 & 높음 & 낮음 (과결정) \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\begin{summary}[title={핵심 결론}]
+\textbf{OpenPose 3D 삼각측량이 잘 되는 이유}와 \textbf{같은 이유}로 2D reprojection SMPL 피팅이 잘 될 것이다:
+\begin{itemize}[leftmargin=*]
+  \item 삼각측량: 7대 카메라의 2D 정보를 \textbf{직접} 사용 $\rightarrow$ 과결정, 선형, 안정적
+  \item 2D reproj: 7대 카메라의 2D 정보를 \textbf{직접} 사용 $\rightarrow$ 과결정, 비선형이지만 안정적
+  \item 3D 경유: 2D $\rightarrow$ 3D 변환 과정에서 스케일/좌표계 정보 손실 $\rightarrow$ 부족결정, 불안정
+\end{itemize}
+
+\textbf{다음 단계}: 7대 카메라의 OpenPose 2D 키포인트 + VGGT K, R, t를 사용하여 2D reprojection loss로 SMPL을 직접 피팅하는 스크립트를 구현하고 실행한다.
+\end{summary}
+
+
+\section{추가 확인 사항}
+
+\begin{itemize}[leftmargin=*]
+  \item \textbf{피사체 키}: 183cm (확인됨) --- 2D 방식에서는 불필요하지만 검증용으로 사용
+  \item \textbf{체커보드}: 없음 --- focal length GT 불가, VGGT K의 정확도는 reprojection error로 간접 검증
+  \item \textbf{SMPL 모델}: SMPL\_NEUTRAL\_FIXED.pkl (21MB, full) --- 서버에서 이미 EasyMocap에 연결됨
+  \item \textbf{GART 다시점 확장}: \texttt{training\_view} 1줄 변경으로 가능 (코드 분석 완료)
+  \item \textbf{GART $\rightarrow$ OpenSim}: SMPL2AddBiomechanics로 연결 가능 (오픈소스 존재)
+\end{itemize}
+
+
+\end{document}
