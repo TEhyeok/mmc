@@ -1,0 +1,209 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<title>PnP Refined - 3D Camera Viewer</title>
+<style>
+  body { margin:0; overflow:hidden; background:#0d1117; font-family:'Segoe UI',sans-serif; }
+  #info { position:absolute; top:14px; left:14px; color:#c9d1d9; background:rgba(13,17,23,0.85);
+    padding:18px 22px; border-radius:12px; font-size:13px; z-index:10; border:1px solid #30363d; }
+  #info h2 { margin:0 0 8px; font-size:18px; color:#f0f6fc; }
+  #info p { margin:3px 0; }
+  .tag { background:#238636; color:#fff; padding:2px 8px; border-radius:10px; font-size:11px; }
+  #legend { position:absolute; top:14px; right:14px; color:#c9d1d9; background:rgba(13,17,23,0.85);
+    padding:16px 18px; border-radius:12px; font-size:13px; z-index:10; border:1px solid #30363d; }
+  #legend h3 { margin:0 0 10px; color:#f0f6fc; }
+  .li { display:flex; align-items:center; margin:6px 0; }
+  .ld { width:14px; height:14px; border-radius:3px; margin-right:10px; }
+  #btns { position:absolute; bottom:50px; left:50%; transform:translateX(-50%); z-index:10; display:flex; gap:8px; }
+  #btns button { background:#21262d; color:#c9d1d9; border:1px solid #30363d; padding:8px 16px;
+    border-radius:6px; cursor:pointer; font-size:13px; }
+  #btns button:hover { background:#30363d; }
+  #foot { position:absolute; bottom:14px; left:50%; transform:translateX(-50%); color:#8b949e;
+    font-size:12px; background:rgba(0,0,0,0.5); padding:8px 20px; border-radius:8px; z-index:10; }
+</style>
+</head>
+<body>
+<div id="info">
+  <h2>PnP Refined Camera Layout</h2>
+  <p><span class="tag">Ground Truth</span></p>
+  <p>7 cameras &bull; DA3 PnP Refined</p>
+  <p>f &asymp; 1410 px (original scale)</p>
+</div>
+<div id="legend"><h3>Cameras</h3></div>
+<div id="btns">
+  <button onclick="V('top')">Top</button>
+  <button onclick="V('front')">Front</button>
+  <button onclick="V('side')">Side</button>
+  <button onclick="V('persp')">3D</button>
+</div>
+<div id="foot">Drag: rotate &bull; Scroll: zoom &bull; Right-drag: pan</div>
+
+<script type="importmap">
+{"imports":{"three":"https://cdn.jsdelivr.net/npm/three@0.170.0/build/three.module.js","three/addons/":"https://cdn.jsdelivr.net/npm/three@0.170.0/examples/jsm/"}}
+</script>
+<script type="module">
+import * as THREE from 'three';
+import {OrbitControls} from 'three/addons/controls/OrbitControls.js';
+
+const D = {"cameras": {"cam1": {"position": [1.3222423980896818, 14.308287544616118, 3.096048083736113], "direction": [0.5841213318988598, -0.3851984954355752, 0.71443991261328], "up": [-0.12206321143597709, 0.8285148302630211, 0.5465013709481188], "right": [-0.8024355687746139, -0.4064299387943838, 0.43693462075802075], "fx": 797.400898524693, "fy": 794.9136134556362}, "cam2": {"position": [-3.051489612782849, 9.568383182444226, 3.963142079507735], "direction": [0.9819796267015356, 0.07117221114100498, 0.1750729251038349], "up": [-0.18308792911980773, 0.12862501897263842, 0.974645789353706], "right": [0.04684893759449717, -0.9891360476979841, 0.13933792086391356], "fx": 1426.0862862723213, "fy": 1417.880126953125}, "cam3": {"position": [8.775978579557549, 7.859960337410229, -2.0916052933926608], "direction": [0.35632958822575644, -0.8538679977762577, 0.37939249719575086], "up": [0.5604207305696294, 0.5202114232516368, 0.6444444738426339], "right": [-0.747634823495178, -0.01701521354763125, 0.6638920493613873], "fx": 1406.962123325893, "fy": 1397.6155831473213}, "cam4": {"position": [-12.232163665347242, 2.216263871701103, 0.1923051196872596], "direction": [0.20837739677479472, 0.84068992033098, 0.49981928570959555], "up": [-0.5718040843899459, -0.3098857743561023, 0.7596123326583729], "right": [0.7934853178152295, -0.44408474946299314, 0.41613673919284655], "fx": 1411.404052734375, "fy": 1424.6278250558034}, "cam5": {"position": [7.15560234804866, -6.707347842093227, 7.992583243602317], "direction": [-0.9279003216942492, -0.3591405635080337, 0.10009519790100321], "up": [0.028253401361976634, 0.19996740676443797, 0.9793951100262779], "right": [-0.3717562888656871, 0.9116090674598611, -0.17540287857892775], "fx": 1416.6541573660713, "fy": 1406.465122767857}, "cam6": {"position": [-8.764530651584433, -5.4370574817899335, -1.5270748966130103], "direction": [-0.3854652372359008, 0.7051237623603847, 0.5951613484068053], "up": [-0.380777616613977, -0.7090810255835922, 0.5934749412090625], "right": [0.8404909027279533, 0.0021398392596093945, 0.5418214313955229], "fx": 1410.355224609375, "fy": 1402.2472098214284}, "cam7": {"position": [7.359439429753833, -12.50327537924677, 10.509702564962533], "direction": [-0.9807489015876697, -0.14200841341209142, 0.1340343334924305], "up": [0.11382665826175917, 0.1419717182079178, 0.9833043898498839], "right": [-0.15866658092850014, 0.9796313805453928, -0.12307426354517666], "fx": 1417.5318080357142, "fy": 1409.456752232143}}, "colors": {"cam1": "#e41a1c", "cam2": "#377eb8", "cam3": "#4daf4a", "cam4": "#984ea3", "cam5": "#ff7f00", "cam6": "#a65628", "cam7": "#f781bf"}, "center": [0.08072554653359987, 1.3293163190059631, 3.1621572716414694]};
+const S = 1, CS = 0.8, FL = 4;
+
+const scene = new THREE.Scene();
+scene.background = new THREE.Color(0x0d1117);
+const cam = new THREE.PerspectiveCamera(50, innerWidth/innerHeight, 0.01, 500);
+const ren = new THREE.WebGLRenderer({antialias:true});
+ren.setSize(innerWidth, innerHeight);
+ren.setPixelRatio(devicePixelRatio);
+document.body.appendChild(ren.domElement);
+
+const ctrl = new OrbitControls(cam, ren.domElement);
+ctrl.enableDamping = true; ctrl.dampingFactor = 0.08;
+
+scene.add(new THREE.AmbientLight(0xffffff, 0.5));
+const dl = new THREE.DirectionalLight(0xffffff, 0.8);
+dl.position.set(20,30,20); scene.add(dl);
+
+// Grid
+scene.add(new THREE.GridHelper(50, 25, 0x1f2937, 0x161b22));
+scene.add(new THREE.AxesHelper(5));
+
+// Pitcher marker
+const ctr = D.center;
+const pm = new THREE.Mesh(
+  new THREE.SphereGeometry(0.4, 16, 16),
+  new THREE.MeshPhongMaterial({color:0xffd700, emissive:0xffd700, emissiveIntensity:0.3})
+);
+pm.position.set(ctr[0], ctr[1], ctr[2]);
+scene.add(pm);
+
+// Pitcher label
+const pc = document.createElement('canvas'); pc.width=256; pc.height=64;
+const px = pc.getContext('2d');
+px.fillStyle='#ffd700'; px.font='bold 30px sans-serif'; px.textAlign='center';
+px.fillText('Center', 128, 40);
+const pt = new THREE.CanvasTexture(pc);
+const ps = new THREE.Sprite(new THREE.SpriteMaterial({map:pt}));
+ps.position.set(ctr[0], ctr[1]+2, ctr[2]);
+ps.scale.set(5, 1.3, 1);
+scene.add(ps);
+
+const leg = document.getElementById('legend');
+
+Object.entries(D.cameras).forEach(([name, c]) => {
+  const col = new THREE.Color(D.colors[name]);
+  const p = c.position, d = c.direction, up = c.up, ri = c.right;
+  const cp = new THREE.Vector3(p[0], p[1], p[2]);
+  const tgt = new THREE.Vector3(p[0]+d[0], p[1]+d[1], p[2]+d[2]);
+
+  // Camera body
+  const body = new THREE.Mesh(
+    new THREE.BoxGeometry(CS*1.6, CS*1.0, CS*0.8),
+    new THREE.MeshPhongMaterial({color:col, transparent:true, opacity:0.9})
+  );
+  body.position.copy(cp);
+  body.lookAt(tgt);
+  scene.add(body);
+
+  // Lens
+  const lens = new THREE.Mesh(
+    new THREE.CylinderGeometry(CS*0.25, CS*0.3, CS*0.3, 8),
+    new THREE.MeshPhongMaterial({color:0x222222})
+  );
+  lens.position.copy(cp.clone().add(new THREE.Vector3(d[0],d[1],d[2]).multiplyScalar(CS*0.55)));
+  lens.lookAt(tgt); lens.rotateX(Math.PI/2);
+  scene.add(lens);
+
+  // Label
+  const lc = document.createElement('canvas'); lc.width=512; lc.height=128;
+  const lx = lc.getContext('2d');
+  lx.fillStyle = D.colors[name];
+  lx.font = 'bold 52px sans-serif'; lx.textAlign = 'center';
+  lx.fillText(name, 256, 50);
+  lx.font = '28px sans-serif'; lx.fillStyle = '#aaaaaa';
+  lx.fillText(name==='cam1'?'portrait':'landscape', 256, 95);
+  const lt = new THREE.CanvasTexture(lc);
+  const ls = new THREE.Sprite(new THREE.SpriteMaterial({map:lt}));
+  ls.position.set(p[0], p[1]+CS*3, p[2]);
+  ls.scale.set(5, 1.3, 1);
+  scene.add(ls);
+
+  // Arrow
+  scene.add(new THREE.ArrowHelper(
+    new THREE.Vector3(d[0],d[1],d[2]).normalize(), cp, FL*1.5, col, CS*0.6, CS*0.4
+  ));
+
+  // FOV frustum
+  const hw = Math.tan(Math.atan(140/c.fx)) * FL;
+  const hh = Math.tan(Math.atan(140/c.fy)) * FL;
+  const dv = new THREE.Vector3(d[0],d[1],d[2]);
+  const rv = new THREE.Vector3(ri[0],ri[1],ri[2]);
+  const uv = new THREE.Vector3(up[0],up[1],up[2]);
+  const fd = dv.clone().multiplyScalar(FL);
+  const co = [
+    cp.clone().add(fd).add(rv.clone().multiplyScalar(hw)).add(uv.clone().multiplyScalar(hh)),
+    cp.clone().add(fd).add(rv.clone().multiplyScalar(-hw)).add(uv.clone().multiplyScalar(hh)),
+    cp.clone().add(fd).add(rv.clone().multiplyScalar(-hw)).add(uv.clone().multiplyScalar(-hh)),
+    cp.clone().add(fd).add(rv.clone().multiplyScalar(hw)).add(uv.clone().multiplyScalar(-hh)),
+  ];
+  const lp = [cp,co[0],cp,co[1],cp,co[2],cp,co[3],co[0],co[1],co[1],co[2],co[2],co[3],co[3],co[0]];
+  scene.add(new THREE.LineSegments(
+    new THREE.BufferGeometry().setFromPoints(lp),
+    new THREE.LineBasicMaterial({color:col, transparent:true, opacity:0.5})
+  ));
+
+  // Frustum face
+  const fv = new Float32Array([
+    ...cp.toArray(),...co[0].toArray(),...co[1].toArray(),
+    ...cp.toArray(),...co[1].toArray(),...co[2].toArray(),
+    ...cp.toArray(),...co[2].toArray(),...co[3].toArray(),
+    ...cp.toArray(),...co[3].toArray(),...co[0].toArray(),
+  ]);
+  const fg = new THREE.BufferGeometry();
+  fg.setAttribute('position', new THREE.BufferAttribute(fv, 3));
+  fg.computeVertexNormals();
+  scene.add(new THREE.Mesh(fg, new THREE.MeshBasicMaterial({color:col, transparent:true, opacity:0.07, side:THREE.DoubleSide})));
+
+  // Dashed line to center
+  const dl = new THREE.Line(
+    new THREE.BufferGeometry().setFromPoints([cp, new THREE.Vector3(ctr[0],ctr[1],ctr[2])]),
+    new THREE.LineDashedMaterial({color:0x555555, dashSize:0.4, gapSize:0.2})
+  );
+  dl.computeLineDistances();
+  scene.add(dl);
+
+  // Legend
+  const it = document.createElement('div'); it.className='li';
+  const dist = Math.sqrt((p[0]-ctr[0])**2+(p[1]-ctr[1])**2+(p[2]-ctr[2])**2).toFixed(1);
+  it.innerHTML = '<div class="ld" style="background:'+D.colors[name]+'"></div><b>'+name+'</b>&nbsp; '+dist+'m';
+  leg.appendChild(it);
+});
+
+// Initial view
+const ct = new THREE.Vector3(ctr[0], ctr[1], ctr[2]);
+ctrl.target.copy(ct);
+cam.position.set(ct.x+25, ct.y+20, ct.z+25);
+ctrl.update();
+
+window.V = function(m) {
+  const t = ct.clone();
+  const views = {
+    top:   [t.x, t.y+40, t.z+0.01],
+    front: [t.x, t.y+5, t.z+35],
+    side:  [t.x+35, t.y+5, t.z],
+    persp: [t.x+25, t.y+20, t.z+25],
+  };
+  const v = views[m] || views.persp;
+  cam.position.set(v[0], v[1], v[2]);
+  ctrl.target.copy(t);
+  ctrl.update();
+};
+
+(function animate(){requestAnimationFrame(animate); ctrl.update(); ren.render(scene, cam);})();
+
+addEventListener('resize', ()=>{
+  cam.aspect=innerWidth/innerHeight; cam.updateProjectionMatrix(); ren.setSize(innerWidth,innerHeight);
+});
+</script>
+</body>
+</html>

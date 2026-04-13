@@ -1,0 +1,223 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<title>7-View Masks & Masked Images Player</title>
+<style>
+  * { margin:0; padding:0; box-sizing:border-box; }
+  body { background:#111; color:#ddd; font-family:'Segoe UI',sans-serif; overflow-x:hidden; }
+  
+  #header {
+    position:fixed; top:0; left:0; right:0; z-index:100;
+    background:rgba(0,0,0,0.9); padding:8px 16px;
+    display:flex; align-items:center; gap:16px; backdrop-filter:blur(8px);
+  }
+  #header h2 { font-size:15px; color:#fff; white-space:nowrap; }
+  #controls { display:flex; align-items:center; gap:10px; flex:1; }
+  #controls button {
+    background:#333; color:#ddd; border:1px solid #555; padding:6px 14px;
+    border-radius:4px; cursor:pointer; font-size:13px;
+  }
+  #controls button:hover { background:#444; }
+  #controls button.active { background:#2563eb; border-color:#3b82f6; color:#fff; }
+  #slider { flex:1; }
+  #frameInfo { font-size:12px; color:#aaa; white-space:nowrap; }
+  #speedInfo { font-size:11px; color:#888; }
+  
+  #content { margin-top:50px; }
+  
+  .section-title {
+    padding:8px 16px; font-size:14px; font-weight:bold;
+    background:#1a1a2e; border-bottom:1px solid #333;
+  }
+  
+  .grid {
+    display:grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap:2px;
+    padding:2px;
+    background:#000;
+  }
+  .grid img {
+    width:100%; display:block; background:#000;
+  }
+  .grid .cell {
+    position:relative;
+  }
+  .grid .label {
+    position:absolute; top:4px; left:6px;
+    background:rgba(0,0,0,0.7); color:#fff; padding:2px 8px;
+    border-radius:3px; font-size:11px; font-weight:bold;
+  }
+</style>
+</head>
+<body>
+
+<div id="header">
+  <h2>7-View Player</h2>
+  <div id="controls">
+    <button id="btnPlay" class="active" onclick="togglePlay()">▶ Play</button>
+    <button onclick="setSpeed(0.5)">0.5x</button>
+    <button onclick="setSpeed(1)" class="active" id="btn1x">1x</button>
+    <button onclick="setSpeed(2)">2x</button>
+    <button onclick="setSpeed(4)">4x</button>
+    <input type="range" id="slider" min="0" max="249" value="0" oninput="seekTo(this.value)">
+    <span id="frameInfo">Frame 1/999</span>
+    <span id="speedInfo">(24fps)</span>
+  </div>
+</div>
+
+<div id="content">
+  <div class="section-title" style="color:#4fc3f7;">Masked Images (배경 제거)</div>
+  <div class="grid" id="maskedGrid">
+    <div class="cell">
+      <div class="label" style="color:#e41a1c">cam1</div>
+      <img id="masked_cam1" src="" loading="eager">
+    </div>
+    <div class="cell">
+      <div class="label" style="color:#377eb8">cam2</div>
+      <img id="masked_cam2" src="" loading="eager">
+    </div>
+    <div class="cell">
+      <div class="label" style="color:#4daf4a">cam3</div>
+      <img id="masked_cam3" src="" loading="eager">
+    </div>
+    <div class="cell">
+      <div class="label" style="color:#984ea3">cam4</div>
+      <img id="masked_cam4" src="" loading="eager">
+    </div>
+    <div class="cell">
+      <div class="label" style="color:#ff7f00">cam5</div>
+      <img id="masked_cam5" src="" loading="eager">
+    </div>
+    <div class="cell">
+      <div class="label" style="color:#a65628">cam6</div>
+      <img id="masked_cam6" src="" loading="eager">
+    </div>
+    <div class="cell">
+      <div class="label" style="color:#f781bf">cam7</div>
+      <img id="masked_cam7" src="" loading="eager">
+    </div>
+    <div class="cell" style="display:flex;align-items:center;justify-content:center;background:#1a1a2e;">
+      <div style="text-align:center;padding:10px;">
+        <div style="font-size:24px;font-weight:bold;color:#4fc3f7;" id="bigFrame">1</div>
+        <div style="font-size:11px;color:#888;">/ 999</div>
+      </div>
+    </div>
+  </div>
+  
+  <div class="section-title" style="color:#ff7043;">Masks (SAM3 마스크)</div>
+  <div class="grid" id="maskGrid">
+    <div class="cell">
+      <div class="label" style="color:#e41a1c">cam1</div>
+      <img id="mask_cam1" src="" loading="eager">
+    </div>
+    <div class="cell">
+      <div class="label" style="color:#377eb8">cam2</div>
+      <img id="mask_cam2" src="" loading="eager">
+    </div>
+    <div class="cell">
+      <div class="label" style="color:#4daf4a">cam3</div>
+      <img id="mask_cam3" src="" loading="eager">
+    </div>
+    <div class="cell">
+      <div class="label" style="color:#984ea3">cam4</div>
+      <img id="mask_cam4" src="" loading="eager">
+    </div>
+    <div class="cell">
+      <div class="label" style="color:#ff7f00">cam5</div>
+      <img id="mask_cam5" src="" loading="eager">
+    </div>
+    <div class="cell">
+      <div class="label" style="color:#a65628">cam6</div>
+      <img id="mask_cam6" src="" loading="eager">
+    </div>
+    <div class="cell">
+      <div class="label" style="color:#f781bf">cam7</div>
+      <img id="mask_cam7" src="" loading="eager">
+    </div>
+    <div class="cell" style="background:#1a1a2e;"></div>
+  </div>
+</div>
+
+<script>
+const FRAMES = [1, 5, 9, 13, 17, 21, 25, 29, 33, 37, 41, 45, 49, 53, 57, 61, 65, 69, 73, 77, 81, 85, 89, 93, 97, 101, 105, 109, 113, 117, 121, 125, 129, 133, 137, 141, 145, 149, 153, 157, 161, 165, 169, 173, 177, 181, 185, 189, 193, 197, 201, 205, 209, 213, 217, 221, 225, 229, 233, 237, 241, 245, 249, 253, 257, 261, 265, 269, 273, 277, 281, 285, 289, 293, 297, 301, 305, 309, 313, 317, 321, 325, 329, 333, 337, 341, 345, 349, 353, 357, 361, 365, 369, 373, 377, 381, 385, 389, 393, 397, 401, 405, 409, 413, 417, 421, 425, 429, 433, 437, 441, 445, 449, 453, 457, 461, 465, 469, 473, 477, 481, 485, 489, 493, 497, 501, 505, 509, 513, 517, 521, 525, 529, 533, 537, 541, 545, 549, 553, 557, 561, 565, 569, 573, 577, 581, 585, 589, 593, 597, 601, 605, 609, 613, 617, 621, 625, 629, 633, 637, 641, 645, 649, 653, 657, 661, 665, 669, 673, 677, 681, 685, 689, 693, 697, 701, 705, 709, 713, 717, 721, 725, 729, 733, 737, 741, 745, 749, 753, 757, 761, 765, 769, 773, 777, 781, 785, 789, 793, 797, 801, 805, 809, 813, 817, 821, 825, 829, 833, 837, 841, 845, 849, 853, 857, 861, 865, 869, 873, 877, 881, 885, 889, 893, 897, 901, 905, 909, 913, 917, 921, 925, 929, 933, 937, 941, 945, 949, 953, 957, 961, 965, 969, 973, 977, 981, 985, 989, 993, 997];
+const N = 250;
+const BASE = "/data/segments";
+
+let idx = 0;
+let playing = true;
+let speed = 1;
+let interval = null;
+const FPS = 24;
+
+function pad6(n) { return String(n).padStart(6, '0'); }
+
+function showFrame(i) {
+  const f = FRAMES[i];
+  const fname = 'frame_' + pad6(f) + '.png';
+  
+  for (let cam = 1; cam <= 7; cam++) {
+    document.getElementById('masked_cam' + cam).src = 
+      BASE + '/masked_images/cam' + cam + '/' + fname;
+    document.getElementById('mask_cam' + cam).src = 
+      BASE + '/masks/cam' + cam + '/' + fname;
+  }
+  
+  document.getElementById('slider').value = i;
+  document.getElementById('frameInfo').textContent = 'Frame ' + f + '/999';
+  document.getElementById('bigFrame').textContent = f;
+}
+
+function tick() {
+  idx = (idx + 1) % N;
+  showFrame(idx);
+}
+
+function startPlay() {
+  if (interval) clearInterval(interval);
+  interval = setInterval(tick, 1000 / (FPS * speed));
+}
+
+function togglePlay() {
+  playing = !playing;
+  const btn = document.getElementById('btnPlay');
+  if (playing) {
+    btn.textContent = '⏸ Pause';
+    btn.classList.add('active');
+    startPlay();
+  } else {
+    btn.textContent = '▶ Play';
+    btn.classList.remove('active');
+    if (interval) clearInterval(interval);
+  }
+}
+
+function seekTo(val) {
+  idx = parseInt(val);
+  showFrame(idx);
+}
+
+function setSpeed(s) {
+  speed = s;
+  document.querySelectorAll('#controls button').forEach(b => {
+    if (b.textContent.includes('x')) b.classList.remove('active');
+  });
+  event.target.classList.add('active');
+  document.getElementById('speedInfo').textContent = '(' + (FPS*speed) + 'fps, ' + s + 'x)';
+  if (playing) startPlay();
+}
+
+// Keyboard
+document.addEventListener('keydown', (e) => {
+  if (e.code === 'Space') { e.preventDefault(); togglePlay(); }
+  if (e.code === 'ArrowRight') { idx = Math.min(idx+1, N-1); showFrame(idx); }
+  if (e.code === 'ArrowLeft') { idx = Math.max(idx-1, 0); showFrame(idx); }
+});
+
+// Start
+showFrame(0);
+togglePlay();
+</script>
+</body>
+</html>

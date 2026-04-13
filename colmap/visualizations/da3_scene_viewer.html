@@ -1,0 +1,167 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<title>DA3 Scene - Colored Point Cloud</title>
+<style>
+  body { margin:0; overflow:hidden; background:#111; font-family:'Segoe UI',sans-serif; }
+  #info {
+    position:absolute; top:12px; left:12px; color:#ddd;
+    background:rgba(0,0,0,0.8); padding:16px 20px; border-radius:10px;
+    font-size:13px; z-index:10;
+  }
+  #info h2 { margin:0 0 6px; font-size:17px; color:#fff; }
+  #info p { margin:3px 0; }
+  .hl { color:#4fc3f7; }
+  #sizeCtrl {
+    position:absolute; bottom:60px; right:14px; z-index:10;
+    background:rgba(0,0,0,0.7); padding:12px; border-radius:8px; color:#ccc; font-size:12px;
+  }
+  #sizeCtrl input { width:120px; }
+  #foot {
+    position:absolute; bottom:14px; left:50%; transform:translateX(-50%);
+    color:#888; font-size:12px; background:rgba(0,0,0,0.5);
+    padding:6px 16px; border-radius:6px; z-index:10;
+  }
+</style>
+</head>
+<body>
+<div id="info">
+  <h2>DA3 7-View 3D Scene</h2>
+  <p>Depth Anything V3 multi-view reconstruction</p>
+  <p>7 cameras · <span class="hl">Vertex Colors ON</span></p>
+  <p id="meshInfo">Loading...</p>
+</div>
+<div id="sizeCtrl">
+  Point Size<br>
+  <input type="range" id="ptSize" min="0.5" max="10" step="0.5" value="3"
+    oninput="updateSize(this.value)">
+  <span id="ptVal">3</span>
+</div>
+<div id="foot">Drag: rotate · Scroll: zoom · Right-drag: pan</div>
+
+<script type="importmap">
+{"imports":{"three":"https://cdn.jsdelivr.net/npm/three@0.170.0/build/three.module.js","three/addons/":"https://cdn.jsdelivr.net/npm/three@0.170.0/examples/jsm/"}}
+</script>
+<script type="module">
+import * as THREE from 'three';
+import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
+
+const scene = new THREE.Scene();
+scene.background = new THREE.Color(0x111111);
+
+const camera = new THREE.PerspectiveCamera(50, innerWidth/innerHeight, 0.01, 500);
+const renderer = new THREE.WebGLRenderer({ antialias: true });
+renderer.setSize(innerWidth, innerHeight);
+renderer.setPixelRatio(devicePixelRatio);
+document.body.appendChild(renderer.domElement);
+
+const controls = new OrbitControls(camera, renderer.domElement);
+controls.enableDamping = true;
+controls.dampingFactor = 0.08;
+
+scene.add(new THREE.AmbientLight(0xffffff, 1.0));
+scene.add(new THREE.DirectionalLight(0xffffff, 0.5));
+
+let allPointMaterials = [];
+
+const loader = new GLTFLoader();
+loader.load('da3_scene.glb', (gltf) => {
+  const root = gltf.scene;
+  
+  let totalPoints = 0;
+  let meshCount = 0;
+  
+  root.traverse((child) => {
+    if (child.isMesh || child.isPoints || child.isLine) {
+      meshCount++;
+      const geo = child.geometry;
+      
+      // Force vertex colors to be used
+      if (geo.attributes.color) {
+        // Replace material to show vertex colors
+        const isPoints = child.isPoints || (geo.index === null && child.isMesh);
+        
+        if (child.isMesh && geo.drawMode === undefined) {
+          // mode=0 is POINTS in glTF
+          // Check original mode - mesh 0 is points (mode=0)
+        }
+        
+        const newMat = new THREE.PointsMaterial({
+          size: 3,
+          vertexColors: true,
+          sizeAttenuation: true,
+        });
+        
+        // Convert mesh to points if it has vertex colors and looks like a point cloud
+        const pointCloud = new THREE.Points(geo, newMat);
+        pointCloud.position.copy(child.position);
+        pointCloud.rotation.copy(child.rotation);
+        pointCloud.scale.copy(child.scale);
+        
+        // Apply parent transforms
+        child.updateWorldMatrix(true, false);
+        pointCloud.applyMatrix4(child.matrixWorld);
+        
+        scene.add(pointCloud);
+        allPointMaterials.push(newMat);
+        
+        if (geo.attributes.position) {
+          totalPoints += geo.attributes.position.count;
+        }
+      }
+    }
+  });
+  
+  // Also add the original scene for camera wireframes etc
+  root.traverse((child) => {
+    if (child.isLine || child.isLineSegments) {
+      // Keep line geometry (camera wireframes) as-is but with vertex colors
+      if (child.geometry.attributes.color) {
+        child.material = new THREE.LineBasicMaterial({ vertexColors: true });
+      }
+      scene.add(child.clone());
+    }
+  });
+  
+  document.getElementById('meshInfo').textContent = 
+    `Meshes: ${meshCount} · Points: ${totalPoints.toLocaleString()}`;
+  
+  // Fit camera to scene
+  const box = new THREE.Box3().setFromObject(scene);
+  const ctr = box.getCenter(new THREE.Vector3());
+  const size = box.getSize(new THREE.Vector3());
+  const maxDim = Math.max(size.x, size.y, size.z);
+  
+  controls.target.copy(ctr);
+  camera.position.set(ctr.x + maxDim * 0.8, ctr.y + maxDim * 0.5, ctr.z + maxDim * 0.8);
+  controls.update();
+  
+  console.log('Scene loaded', { meshCount, totalPoints, center: ctr, size });
+  
+}, undefined, (err) => {
+  console.error('GLB load error:', err);
+  document.getElementById('meshInfo').textContent = 'Error loading GLB!';
+});
+
+window.updateSize = function(v) {
+  const s = parseFloat(v);
+  allPointMaterials.forEach(m => m.size = s);
+  document.getElementById('ptVal').textContent = v;
+};
+
+(function animate() {
+  requestAnimationFrame(animate);
+  controls.update();
+  renderer.render(scene, camera);
+})();
+
+addEventListener('resize', () => {
+  camera.aspect = innerWidth / innerHeight;
+  camera.updateProjectionMatrix();
+  renderer.setSize(innerWidth, innerHeight);
+});
+</script>
+</body>
+</html>

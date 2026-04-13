@@ -32,3 +32,30 @@ data/segments/
 
 # Temporary
 orig/
+
+# Large model/data files
+SMPL_python_v.1.1.0/
+vit_pos_trans_encoder_token/
+smpl/
+referense/
+colmap/colmap_workspace/
+colmap/round2/
+
+# Large video/data files
+data/smplestx_output/
+data/openpose_smoothed/
+data/openpose_smoothed_full/
+data/openpose_smoothed_v2/
+data/openpose_compare/
+data/uhmr_all_frames_result/
+data/uhmr_result_v2/
+data/refit_masked/
+data/gart_results/viz_step/
+data/*.mp4
+data/gart_7v_results/*.mp4
+data/gart_7v_results/*.gif
+data/gart_4v_results/*.mp4
+colmap/visualizations/*.glb
+
+# Claude internal
+.claude/
