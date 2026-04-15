@@ -1,0 +1,863 @@
+\documentclass[11pt, a4paper]{report}
+
+\input{preamble/packages}
+\input{preamble/colors}
+\input{preamble/theorems}
+\input{preamble/tcolorboxes}
+\input{preamble/commands}
+\input{preamble/listings}
+\input{preamble/formatting}
+
+\begin{document}
+
+% ==================== TITLE PAGE ====================
+\begin{titlepage}
+\centering
+\vspace*{2cm}
+{\Huge\bfseries\color{defblue} SAM 3D Body 기반\\[0.3cm] 투구 분석 파이프라인}
+
+\vspace{1cm}
+{\LARGE\color{defblue!70!black} 설치 $\to$ 추론 $\to$ 변환 $\to$ GART $\to$ OpenSim}
+
+\vspace{2cm}
+{\large 7-Camera 240Hz 마커리스 투구 생체역학 분석}
+
+\vspace{1cm}
+{\large 2026년 4월 14일}
+
+\vspace{3cm}
+\begin{tcolorbox}[colback=lightblue, colframe=defblue, width=0.85\textwidth]
+\textbf{핵심}: SAM 3D Body (PA-MPJPE 30.4mm, SOTA)로 7개 카메라 각각 추론\\
+$\to$ MHR 메시 $\to$ SMPL 변환 $\to$ 7-view reproj 정제 $\to$ GART 포토메트릭 정제\\
+$\to$ OpenSim 생체역학 분석. \textbf{총 소요: 2--3시간.}
+\end{tcolorbox}
+\end{titlepage}
+
+\tableofcontents
+\newpage
+
+
+% ====================================================================
+\chapter{왜 SAM 3D Body인가}
+% ====================================================================
+
+\section{현재 파이프라인의 병목}
+
+\begin{center}
+\renewcommand{\arraystretch}{1.3}
+\begin{tabular}{lccl}
+\toprule
+\textbf{문제} & \textbf{현재값} & \textbf{목표} & \textbf{원인} \\
+\midrule
+Reproj 오차 & 153.5px & $<$50px & 캘리브레이션 + 정규화 \\
+GART 학습 & 3K 스텝 & 30K & 부족한 반복 \\
+생체역학 & 미구현 & 관절각 $<$5° & 코드 공백 \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+\begin{warningbox}
+\textbf{냉정한 진단}: 153px 오차의 바닥(113px)이 body\_pose 정규화 때문인지 캘리브레이션 부정확 때문인지 구분이 안 됩니다. VGGT 캘리브레이션은 체커보드 없이 AI 추정이며, COLMAP은 카메라 간 초점거리 편차가 2.6배입니다.
+\end{warningbox}
+
+\section{SAM 3D Body의 이점}
+
+\begin{center}
+\renewcommand{\arraystretch}{1.3}
+\begin{tabular}{lcc}
+\toprule
+& \textbf{U-HMR (현재)} & \textbf{SAM 3D Body} \\
+\midrule
+입력 & 4-view 동시 필수 & \textbf{단안 (카메라별 독립)} \\
+출력 모델 & SMPL (6,890 vtx) & \textbf{MHR (18,439 vtx)} \\
+정확도 (3DPW) & 31.0mm MPJPE & \textbf{30.4mm PA-MPJPE} \\
+아키텍처 제약 & 정확히 4-view & \textbf{제한 없음 (1--N view)} \\
+캘리브레이션 의존 & 다시점 융합 필요 & \textbf{불필요 (단안)} \\
+카메라 호환 & 동일 해상도만 & \textbf{임의 해상도 (cam1 세로 포함)} \\
+라이선스 & SMPL (비상업) & \textbf{MHR Apache 2.0} \\
+설치 시간 & 이미 완료 & \textbf{20--30분} \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+\begin{keyidea}
+\textbf{핵심 이점}: SAM 3D Body는 \textbf{캘리브레이션 없이} 각 카메라 독립 추론이 가능합니다. 현재 파이프라인의 최대 병목인 캘리브레이션 품질 문제를 \textbf{우회}합니다. 7대 카메라 각각에서 MHR 메시를 독립 추론한 뒤, 다시점 정합은 GART 포토메트릭 손실에 맡깁니다.
+\end{keyidea}
+
+
+% ====================================================================
+\chapter{다시점 3DGS가 투구 정확도를 높이는 원리}
+% ====================================================================
+
+3DGS(GART)는 단순히 ``예쁜 렌더링''이 아닙니다. \textbf{모션 품질 자체를 근본적으로 개선}하는 메커니즘입니다. 이 장에서는 왜 다시점 3DGS가 투구 분석에서 기존 키포인트 기반 방법을 넘어서는지 분석합니다.
+
+\section{감독 신호 밀도: 124,000배 차이}
+
+기존 키포인트 기반 감독과 3DGS 포토메트릭 감독의 정보량을 비교합니다.
+
+\begin{center}
+\renewcommand{\arraystretch}{1.3}
+\begin{tabular}{lccc}
+\toprule
+\textbf{방법} & \textbf{값/프레임} & \textbf{대 SMPL 85파라미터} & \textbf{과결정 비율} \\
+\midrule
+단안 키포인트 (25$\times$2) & 50 & 50:85 & 0.6:1 (\textbf{부족}) \\
+7-view 키포인트 (25$\times$2$\times$7) & 350 & 350:85 & 4.1:1 \\
+단안 3DGS (1920$\times$1080$\times$3) & 6.2M & 6.2M:85 & 73,000:1 \\
+\textbf{7-view 3DGS} & \textbf{43.5M} & \textbf{43.5M:85} & \textbf{512,000:1} \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+\begin{keyidea}
+키포인트 기반: 25개 관절의 \textbf{위치}만 감독합니다 (점).\\
+포토메트릭 기반: 인체의 \textbf{전체 표면}을 감독합니다 (면).\\
+관절 사이의 팔뚝 형태, 유니폼 주름, 근육 윤곽, 실루엣 경계가 모두 감독 신호입니다.
+\end{keyidea}
+
+
+\section{메커니즘 1: 다시점 기하학적 제약}
+
+키포인트 기반에서는 포즈 $\vtheta$가 한 카메라의 2D 투영에만 맞으면 됩니다. 깊이 축 오류는 처벌되지 않습니다.
+
+\textbf{다시점 3DGS에서는 포즈 $\vtheta$로 렌더링한 이미지가 7개 카메라 \underline{모두}에서 동시에 맞아야 합니다.}
+
+\begin{equation}
+\vtheta^* = \arg\min_{\vtheta} \sum_{c=1}^{7} \Big[ (1-\lambda_s)\|I_c - \hat{I}_c(\vtheta)\|_1 + \lambda_s \mathcal{L}_{\text{SSIM}}(I_c, \hat{I}_c(\vtheta)) \Big]
+\end{equation}
+
+잘못된 포즈는 \textbf{어떤 각도에서 반드시 틀리게 보입니다}:
+
+\begin{center}
+\begin{tikzpicture}[
+  node distance=1.5cm,
+  cam/.style={draw, fill=lightblue, minimum width=1.5cm, minimum height=0.6cm, align=center, font=\scriptsize},
+  body/.style={draw, fill=lightorange, circle, minimum size=1cm, align=center, font=\scriptsize},
+  arrow/.style={->, thick, >=stealth, dashed}
+]
+\node[body] (b) {투구자\\포즈 $\vtheta$};
+\node[cam, above left=1.5cm and 2cm of b] (c1) {cam1\\(후면)};
+\node[cam, above=1.8cm of b] (c3) {cam3\\(정면)};
+\node[cam, above right=1.5cm and 2cm of b] (c5) {cam5\\(측면)};
+\node[cam, left=2.5cm of b] (c2) {cam2\\(좌45°)};
+\node[cam, right=2.5cm of b] (c7) {cam7\\(우측면)};
+
+\draw[arrow] (b) -- (c1) node[midway, above, font=\tiny] {팔 보임};
+\draw[arrow] (b) -- (c3) node[midway, right, font=\tiny] {정면};
+\draw[arrow] (b) -- (c5) node[midway, above, font=\tiny] {깊이 확인};
+\draw[arrow] (b) -- (c2) node[midway, above, font=\tiny] {45° 검증};
+\draw[arrow] (b) -- (c7) node[midway, above, font=\tiny] {팔꿈치 각도};
+\end{tikzpicture}
+\end{center}
+
+\begin{importantnote}
+\textbf{예시}: 어깨 외회전(MER) 170°와 150°는 정면(cam3)에서 키포인트가 거의 동일합니다. 하지만 측면(cam5, cam7)에서는 상완의 \textbf{실루엣}이 완전히 달라집니다. 다시점 3DGS는 이 차이를 수백만 픽셀로 감지합니다.
+\end{importantnote}
+
+
+\section{메커니즘 2: 깊이 복원 --- 포토메트릭 깊이 제약}
+
+\subsection{키포인트 삼각측량의 한계}
+
+키포인트 기반 깊이 복원(DLT 삼각측량):
+\begin{equation}
+\sigma_z \propto \frac{z^2}{f \cdot B}
+\end{equation}
+여기서 $B$는 기선(baseline) 길이. 좁은 기선 $\to$ 깊이 불확실성 폭발. 또한 \textbf{키포인트 노이즈 5--15px가 깊이 오차로 직접 전파}됩니다.
+
+\subsection{3DGS 포토메트릭 깊이 제약}
+
+3DGS에서는 깊이 오류가 \textbf{실루엣 불일치}로 드러납니다:
+
+\begin{center}
+\renewcommand{\arraystretch}{1.3}
+\begin{tabular}{lcc}
+\toprule
+\textbf{움직임} & \textbf{정면(cam3) 변화} & \textbf{측면(cam5) 변화} \\
+\midrule
+팔 z축 10cm 전진 & 미미 (0--2px) & \textbf{$\sim$50px 이동} \\
+어깨 내회전 20° & 미미 (키포인트 불변) & \textbf{실루엣 형태 변화} \\
+팔꿈치 외반 5° & 미미 & \textbf{45° 뷰에서 감지} \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+\textbf{각 카메라가 다른 축의 오류에 민감} $\to$ 7개 조합하면 모든 방향의 오류가 감지됩니다.
+
+
+\section{메커니즘 3: 자기 폐색(self-occlusion) 해소}
+
+투구의 6단계 중 여러 순간에서 몸통이 투구 팔을 가립니다:
+
+\begin{center}
+\renewcommand{\arraystretch}{1.3}
+\begin{tabular}{lll}
+\toprule
+\textbf{단계} & \textbf{폐색 상황} & \textbf{정면에서 보이는 것} \\
+\midrule
+와인드업 & 글러브가 팔 앞에 위치 & 팔 안 보임 \\
+레이트 코킹 & 팔이 몸 뒤로 $\to$ 정면 폐색 & 어깨만 보임 \\
+가속기 & 팔이 머리 뒤에서 앞으로 & 순간적 폐색 \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+\paragraph{키포인트 기반 (단안/다시점).}
+폐색된 뷰에서 키포인트 신뢰도 = 0 $\to$ 해당 관절의 정보 \textbf{완전 소실}.
+
+\paragraph{다시점 3DGS.}
+\begin{itemize}[leftmargin=*]
+  \item 폐색된 뷰(cam3): ``팔이 안 보이는 것'' 자체가 정답 렌더링 $\to$ \textbf{실루엣 경계가 감독 신호}
+  \item 비폐색 뷰(cam7 후면): 팔이 보임 $\to$ \textbf{실제 팔 자세를 감독}
+  \item 두 정보를 결합하면 폐색 순간에도 정확한 포즈 추정 가능
+\end{itemize}
+
+\begin{keyidea}
+다시점 3DGS에서는 \textbf{보이지 않는 것도 정보}입니다. ``이 각도에서 팔이 보이면 안 됨''이라는 제약이 포즈를 강하게 결정합니다.
+\end{keyidea}
+
+
+\section{메커니즘 4: 모션 블러가 정보가 됨}
+
+투구 가속기에서 7,000°/s 어깨 회전 $\to$ 1/1000s 셔터에서 프레임당 7° 블러.
+
+\paragraph{키포인트 기반.}
+블러 $\to$ 키포인트 검출기 혼란 $\to$ 신뢰도 급감 $\to$ \textbf{가장 중요한 순간에 가장 부정확}.
+
+\paragraph{3DGS 포토메트릭.}
+블러된 이미지 자체를 재현하도록 가우시안을 학습시킵니다. 블러 방향은 움직임 방향과 일치하므로:
+\begin{itemize}[leftmargin=*]
+  \item 블러 길이 $\propto$ 각속도 $\to$ 속도 정보
+  \item 블러 방향 = 회전축에 수직 $\to$ 회전축 정보
+  \item 여러 뷰의 블러 패턴 조합 $\to$ 3D 회전 벡터 복원 가능
+\end{itemize}
+
+\begin{importantnote}
+이것이 GART-Pitch의 \textbf{핵심 기여점}입니다. 기존 모든 마커리스 투구 시스템(Theia3D 52mm, KinaTrax 57mm)은 키포인트 기반입니다. 포토메트릭 3DGS 포즈 정제를 투구에 적용한 연구는 \textbf{세계적으로 0건}입니다.
+\end{importantnote}
+
+
+\section{투구 위상별 3DGS 기여도}
+
+\begin{center}
+\renewcommand{\arraystretch}{1.3}
+\begin{tabular}{lccc}
+\toprule
+\textbf{투구 위상} & \textbf{키포인트 품질} & \textbf{3DGS 기여도} & $\lambda_{\text{temp}}$ \\
+\midrule
+와인드업 (느림) & 양호 & 보완적 & 10.0 \\
+스트라이드 & 양호 & 중간 & 5.0 \\
+레이트 코킹 & 저하 (폐색 시작) & \textbf{높음} & 2.0 \\
+\textbf{가속기 (30ms)} & \textbf{매우 나쁨 (블러)} & \textbf{결정적} & \textbf{0.5} \\
+감속 & 중간 & 높음 & 1.0 \\
+팔로쓰루 & 양호 & 보완적 & 3.0 \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+\begin{summary}
+\textbf{다시점 3DGS가 투구 정확도를 높이는 4가지 메커니즘}:
+\begin{enumerate}
+\item \textbf{기하학적 제약}: 7개 뷰에서 동시에 맞아야 함 $\to$ 포즈가 유일하게 결정됨 (과결정 512,000:1)
+\item \textbf{깊이 복원}: 각 카메라가 다른 축 오류에 민감 $\to$ 실루엣으로 깊이 제약
+\item \textbf{폐색 해소}: 보이지 않는 것도 정보 $\to$ 비폐색 뷰와 결합하여 폐색 순간 포즈 추정
+\item \textbf{블러 활용}: 블러 패턴이 속도/방향 정보 $\to$ 가속기에서 키포인트가 실패하는 순간에 3DGS가 주도
+\end{enumerate}
+SAM 3D Body(좋은 초기값) + 다시점 3DGS(정밀 정제) = 기존 SOTA를 넘을 수 있는 구체적 메커니즘.
+\end{summary}
+
+
+\section{SAM 3D Body + 다시점 3DGS 시너지}
+
+\begin{center}
+\begin{tikzpicture}[
+  node distance=1.0cm,
+  box/.style={draw, rounded corners, minimum width=5cm, minimum height=0.8cm, align=center, font=\small},
+  arrow/.style={->, thick, >=stealth}
+]
+\node[box, fill=lightorange] (sam) {SAM 3D Body (단안 SOTA 30.4mm)\\7개 카메라 독립 추론};
+\node[box, fill=lightblue, below=of sam] (init) {좋은 초기값 (7-view 중위수)\\캘리브레이션 의존 최소화};
+\node[box, fill=lightgreen, below=of init] (gart) {GART 7-view 가우시안 학습\\30K스텝, 다시점 일관성};
+\node[box, fill={cvpurple!15}, below=of gart] (refine) {포토메트릭 포즈 정제\\43.5M 픽셀 감독 $\times$ 위상 적응형};
+\node[box, fill=lightblue, below=of refine] (result) {최종 SMPL 포즈\\MPJPE $<$20mm 목표 (SOTA 52mm 대비 60\%↓)};
+
+\draw[arrow] (sam) -- (init) node[midway, right, font=\scriptsize] {MHR→SMPL 변환};
+\draw[arrow] (init) -- (gart) node[midway, right, font=\scriptsize] {수렴 가속};
+\draw[arrow] (gart) -- (refine) node[midway, right, font=\scriptsize] {가우시안 고정, $\vtheta$만 최적화};
+\draw[arrow] (refine) -- (result) node[midway, right, font=\scriptsize] {가속기에서 $\lambda_{\text{temp}}$=0.5};
+\end{tikzpicture}
+\end{center}
+
+\begin{keyidea}
+\textbf{시너지}: SAM 3D Body가 좋은 초기값 제공 $\to$ GART 학습이 빨리 수렴 $\to$ 포즈 정제가 더 정확한 영역에서 시작 $\to$ \textbf{최종 포즈 품질 최대화}. 이것이 ``3DGS를 쓴다''가 아니라 ``SAM 3D Body + 다시점 3DGS의 조합이 SOTA를 넘는 구체적 경로''입니다.
+\end{keyidea}
+
+
+% ====================================================================
+\chapter{전체 파이프라인}
+% ====================================================================
+
+\section{아키텍처 개요}
+
+\begin{center}
+\begin{tikzpicture}[
+  node distance=1.0cm,
+  box/.style={draw, rounded corners, fill=lightblue, minimum width=5.5cm, minimum height=0.8cm, align=center, font=\small},
+  newbox/.style={draw, rounded corners, fill=lightorange, minimum width=5.5cm, minimum height=0.8cm, align=center, font=\small\bfseries},
+  existbox/.style={draw, rounded corners, fill=lightgreen, minimum width=5.5cm, minimum height=0.8cm, align=center, font=\small},
+  arrow/.style={->, thick, >=stealth},
+  label/.style={font=\scriptsize, midway, right, text width=4cm}
+]
+
+\node[box] (input) {7-cam $\times$ 1000프레임 (240Hz)};
+\node[newbox, below=of input] (sam3d) {SAM 3D Body $\times$ 7\\각 카메라 독립 MHR 추론};
+\node[newbox, below=of sam3d] (convert) {MHR $\to$ SMPL 변환\\pymomentum / PyTorch 최적화};
+\node[existbox, below=of convert] (reproj) {7-View Reproj Fitting\\$\lambda=0.0001$, 500스텝};
+\node[existbox, below=of reproj] (gart) {GART 7-View 30K스텝\\+ 포토메트릭 포즈 정제};
+\node[newbox, below=of gart] (bio) {SMPL $\to$ TRC $\to$ OpenSim IK\\관절 각도 + 토크};
+\node[box, below=of bio] (valid) {Vicon 검증 (동기화 완료)\\MPJPE, Bland-Altman};
+
+\draw[arrow] (input) -- (sam3d) node[label] {\textbf{NEW}: 설치 20분};
+\draw[arrow] (sam3d) -- (convert) node[label] {\textbf{NEW}: MHR→SMPL};
+\draw[arrow] (convert) -- (reproj) node[label] {기존 스크립트 재활용};
+\draw[arrow] (reproj) -- (gart) node[label] {기존 스크립트 재활용};
+\draw[arrow] (gart) -- (bio) node[label] {\textbf{NEW}: SAM4Dcap 마커 매핑};
+\draw[arrow] (bio) -- (valid) node[label] {로컬에서 동기화 완료};
+\end{tikzpicture}
+\end{center}
+
+\begin{importantnote}
+\textcolor{noteorange}{\textbf{주황색}} = 새로 추가하는 단계 (3개)\\
+\textcolor{thmgreen}{\textbf{초록색}} = 기존 스크립트 재활용 (2개)\\
+기존 U-HMR $\to$ SAM 3D Body로 교체하면서 캘리브레이션 의존성을 제거합니다.
+\end{importantnote}
+
+
+\section{현재 vs 새 파이프라인 비교}
+
+\begin{center}
+\renewcommand{\arraystretch}{1.3}
+\begin{tabular}{p{3cm}p{5cm}p{5cm}}
+\toprule
+\textbf{단계} & \textbf{현재} & \textbf{SAM 3D Body 기반} \\
+\midrule
+초기 포즈 & U-HMR 4-view 융합 & SAM 3D Body $\times$7 (독립) \\
+바디 모델 & SMPL 직접 & MHR $\to$ SMPL 변환 \\
+캘리브레이션 & VGGT (AI 추정) & \textbf{추론에 불필요} \\
+cam1 (세로) & 제외 & \textbf{포함 (그대로 입력)} \\
+Reproj 정제 & 4-view, $\lambda$=0.01 & 7-view, $\lambda$=0.0001 \\
+GART & 4-view 3K 스텝 & 7-view 30K 스텝 \\
+생체역학 & 미구현 & SAM4Dcap 마커 매핑 \\
+검증 & Vicon 미동기화 & \textbf{동기화 완료 (125프레임)} \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+
+% ====================================================================
+\chapter{Step 1: SAM 3D Body 설치 (20분)}
+% ====================================================================
+
+\section{Conda 환경 생성}
+
+\begin{codebox}[title={서버 명령어}]
+\begin{verbatim}
+# 새 환경 (GART와 충돌 방지)
+conda create -n sam3d python=3.11 -y
+conda activate sam3d
+
+# PyTorch (CUDA 11.8 — 서버 기준)
+pip install torch torchvision torchaudio \
+    --index-url https://download.pytorch.org/whl/cu118
+
+# 의존성 한 번에
+pip install pytorch-lightning pyrender opencv-python yacs \
+    scikit-image einops timm dill pandas rich \
+    hydra-core pyrootutils webdataset roma joblib \
+    seaborn loguru optree fvcore pycocotools \
+    tensorboard huggingface_hub networkx==3.2.1
+
+# Detectron2 (소스 빌드, 5-10분)
+pip install 'git+https://github.com/facebookresearch/detectron2.git@a1ce2f9' \
+    --no-build-isolation --no-deps
+\end{verbatim}
+\end{codebox}
+
+\section{체크포인트 다운로드}
+
+\begin{codebox}[title={HuggingFace 다운로드 (2.8GB, 1-5분)}]
+\begin{verbatim}
+# HuggingFace 로그인 (토큰 필요)
+huggingface-cli login
+
+# 게이트 승인: 브라우저에서 아래 URL 방문 → "Agree" 클릭
+# https://huggingface.co/facebook/sam-3d-body-dinov3
+
+# 다운로드
+huggingface-cli download facebook/sam-3d-body-dinov3 \
+    --local-dir ~/sam-3d-body/checkpoints/sam-3d-body-dinov3
+
+# 확인
+ls -la ~/sam-3d-body/checkpoints/sam-3d-body-dinov3/
+# model.ckpt (2.11GB), assets/mhr_model.pt (696MB)
+\end{verbatim}
+\end{codebox}
+
+\section{SAM 3D Body 코드 클론}
+
+\begin{codebox}[title={레포 클론}]
+\begin{verbatim}
+cd ~
+git clone https://github.com/facebookresearch/sam-3d-body.git
+cd sam-3d-body
+\end{verbatim}
+\end{codebox}
+
+\section{설치 확인 (1장 테스트)}
+
+\begin{codebox}[title={단일 이미지 테스트}]
+\begin{verbatim}
+cd ~/sam-3d-body
+export PYOPENGL_PLATFORM=egl  # 서버 headless 환경
+
+python -c "
+from notebook.utils import setup_sam_3d_body
+import cv2
+estimator = setup_sam_3d_body(
+    hf_repo_id='facebook/sam-3d-body-dinov3',
+    local_dir='checkpoints/sam-3d-body-dinov3'
+)
+img = cv2.imread('/home/elicer/images/cam3/00001.png')
+out = estimator.process_one_image(cv2.cvtColor(img, cv2.COLOR_BGR2RGB))
+print('Output keys:', list(out.keys()))
+print('Vertices shape:', out['pred_vertices'].shape)  # (18439, 3)
+print('SUCCESS')
+"
+\end{verbatim}
+\end{codebox}
+
+\begin{successbox}
+설치 완료 기준: \texttt{Vertices shape: (18439, 3)} 출력 + \texttt{SUCCESS} 메시지.
+\end{successbox}
+
+
+% ====================================================================
+\chapter{Step 2: 7-Camera 배치 추론 (20-40분)}
+% ====================================================================
+
+\section{추론 전략}
+
+\begin{keyidea}
+7개 카메라 $\times$ 999 프레임 = 6,993장을 SAM 3D Body로 독립 추론합니다.
+각 이미지에서 MHR 파라미터 (18,439 꼭짓점 메시)를 추출합니다.
+\textbf{캘리브레이션 불필요} --- 각 이미지가 독립적으로 처리됩니다.
+\end{keyidea}
+
+\section{배치 추론 스크립트}
+
+\begin{codebox}[title={run\_sam3d\_7cam.py}]
+\begin{verbatim}
+"""7-camera x 999 frames SAM 3D Body batch inference."""
+import os, cv2, numpy as np, torch, time
+from notebook.utils import setup_sam_3d_body
+
+estimator = setup_sam_3d_body(
+    hf_repo_id='facebook/sam-3d-body-dinov3',
+    local_dir='checkpoints/sam-3d-body-dinov3'
+)
+
+CAM_DIRS = {
+    'cam1': '/home/elicer/images/cam1',   # 세로 1080x1920 → 그대로 입력!
+    'cam2': '/home/elicer/images/cam2',
+    'cam3': '/home/elicer/images/cam3',
+    'cam4': '/home/elicer/images/cam4',
+    'cam5': '/home/elicer/images/cam5',
+    'cam6': '/home/elicer/images/cam6',
+    'cam7': '/home/elicer/images/cam7',
+}
+OUT_DIR = '/home/elicer/sam3d_results'
+N_FRAMES = 999
+
+for cam_name, cam_dir in CAM_DIRS.items():
+    out_cam = os.path.join(OUT_DIR, cam_name)
+    os.makedirs(out_cam, exist_ok=True)
+
+    files = sorted([f for f in os.listdir(cam_dir)
+                    if f.endswith(('.jpg','.png'))])[:N_FRAMES]
+
+    t0 = time.time()
+    for fi, fn in enumerate(files):
+        img = cv2.imread(os.path.join(cam_dir, fn))
+        out = estimator.process_one_image(
+            cv2.cvtColor(img, cv2.COLOR_BGR2RGB))
+
+        np.savez_compressed(
+            os.path.join(out_cam, f'{fi:06d}.npz'),
+            pred_vertices=out['pred_vertices'],   # (18439, 3)
+            focal_length=out.get('focal_length', [0]),
+            pred_cam_t=out.get('pred_cam_t', [0,0,0]),
+        )
+
+        if fi % 100 == 0:
+            elapsed = time.time() - t0
+            fps = (fi+1) / elapsed if elapsed > 0 else 0
+            eta = (len(files)-fi-1) / fps if fps > 0 else 0
+            print(f'{cam_name} {fi}/{len(files)}: '
+                  f'{fps:.1f} fps, ETA {eta:.0f}s')
+
+    total = time.time() - t0
+    print(f'{cam_name}: {len(files)} frames in {total:.0f}s '
+          f'({len(files)/total:.1f} fps)')
+\end{verbatim}
+\end{codebox}
+
+\section{예상 시간}
+
+\begin{center}
+\renewcommand{\arraystretch}{1.2}
+\begin{tabular}{lccc}
+\toprule
+\textbf{추론 속도} & \textbf{프레임 수} & \textbf{시간} & \textbf{비고} \\
+\midrule
+$\sim$1 FPS (A100) & 6,993 & $\sim$117분 & 전체 순차 \\
+$\sim$2 FPS (배치) & 6,993 & $\sim$58분 & 배치 최적화 \\
+\midrule
+\textbf{현실적 예상} & & \textbf{60--120분} & \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+\begin{importantnote}
+\textbf{시간 단축 전략}: 처음에는 \textbf{cam3 1개 $\times$ 100프레임}만 테스트 (2분).\\
+품질 확인 후 전체 7-cam 실행. 또는 cam3,5,6,7 (4개)만 먼저 실행하여 비교.
+\end{importantnote}
+
+
+% ====================================================================
+\chapter{Step 3: MHR $\to$ SMPL 변환 (10-20분)}
+% ====================================================================
+
+\section{변환 방법}
+
+SAM 3D Body는 MHR 메시(18,439 꼭짓점)를 출력합니다. GART는 SMPL(6,890 꼭짓점)을 필요로 합니다. 변환이 필요합니다.
+
+\subsection{방법 A: MHR 레포의 공식 변환 도구}
+
+\begin{codebox}[title={MHR $\to$ SMPL 변환}]
+\begin{verbatim}
+# MHR 레포 클론
+git clone https://github.com/facebookresearch/MHR.git
+cd MHR
+
+# pymomentum 설치 (CPU 충분)
+pip install pymomentum-cpu
+
+# 변환 실행
+python tools/mhr_smpl_conversion/conversion.py \
+    --input_dir /home/elicer/sam3d_results/cam3 \
+    --output_dir /home/elicer/sam3d_smpl/cam3 \
+    --direction mhr_to_smpl \
+    --backend pytorch  # GPU 사용 (빠름)
+\end{verbatim}
+\end{codebox}
+
+\begin{warningbox}
+\textbf{함정 F-6 (cm/m 스케일)}: SAM 3D Body는 미터 단위로 출력하지만, MHR 변환 코드의 일부 버전은 센티미터를 가정합니다. \texttt{conversion.py}에서 \texttt{0.01} 스케일링 팩터가 있으면 제거하세요.
+\end{warningbox}
+
+\subsection{방법 B: 직접 꼭짓점 피팅 (대안)}
+
+MHR 메시 꼭짓점 $\to$ SMPL 파라미터를 직접 최적화:
+
+\begin{codebox}[title={MHR vertices $\to$ SMPL params 직접 피팅}]
+\begin{verbatim}
+import torch, smplx, numpy as np
+
+model = smplx.create(model_path, model_type='smpl',
+                     gender='neutral').cuda()
+
+for fi in range(N_FRAMES):
+    mhr = np.load(f'sam3d_results/cam3/{fi:06d}.npz')
+    target_verts = torch.tensor(
+        mhr['pred_vertices'], device='cuda', dtype=torch.float32)
+
+    # SMPL 파라미터 최적화
+    body_pose = torch.zeros(1, 69, requires_grad=True, device='cuda')
+    betas = torch.zeros(1, 10, requires_grad=True, device='cuda')
+    global_orient = torch.zeros(1, 3, requires_grad=True, device='cuda')
+    transl = torch.zeros(1, 3, requires_grad=True, device='cuda')
+
+    opt = torch.optim.Adam([body_pose, betas, global_orient, transl],
+                           lr=0.01)
+
+    for step in range(200):
+        out = model(body_pose=body_pose, betas=betas,
+                    global_orient=global_orient, transl=transl)
+        # SMPL 6890 vertices → MHR 18439과 대응점 매칭 필요
+        # 최근접점 매칭 또는 사전 계산된 대응 테이블 사용
+        loss = ((out.vertices[0] - target_verts_sampled)**2).sum()
+        opt.zero_grad(); loss.backward(); opt.step()
+\end{verbatim}
+\end{codebox}
+
+\begin{importantnote}
+\textbf{권장}: 방법 A (공식 도구)를 먼저 시도. 실패 시 방법 B로 전환.\\
+공식 도구는 barycentric interpolation으로 topology 매핑을 정확히 처리합니다.
+\end{importantnote}
+
+
+% ====================================================================
+\chapter{Step 4: 다시점 정합 + GART (기존 스크립트)}
+% ====================================================================
+
+\section{SAM 3D Body 출력 $\to$ Reproj Fitting}
+
+SAM 3D Body는 각 카메라에서 독립적으로 SMPL body\_pose를 추정합니다. 7개 카메라의 결과를 통합해야 합니다.
+
+\subsection{전략 A: 최선 뷰 선택 + Reproj (빠름)}
+
+\begin{codebox}[title={7-view 평균 body\_pose $\to$ reproj 정제}]
+\begin{verbatim}
+# 7개 카메라의 body_pose를 평균
+bp_views = []  # (7, 69) 각 카메라의 body_pose
+for cam in ['cam1','cam2','cam3','cam4','cam5','cam6','cam7']:
+    smpl = load_smpl_params(f'sam3d_smpl/{cam}/{fi:06d}.npz')
+    bp_views.append(smpl['body_pose'])
+
+# 중위수 (outlier에 강건)
+body_pose_init = np.median(np.array(bp_views), axis=0)
+
+# 이 초기값으로 7-view reproj fitting 실행
+# → 02_reproj_7view_sequential.py 의 body_pose_init 교체
+\end{verbatim}
+\end{codebox}
+
+\subsection{전략 B: 직접 GART 입력 (캘리브레이션 우회)}
+
+\begin{keyidea}
+SAM 3D Body가 \textbf{각 카메라의 카메라 좌표계에서} SMPL을 추정하므로, 캘리브레이션 없이 각 뷰의 SMPL을 직접 GART에 입력할 수 있습니다. GART는 각 (프레임, 카메라) 쌍에 대해 독립적으로 렌더링하므로, 월드 좌표계 통합이 불필요합니다.
+\end{keyidea}
+
+\begin{warningbox}
+단, 이 경우 GART가 \textbf{캐노니컬 공간에서 7개 뷰를 일관되게} 학습해야 하므로, body\_pose는 동일하고 Rh/Th만 카메라별로 다르게 설정해야 합니다. 이를 위해서는 최소한의 상대 포즈(relative pose) 정보가 필요합니다.
+\end{warningbox}
+
+
+\section{GART 7-View 학습}
+
+Step 3에서 얻은 SMPL 파라미터로 GART를 학습합니다. 기존 스크립트 (\texttt{03\_prepare\_gart\_data.py})를 그대로 사용합니다.
+
+\begin{center}
+\renewcommand{\arraystretch}{1.2}
+\begin{tabular}{lcc}
+\toprule
+\textbf{설정} & \textbf{현재} & \textbf{SAM 3D Body 기반} \\
+\midrule
+초기 SMPL & U-HMR 4-view & \textbf{SAM 3D Body 7-view 중위수} \\
+카메라 수 & 4 & \textbf{7} \\
+학습 스텝 & 3,000 & \textbf{30,000} \\
+포즈 정제 시작 & 미적용 & \textbf{스텝 15,000} \\
+IMAGE\_ZOOM & 0.5 & \textbf{0.25} \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+
+% ====================================================================
+\chapter{Step 5: 생체역학 분석 (SAM4Dcap 활용)}
+% ====================================================================
+
+\section{SMPL $\to$ 해부학적 마커}
+
+SAM4Dcap에서 추출한 SMPL 꼭짓점 $\to$ 마커 매핑 테이블을 사용합니다.
+
+\begin{codebox}[title={핵심 마커 인덱스 (SMPL 6,890 꼭짓점 기준)}]
+\begin{verbatim}
+# SAM4Dcap updated_mapping.csv에서 추출
+MARKER_MAP = {
+    'C7':    1306,   # 경추 7번
+    'LSHO':  1239,   # 왼쪽 어깨
+    'RSHO':  4878,   # 오른쪽 어깨
+    'RELB':  5090,   # 오른쪽 팔꿈치
+    'RWRA':  5573,   # 오른쪽 손목 A
+    'RWRB':  5568,   # 오른쪽 손목 B
+    'LHIP':  1806,   # 왼쪽 고관절
+    'RHIP':  6573,   # 오른쪽 고관절
+    'RKNEE': 4495,   # 오른쪽 무릎
+    'RANK':  6727,   # 오른쪽 발목
+    'LKNEE': 1069,   # 왼쪽 무릎
+    'LANK':  3327,   # 왼쪽 발목
+    # ... 43개 전체
+}
+\end{verbatim}
+\end{codebox}
+
+\section{TRC 파일 생성 + OpenSim IK}
+
+\begin{codebox}[title={SMPL $\to$ TRC $\to$ OpenSim}]
+\begin{verbatim}
+# 1. SMPL FK → 꼭짓점 추출
+out = smpl_model(body_pose=bp, betas=betas, ...)
+vertices = out.vertices[0].numpy()  # (6890, 3)
+
+# 2. 마커 위치 추출
+markers = {name: vertices[idx] for name, idx in MARKER_MAP.items()}
+
+# 3. TRC 파일 작성
+write_trc(markers, fps=240, output='markers.trc')
+
+# 4. OpenSim IK
+# 모델: LaiUhlrich2022.osim (SAM4Dcap에서 제공)
+# opensim.InverseKinematicsTool → .mot 파일 (관절 각도)
+\end{verbatim}
+\end{codebox}
+
+
+% ====================================================================
+\chapter{전체 시간표}
+% ====================================================================
+
+\begin{center}
+\renewcommand{\arraystretch}{1.4}
+\begin{tabular}{clcc}
+\toprule
+\textbf{순서} & \textbf{단계} & \textbf{시간} & \textbf{누적} \\
+\midrule
+1 & SAM 3D Body 설치 (conda + pip + checkpoint) & 20--30분 & 30분 \\
+2 & 테스트 추론 (cam3, 100프레임) & 2분 & 32분 \\
+3a & 전체 추론 (7cam $\times$ 999프레임) & 60--120분 & 2.5시간 \\
+3b & MHR $\to$ SMPL 변환 & 10--20분 & 3시간 \\
+4 & 7-view reproj fitting ($\lambda$=0.0001) & 20--40분 & 3.5시간 \\
+5 & GART 7-view 30K스텝 & 30--60분 & 4.5시간 \\
+6 & SMPL $\to$ TRC $\to$ OpenSim IK & 30분 & 5시간 \\
+7 & Vicon 검증 (동기화 완료) & 30분 & \textbf{5.5시간} \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+\begin{importantnote}
+\textbf{병렬화 가능}: Step 3a에서 7개 카메라를 순차 실행하지만, GPU 메모리가 충분하면 2--3개 프로세스 병렬 실행으로 시간 단축 가능.
+\end{importantnote}
+
+
+% ====================================================================
+\chapter{품질 게이트 + 리스크}
+% ====================================================================
+
+\section{품질 게이트}
+
+\begin{center}
+\renewcommand{\arraystretch}{1.3}
+\begin{tabular}{clll}
+\toprule
+\textbf{게이트} & \textbf{위치} & \textbf{통과 기준} & \textbf{실패 시} \\
+\midrule
+G0 & Step 1 후 & SAM 3D Body 1장 추론 성공 & pip 디버깅 \\
+G1 & Step 2 후 & MHR 메시 시각적 확인 (피팅 합리적) & bbox/crop 조정 \\
+G2 & Step 3 후 & SMPL 변환 성공, 꼭짓점 수 6,890 & 방법 B 전환 \\
+G3 & Step 4 후 & reproj $<$ 100px & $\lambda$ 재조정 \\
+G4 & Step 5 후 & PSNR $>$ 20dB & 스텝 증가 \\
+G5 & Step 6 후 & OpenSim IK 수렴 & 마커 매핑 재조정 \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+\section{리스크}
+
+\begin{center}
+\renewcommand{\arraystretch}{1.3}
+\begin{tabular}{p{4cm}ccp{4.5cm}}
+\toprule
+\textbf{리스크} & \textbf{확률} & \textbf{영향} & \textbf{대응} \\
+\midrule
+SAM 3D Body detectron2 빌드 실패 & 낮음 & 높음 & PyTorch 버전 맞춤 or 다른 커밋 \\
+MHR$\to$SMPL 변환 발산 & 중간 & 중간 & 직접 vertex 피팅 (방법 B) \\
+pyrender headless 실패 & 중간 & 낮음 & EGL/osmesa 설정 \\
+추론 속도 $<$0.5 FPS & 낮음 & 중간 & cam 수 4개로 축소 \\
+cam1 세로에서 검출 실패 & 낮음 & 낮음 & cam1 제외 (6-view) \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+
+% ====================================================================
+\chapter{U-HMR과의 A/B 비교 실험}
+% ====================================================================
+
+SAM 3D Body가 정말로 U-HMR보다 나은지 정량적으로 비교합니다.
+
+\section{비교 설계}
+
+\begin{center}
+\renewcommand{\arraystretch}{1.3}
+\begin{tabular}{lcc}
+\toprule
+& \textbf{경로 A (현재)} & \textbf{경로 B (SAM 3D Body)} \\
+\midrule
+초기값 & U-HMR 4-view & SAM 3D Body 7-view 중위수 \\
+캘리브레이션 & VGGT & VGGT (reproj용) \\
+Reproj fitting & 동일 스크립트, 동일 $\lambda$ & 동일 \\
+GART & 동일 설정 & 동일 \\
+\midrule
+비교 지표 & \multicolumn{2}{c}{Reproj error, MPJPE vs Vicon, PSNR} \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+\begin{keyidea}
+\textbf{유일한 변수}: 초기 body\_pose의 출처.\\
+나머지 파이프라인을 동일하게 유지하여 SAM 3D Body의 순수 기여도를 측정합니다.\\
+cam3 100프레임으로 빠르게 비교 후, 전체 실행 여부를 결정합니다.
+\end{keyidea}
+
+\section{빠른 비교 프로토콜 (30분)}
+
+\begin{enumerate}
+\item cam3 100프레임에 SAM 3D Body 추론 (2분)
+\item MHR $\to$ SMPL 변환 (2분)
+\item cam3 단안 reproj 오차 계산 (1분)
+\item U-HMR cam3 결과와 비교 (이미 존재)
+\item \textbf{SAM 3D Body reproj $<$ U-HMR reproj 이면} $\to$ 전체 실행 진행
+\end{enumerate}
+
+
+% ====================================================================
+\chapter{서버 실행 체크리스트}
+% ====================================================================
+
+\begin{checklistbox}[title={서버 접속 후 실행 순서}]
+\begin{enumerate}
+\item[$\square$] \texttt{conda create -n sam3d python=3.11 -y}
+\item[$\square$] \texttt{pip install torch ...} (PyTorch + 의존성)
+\item[$\square$] \texttt{pip install detectron2} (소스 빌드)
+\item[$\square$] HuggingFace 게이트 승인 + 체크포인트 다운로드 (2.8GB)
+\item[$\square$] \texttt{git clone sam-3d-body} + 테스트 추론 1장
+\item[$\square$] \textbf{G0 게이트}: MHR 메시 (18,439 vtx) 출력 확인
+\item[$\square$] cam3 100프레임 추론 $\to$ U-HMR 비교 (A/B 테스트)
+\item[$\square$] \textbf{G1 게이트}: SAM 3D Body $\geq$ U-HMR 확인
+\item[$\square$] 7-cam 전체 추론 (999프레임)
+\item[$\square$] MHR $\to$ SMPL 변환
+\item[$\square$] \textbf{G2 게이트}: SMPL 꼭짓점 6,890 확인
+\item[$\square$] 7-view reproj fitting ($\lambda$=0.0001)
+\item[$\square$] \textbf{G3 게이트}: reproj $<$ 100px
+\item[$\square$] GART 7-view 30K스텝 학습
+\item[$\square$] \textbf{G4 게이트}: PSNR $>$ 20dB
+\item[$\square$] SMPL $\to$ TRC $\to$ OpenSim IK
+\item[$\square$] Vicon 검증 (MPJPE, 관절각 RMSE)
+\end{enumerate}
+\end{checklistbox}
+
+\begin{summary}
+\textbf{SAM 3D Body 파이프라인 요약}:
+\begin{itemize}
+\item 설치 20분, 캘리브레이션 의존성 제거, 7-cam 모두 활용 가능
+\item PA-MPJPE 30.4mm (SOTA) 단안 추론 $\times$ 7개 카메라
+\item MHR 18,439 꼭짓점 $\to$ SMPL 6,890 변환 $\to$ GART 입력
+\item 기존 reproj fitting + GART 스크립트 재활용
+\item SAM4Dcap 마커 매핑으로 OpenSim 브릿지
+\item Vicon 동기화 이미 완료 (125프레임 오프셋)
+\item \textbf{총 5.5시간, 6개 품질 게이트}
+\end{itemize}
+\end{summary}
+
+\end{document}

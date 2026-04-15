@@ -672,7 +672,554 @@ SMPL/SMPL-X는 ``체형 $\vbeta$ + 자세 $\vtheta$ $\rightarrow$ 3D 메시''의
 
 
 % ====================================================================
-% CHAPTER 4: Dynamic 3DGS
+% CHAPTER 4: MHR (Momentum Human Rig)
+% ====================================================================
+\chapter{Meta의 차세대 인체 모델: MHR (Momentum Human Rig)}
+\label{ch:mhr}
+
+\section{개요}
+
+앞 장에서 SMPL/SMPL-X의 구조를 살펴보았습니다. SMPL 계열은 인체 파라메트릭 모델의 사실상 표준(de facto standard)이지만, 근본적인 설계상의 한계가 있습니다. \textbf{MHR(Momentum Human Rig)}은 Meta가 2025년에 공개한 차세대 인체 모델로, SMPL의 핵심 저자인 Javier Romero가 이끄는 47인 팀이 9년간 개발했습니다.
+
+\begin{keyidea}
+MHR의 핵심 혁신: \textbf{골격(skeleton)과 표면(surface)의 명시적 분리}. SMPL에서는 관절 위치가 꼭짓점으로부터 회귀되어 체형과 골격이 얽히지만, MHR에서는 127개 관절의 골격이 독립적으로 파라미터화됩니다. 이는 뼈 길이, 신장 등의 직접적 제어를 가능하게 합니다.
+\end{keyidea}
+
+
+\section{SMPL vs MHR: 모델 사양 비교}
+
+\begin{center}
+\renewcommand{\arraystretch}{1.3}
+\begin{tabular}{lccc}
+\toprule
+& \textbf{SMPL} & \textbf{SMPL-X} & \textbf{MHR} \\
+\midrule
+꼭짓점 수 & 6,890 & 10,475 & 18,439 (LOD 1) \\
+관절 수 & 24 & 54 & 127 \\
+체형 파라미터 & $\RR^{10}$ & $\RR^{10}$ & $\RR^{45}$ (20몸+20머리+5손) \\
+자세 파라미터 & $\RR^{72}$ & $\RR^{165}$ & $\RR^{204}$ \\
+표정 파라미터 & -- & $\RR^{10}$ & $\RR^{72}$ (FACS 기반) \\
+관절 유도 방식 & 꼭짓점 회귀 & 꼭짓점 회귀 & \textbf{독립 골격} \\
+자세 보정 방식 & 선형 (전역) & 선형 (전역) & \textbf{비선형 MLP (지역적)} \\
+LOD 지원 & 단일 & 단일 & 7단계 (595$\sim$73,639) \\
+라이선스 & 비상업용 (MPI) & 비상업용 (MPI) & \textbf{Apache 2.0} \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+\begin{importantnote}
+라이선스 차이는 실무에서 매우 중요합니다. SMPL/SMPL-X는 상업적 사용이 금지되며 별도 라이선스(Meshcapade)가 필요합니다. MHR의 Apache 2.0은 상업적 사용, 재배포, 수정이 모두 자유롭습니다.
+\end{importantnote}
+
+
+\section{MHR 수학적 정식화}
+
+\subsection{전체 모델}
+
+MHR의 정방향 모델은 다음과 같이 정의됩니다:
+\begin{equation}
+\boxed{
+\vX(\vbeta, \vtheta) = \mathrm{LBS}\!\Big( \tilde{\vX}(\vbeta_s, \vbeta_f, \vtheta),\;\; B_k(\vbeta_k),\;\; \vtheta,\;\; \bm{\omega} \Big)
+}
+\label{eq:mhr_full}
+\end{equation}
+
+캐노니컬 공간에서의 꼭짓점은:
+\begin{equation}
+\tilde{\vX}(\vbeta_s, \vbeta_f, \vtheta) = \bar{\vX} + B_S(\vbeta_s) + B_F(\vbeta_f) + B_P(\vtheta)
+\label{eq:mhr_canonical}
+\end{equation}
+
+여기서:
+\begin{itemize}[leftmargin=*]
+  \item $\bar{\vX} \in \RR^{3V}$: 중립 템플릿 메시
+  \item $B_S(\vbeta_s)$: 신원(identity) 블렌드 셰이프 --- 체형 변형
+  \item $B_F(\vbeta_f)$: 표정(expression) 블렌드 셰이프 --- 얼굴 변형
+  \item $B_P(\vtheta)$: 자세 보정(pose corrective) --- \textbf{비선형} 변형
+  \item $B_k(\vbeta_k)$: 골격 파라미터 --- SMPL에는 없는 독립 골격 제어
+\end{itemize}
+
+\begin{remark}
+수식 \eqref{eq:mhr_canonical}은 SMPL의 수식 \eqref{eq:smpl_full}과 구조적으로 유사합니다. 차이점은 (1) 골격이 독립적이고 (2) 자세 보정이 비선형이며 (3) 표정 블렌드 셰이프가 별도 공간으로 분리되었다는 것입니다.
+\end{remark}
+
+
+\subsection{신원 블렌드 셰이프 (Identity Blend Shapes)}
+
+SMPL과 동일한 선형 PCA 구조이지만, 세 영역으로 분리됩니다:
+\begin{equation}
+B_S(\vbeta_s) = \sum_{n=1}^{|\vbeta_s|} \beta_n^s \cdot \mS_n
+\end{equation}
+
+\begin{center}
+\renewcommand{\arraystretch}{1.2}
+\begin{tabular}{lcc}
+\toprule
+\textbf{영역} & \textbf{성분 수} & \textbf{학습 데이터} \\
+\midrule
+몸통 (Body) & 20 & 7,110 스캔 \\
+머리 (Head) & 20 & 2,138 캡처 \\
+손 (Hand) & 5 & 3,000 스캔 \\
+\midrule
+\textbf{합계} & \textbf{45} & \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+각 영역은 독립적인 PCA 부분공간을 가지며, 소프트 마스크로 영역 간 경계가 부드럽게 혼합됩니다. SMPL의 10개 전역 성분 대비 \textbf{4.5배 풍부한} 체형 표현이 가능합니다.
+
+
+\subsection{표정 블렌드 셰이프 (Expression Blend Shapes)}
+
+\begin{equation}
+B_F(\vbeta_f) = \sum_{n=1}^{72} \beta_n^f \cdot \mF_n
+\end{equation}
+
+SMPL-X의 표정 파라미터가 데이터 기반 PCA(10차원)인 것과 달리, MHR은 \textbf{72개 FACS(Facial Action Coding System)} 기반 블렌드 셰이프를 아티스트가 직접 조각했습니다. 각 파라미터의 범위는 $[-1, +1]$이며, 의미론적으로 해석 가능합니다 (예: ``눈썹 올림'', ``입 벌림'' 등).
+
+
+\subsection{자세 보정: 선형에서 비선형으로}
+\label{sec:mhr_pose_corrective}
+
+이것이 SMPL과 MHR의 \textbf{가장 큰 기술적 차이}입니다.
+
+\paragraph{SMPL의 선형 자세 보정 (복습).}
+SMPL에서는 (수식 \eqref{eq:pose_bs} 참조):
+\begin{equation}
+B_P^{\text{SMPL}}(\vtheta) = \sum_{n=1}^{9K} \big( R_n(\vtheta) - R_n(\vtheta^*) \big) \cdot \mP_n
+\tag{선형}
+\end{equation}
+
+회전행렬 원소의 \textit{선형 함수}로 보정합니다. 단순하지만 근육 팽창, 피부 접힘 같은 \textit{비선형} 현상을 정확히 포착하지 못합니다.
+
+\paragraph{MHR의 비선형 자세 보정.}
+MHR은 관절별 MLP(다층 퍼셉트론)를 사용합니다:
+\begin{equation}
+\text{NonLinear}_j(\vtheta) = \text{MLP}_j\!\Big(\big\{ R_{6D}(\vtheta_a) - R_{6D}(\mathbf{0}) \;\big|\; a \in \mathcal{N}(j) \big\}\Big)
+\end{equation}
+
+\begin{equation}
+B_j^P = \phi(\mA_j) \cdot \big( \mP_j \cdot \text{NonLinear}_j(\vtheta) \big)
+\label{eq:mhr_pose_corrective}
+\end{equation}
+
+여기서:
+\begin{itemize}[leftmargin=*]
+  \item $R_{6D}$: 6D 회전 표현 (Zhou et al.) --- 축-각도보다 연속적
+  \item $\mathcal{N}(j)$: 관절 $j$의 이웃 관절 집합 --- \textbf{지역적} 보정
+  \item $\mA_j$: 학습 가능한 관절 마스크 (측지 거리로 초기화, L1 정규화)
+  \item $\phi$: ReLU 활성화 --- 보정이 관련 영역에만 적용
+  \item $\mP_j \in \RR^{3V \times c}$: 자세 보정 가중치
+\end{itemize}
+
+\begin{importantnote}
+핵심 차이: SMPL은 \textbf{전역적 선형} 보정 (모든 관절의 회전이 모든 꼭짓점에 영향), MHR은 \textbf{지역적 비선형} 보정 (각 관절 MLP가 주변 영역만 변형). 이는 팔꿈치, 어깨 등 복잡한 관절부의 변형 품질을 크게 개선합니다.
+\end{importantnote}
+
+
+\subsection{독립 골격 시스템}
+
+SMPL에서 관절 위치는 꼭짓점으로부터 회귀됩니다 (수식 \eqref{eq:joint_regression}):
+\begin{equation}
+J^{\text{SMPL}}(\vbeta) = \mJ_{\text{regressor}} \cdot \big( \bar{\mT} + B_S(\vbeta) \big)
+\tag{SMPL: 종속}
+\end{equation}
+
+체형을 바꾸면 골격도 바뀌고, 뼈 길이나 신장을 직접 제어할 수 없습니다.
+
+MHR에서 각 관절 $j$의 변환은:
+\begin{equation}
+\mT_j = \mT_{\text{parent}} \cdot \mT_{\text{offset}} \cdot \mT_{\text{trans}} \cdot \mT_{\text{prerot}} \cdot \mT_{\text{rot}} \cdot \mT_{\text{scale}}
+\label{eq:mhr_joint}
+\end{equation}
+
+\begin{itemize}[leftmargin=*]
+  \item $\mT_{\text{offset}}$: 부모 관절 대비 \textbf{고정 오프셋} (뼈 길이 정의)
+  \item $\mT_{\text{prerot}}$: 고정 사전 회전 (관절 좌표계 정렬)
+  \item $\mT_{\text{rot}}$: 가변 회전 (XYZ 오일러각, 3 DOF)
+  \item $\mT_{\text{trans}}$: 가변 이동 (3 DOF)
+  \item $\mT_{\text{scale}}$: 균일 스케일 (1 DOF)
+\end{itemize}
+
+이론적으로 관절당 7 DOF $\times$ 127 관절 = 889 파라미터이지만, \textbf{선형 파라미터 매핑 행렬} $\mT_p$가 204차원 벡터를 관절별 변환으로 매핑합니다:
+
+\begin{equation}
+\vtheta_{\text{joints}} = \mT_p \cdot \vtheta_{\text{compact}} \in \RR^{889}, \quad \vtheta_{\text{compact}} \in \RR^{204}
+\end{equation}
+
+\begin{definition}[파라미터 매핑]
+하나의 파라미터가 여러 관절에 영향을 줄 수 있고 (예: 비틀림 관절은 주 관절의 분수), 여러 파라미터가 하나의 관절에 영향을 줄 수 있습니다 (예: 척추의 중첩 굽힘). 이 구조는 캐릭터 애니메이션의 \textbf{rig} 개념과 직접 대응됩니다.
+\end{definition}
+
+
+\section{LOD (Level of Detail) 시스템}
+
+MHR은 7단계의 해상도를 제공합니다:
+
+\begin{center}
+\renewcommand{\arraystretch}{1.2}
+\begin{tabular}{ccl}
+\toprule
+\textbf{LOD} & \textbf{꼭짓점 수} & \textbf{비고} \\
+\midrule
+0 & 73,639 & LOD 1의 서브디비전 (최고 품질) \\
+1 & 18,439 & 학습 해상도 (기본) \\
+2 & 10,661 & \\
+3 & 4,899 & \\
+4 & 2,461 & \\
+5 & 971 & \\
+6 & 595 & 최소 메시 (실시간/프리뷰) \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+LOD 간 전환은 \textbf{무중심 좌표(barycentric coordinate)} 보간으로 이루어지며, 모든 블렌드 셰이프와 자세 보정이 LOD 간에 일관되게 전달됩니다. SMPL(6,890)이나 SMPL-X(10,475)는 단일 해상도만 지원하므로, 실시간 렌더링과 고품질 오프라인 렌더링을 동시에 다루기 어렵습니다.
+
+
+\section{SMPL $\leftrightarrow$ MHR 변환}
+
+MHR은 양방향 변환 도구를 제공합니다.
+
+\subsection{변환 방식}
+
+\begin{center}
+\renewcommand{\arraystretch}{1.2}
+\begin{tabular}{lll}
+\toprule
+\textbf{백엔드} & \textbf{특징} & \textbf{용도} \\
+\midrule
+PyMomentum (CPU) & Gauss-Newton 최적화, 시간적 일관성 & 시퀀스 데이터 \\
+PyTorch (GPU) & 배치 처리, edge+vertex 손실 & 대규모 병렬 처리 \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+\begin{warningbox}
+변환은 \textbf{손실적(lossy)}입니다. MHR의 127관절 비선형 보정을 SMPL의 23관절 선형 프레임워크로 완벽히 표현할 수 없으며, 그 반대도 마찬가지입니다. 특히 복잡한 관절 자세에서 오차가 커집니다.
+\end{warningbox}
+
+
+\subsection{Fast SAM 3D Body}
+
+반복적 최적화의 느린 속도(0.24 FPS)를 극복하기 위해, 3층 MLP ($4500 \to 512 \to 256 \to 76$)를 학습하여 \textbf{약 10,000배 속도 향상}($\sim$2,000 FPS)을 달성했습니다 (PA-MPJPE: 30.4 $\to$ 31.1 mm으로 정확도 손실 최소).
+
+
+\section{SAM 3D Body: MHR 기반 영상 추론}
+
+SMPL 생태계에 HMR, PyMAF, SMPLer-X 같은 회귀 모델이 있듯이, MHR에도 영상에서 파라미터를 추론하는 \textbf{SAM 3D Body} 모델이 있습니다.
+
+\begin{center}
+\renewcommand{\arraystretch}{1.2}
+\begin{tabular}{lccc}
+\toprule
+\textbf{방법} & \textbf{출력 모델} & \textbf{3DPW PA-MPJPE} & \textbf{비고} \\
+\midrule
+HMR 2.0b & SMPL & 54.3 mm & \\
+SMPLer-X-H & SMPL-X & 46.6 mm & \\
+NLF-L+fit & SMPL & 33.6 mm & \\
+\textbf{SAM 3D Body} & \textbf{MHR} & \textbf{30.4 mm} & 840M 파라미터 \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+SAM 3D Body는 프롬프트 기반(promptable) 아키텍처로, 2D 키포인트나 세그멘테이션 마스크를 선택적 입력으로 받아 추론 품질을 높일 수 있습니다.
+
+
+\section{정량적 비교: 3DBodyTex 벤치마크}
+
+3DBodyTex 데이터셋 (200명, 자세 2개, 총 400 스캔)에서 평균 점-표면 거리(mm)를 비교합니다:
+
+\begin{center}
+\renewcommand{\arraystretch}{1.2}
+\begin{tabular}{lccc}
+\toprule
+\textbf{성분 수} & \textbf{SMPL (mm)} & \textbf{SMPL-X (mm)} & \textbf{MHR (mm)} \\
+\midrule
+$\sim$16 & 4.4 & 4.2 & \textbf{4.0} \\
+$\sim$22 & 4.2 & 4.0 & \textbf{3.9} \\
+$\sim$44 & 4.0 & 3.8 & \textbf{3.7} \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+\begin{remark}
+SMPL/SMPL-X에는 MHR의 풍부한 자세 파라미터를 보상하기 위해 33개 추가 성분이 주어졌음에도 MHR이 더 낮은 오차를 달성합니다. 비선형 자세 보정의 효과가 특히 팔꿈치, 무릎, 어깨 영역에서 두드러집니다.
+\end{remark}
+
+
+\section{생태계 및 계보}
+
+\begin{center}
+\begin{tikzpicture}[
+  node distance=1.5cm,
+  box/.style={draw, rounded corners, fill=lightblue, minimum width=3cm, minimum height=0.8cm, align=center, font=\small},
+  arrow/.style={->, thick, >=stealth}
+]
+\node[box] (atlas) {ATLAS (2025.08)\\골격-표면 분리 이론};
+\node[box, below=of atlas] (mhr) {\textbf{MHR} (2025.11)\\프로덕션 인체 모델};
+\node[box, below left=1.2cm and -0.5cm of mhr] (momentum) {Momentum 라이브러리\\C++/Python 엔진};
+\node[box, below=of mhr] (sam3d) {SAM 3D Body (2025.11)\\단일 영상 회귀};
+\node[box, below right=1.2cm and -0.5cm of mhr] (convert) {SMPL 변환 도구\\양방향 파라미터 변환};
+\node[box, below=of sam3d] (fast) {Fast SAM 3D Body (2026)\\실시간 변환 ($\sim$65ms)};
+
+\draw[arrow] (atlas) -- (mhr);
+\draw[arrow] (mhr) -- (momentum);
+\draw[arrow] (mhr) -- (sam3d);
+\draw[arrow] (mhr) -- (convert);
+\draw[arrow] (sam3d) -- (fast);
+\end{tikzpicture}
+\end{center}
+
+
+\section{현재 한계와 향후 발전}
+
+MHR도 아직 완전하지 않습니다:
+
+\begin{enumerate}[leftmargin=*]
+  \item \textbf{안구 기하 미포함}: FLAME/SMPL-X에 있는 명시적 안구 메시가 없음
+  \item \textbf{구강 내부 미포함}: 이빨, 혀 등의 모델이 없음
+  \item \textbf{체형 독립적 자세 보정}: 자세 보정이 체형에 조건화되지 않음 (마른 사람과 뚱뚱한 사람의 팔꿈치 변형이 동일)
+  \item \textbf{의복/연조직 미모델링}: SMPL과 마찬가지로 나체 메시만 표현
+  \item \textbf{LOD 0 스키닝}: 최고 해상도에서 꼭짓점당 8개 스키닝 영향력 필요 (표준 4개 대비 비효율적)
+\end{enumerate}
+
+\begin{summary}
+MHR은 SMPL의 세 가지 근본적 한계를 해결합니다: (1) \textbf{골격-표면 분리}로 독립적 체형/골격 제어, (2) \textbf{비선형 자세 보정}으로 관절부 변형 품질 개선, (3) \textbf{Apache 2.0 라이선스}로 상업적 제약 해소. 127 관절, 45 체형 + 204 자세 + 72 표정 파라미터, 7단계 LOD를 갖춘 프로덕션 레벨 인체 모델입니다. SMPL 생태계와의 양방향 변환을 지원하므로, 기존 SMPL 기반 파이프라인과의 호환성도 유지됩니다.
+\end{summary}
+
+
+% ====================================================================
+% CHAPTER 5: SAM4Dcap
+% ====================================================================
+\chapter{SAM4Dcap: 단안 영상에서 생체역학 디지털 트윈까지}
+\label{ch:sam4dcap}
+
+\section{개요}
+
+앞 장에서 MHR과 SAM 3D Body를 통해 단일 영상에서 고정밀 인체 메시를 복원하는 방법을 배웠습니다. 그러나 스포츠 과학, 재활 의학, 임상 보행 분석에서는 메시 복원만으로는 부족합니다---\textbf{관절 각도, 근골격 힘, 동적 부하}와 같은 \textbf{생체역학적 지표}가 필요합니다.
+
+\textbf{SAM4Dcap}(Wang et al., 2026)은 MHR/SAM 3D Body 생태계를 OpenSim 생체역학 시뮬레이션과 연결하여, \textbf{단안 비디오 하나로 완전한 생체역학 분석}을 수행하는 최초의 오픈소스 파이프라인입니다.
+
+\begin{keyidea}
+SAM4Dcap의 핵심: \textbf{학습 없이(training-free)} 기존 파운데이션 모델들을 연결하여 ``단안 비디오 $\to$ 4D 인체 메시 $\to$ SMPL 변환 $\to$ 해부학적 마커 $\to$ OpenSim 생체역학 시뮬레이션''의 전체 파이프라인을 구축합니다.
+\end{keyidea}
+
+\begin{remark}
+``4D''는 3D 공간 + 시간(비디오 프레임)을 의미합니다. ``Training-free''란 도메인 특화 학습 없이 사전 학습된 파운데이션 모델(SAM 3, SAM 3D Body, Diffusion-VAS 등)을 그대로 사용한다는 뜻입니다.
+\end{remark}
+
+
+\section{전체 파이프라인}
+
+SAM4Dcap은 세 단계로 구성됩니다:
+
+\begin{center}
+\begin{tikzpicture}[
+  node distance=1.2cm,
+  box/.style={draw, rounded corners, fill=lightblue, minimum width=4.5cm, minimum height=0.8cm, align=center, font=\small},
+  arrow/.style={->, thick, >=stealth},
+  label/.style={font=\scriptsize, midway, right, text width=3.5cm}
+]
+\node[box] (input) {단안 비디오 $\{I_t\}_{t=1}^T$};
+\node[box, below=of input, fill=lightorange] (stage1) {Stage 1: SAM-Body4D\\4D 인체 메시 복원};
+\node[box, below=of stage1, fill=lightgreen] (stage2) {Stage 2: HMR-to-TRC 변환\\MHR $\to$ SMPL $\to$ 마커};
+\node[box, below=of stage2, fill={cvpurple!10}] (stage3) {Stage 3: 생체역학 풀이\\OpenSim 역운동학/역동역학};
+\node[box, below=of stage3] (output) {관절 각도 + 근골격 힘};
+
+\draw[arrow] (input) -- (stage1) node[label] {ViTDet + SAM 3\\+ SAM 3D Body};
+\draw[arrow] (stage1) -- (stage2) node[label] {MHR 메시 (18,439 vtx)\\$\to$ SMPL (6,890 vtx)};
+\draw[arrow] (stage2) -- (stage3) node[label] {TRC 마커 파일\\(43 또는 105 마커)};
+\draw[arrow] (stage3) -- (output);
+\end{tikzpicture}
+\end{center}
+
+
+\section{Stage 1: SAM-Body4D --- 4D 인체 메시 복원}
+
+\subsection{자동 프롬프트 생성}
+
+첫 프레임에서 ViTDet 기반 인체 검출기가 바운딩 박스를 추출합니다:
+\begin{equation}
+\{(b_i, s_i)\}_{i=1}^N = \mathcal{D}(I_1), \quad s_i > \tau_{\text{det}} = 0.5
+\end{equation}
+
+각 피험자에 대해 시각적 프롬프트를 구성합니다:
+\begin{equation}
+P_i = \big((\hat{b}_i, l_b),\; (\vp_i, l_f)\big)
+\end{equation}
+여기서 $\hat{b}_i$는 바운딩 박스, $\vp_i$는 중심점, $l_f$는 전경 레이블입니다.
+
+\subsection{비디오 세그멘테이션 + 폐색 처리}
+
+SAM 3가 시간적으로 마스크를 전파합니다:
+\begin{equation}
+M_t = \mathcal{S}(I_t, M_{t-1}, P), \quad t = 2, \ldots, T
+\end{equation}
+
+폐색(occlusion)이 감지되면 ($|\tilde{M}_t| > |M_t|$ \textbf{AND} $\text{IoU}(\tilde{M}_t, M_t) < 0.7$), Diffusion-VAS가 가려진 영역을 복원합니다.
+
+\subsection{MHR 메시 추론}
+
+SAM 3D Body (DINOv3-H+, 840M 파라미터)가 각 프레임에서 MHR 파라미터를 추론합니다. 출력은 프레임당 18,439 꼭짓점의 MHR 메시입니다.
+
+\begin{importantnote}
+이 단계에서 SAM4Dcap은 Chapter~\ref{ch:mhr}에서 다룬 MHR 모델과 SAM 3D Body를 직접 사용합니다. 별도의 학습 없이 사전 학습된 모델을 그대로 활용하는 것이 핵심입니다.
+\end{importantnote}
+
+
+\section{Stage 2: HMR-to-TRC 변환}
+
+이 단계는 컴퓨터 비전 출력(MHR 메시)을 생체역학 도구(OpenSim)가 이해할 수 있는 형식으로 변환합니다.
+
+\subsection{Step A: MHR $\to$ SMPL 변환}
+
+Meta의 공식 변환 도구(pymomentum 기반)로 MHR 메시를 SMPL로 피팅합니다:
+
+\begin{itemize}[leftmargin=*]
+  \item 출력: $\vbeta \in \RR^{10}$, $\vtheta_{\text{body}} \in \RR^{69}$, $\vtheta_{\text{global}} \in \RR^{3}$, $\vt \in \RR^{3}$, 꼭짓점 $\in \RR^{6890 \times 3}$
+\end{itemize}
+
+\begin{warningbox}
+SAM 3D Body는 미터 단위로 출력하지만, Meta의 변환 코드는 센티미터를 가정합니다. SAM4Dcap은 0.01 스케일링 팩터를 제거하여 이 불일치를 수정합니다.
+\end{warningbox}
+
+\subsection{Step B: SMPL 꼭짓점 $\to$ 해부학적 마커}
+
+두 가지 경로를 지원합니다:
+
+\begin{center}
+\renewcommand{\arraystretch}{1.2}
+\begin{tabular}{lccl}
+\toprule
+\textbf{경로} & \textbf{마커 수} & \textbf{모델} & \textbf{매핑 방식} \\
+\midrule
+AddBiomechanics & 105 & BSM & SMPL 꼭짓점 인덱스 직접 매핑 \\
+OpenCap & 43 & LaiUhlrich2022 & Procrustes 정렬 + 수동 보정 \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+\paragraph{43-마커 Procrustes 정렬.}
+7개 해부학적 앵커를 사용한 최소제곱 정렬:
+\begin{equation}
+\min_{s, \mR, \vt} \sum_{i=1}^{7} \| s \cdot \mR \cdot \vp_i^{\text{smpl}} + \vt - \vp_i^{\text{opencap}} \|^2
+\end{equation}
+
+이후 연조직 마커 16개(양측 8개)에 대해 대화형 수동 보정을 수행합니다.
+
+\subsection{Step C: 좌표계 변환}
+
+카메라 좌표에서 월드 좌표로 변환합니다:
+\begin{equation}
+\vp_{\text{world}} = \mR_{\text{cam}}^\top \cdot (\vp_{\text{cam}} \cdot s_{\text{height}} - \vt_{\text{cam}})
+\end{equation}
+
+여기서 $s_{\text{height}} = h_{\text{subject}} / h_{\text{predicted}}$는 피험자의 실제 신장으로 스케일링하는 보정 계수입니다. 최종적으로 지면 정렬을 적용합니다:
+\begin{equation}
+\vp_{\text{final}} = \vp_{\text{world}} + [0,\; \Delta y,\; 0]^\top, \quad \Delta y = -\min_t\!\big(\min_i(p_{y,i}^t)\big)
+\end{equation}
+
+출력은 OpenSim 호환 \textbf{TRC(Track Row Column)} 파일입니다.
+
+
+\section{Stage 3: 생체역학 풀이}
+
+\subsection{역운동학 (Inverse Kinematics)}
+
+TRC 마커 궤적으로부터 OpenSim이 관절 각도를 추정합니다. 각 시간 프레임에서 모델 마커와 실험 마커 사이의 가중 최소제곱 오차를 최소화합니다.
+
+\subsection{역동역학 (Inverse Dynamics)}
+
+OpenCap 경로에서는 관절 각도 + 외부 힘으로부터 관절 토크(근골격 힘)를 계산합니다. 이를 통해 단안 비디오에서 \textbf{힘판(force plate) 없이} 동역학 분석이 가능합니다.
+
+\begin{center}
+\renewcommand{\arraystretch}{1.2}
+\begin{tabular}{lll}
+\toprule
+\textbf{백엔드} & \textbf{마커} & \textbf{분석 범위} \\
+\midrule
+AddBiomechanics (BSM) & 105개 & 역운동학 (관절 각도) \\
+OpenCap (LaiUhlrich2022) & 43개 & 역운동학 + 역동역학 (관절 토크) \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+
+\section{SAM 생태계 내 위치}
+
+SAM4Dcap은 Meta의 SAM 패밀리를 생체역학으로 확장합니다:
+
+\begin{center}
+\begin{tikzpicture}[
+  node distance=1.3cm,
+  box/.style={draw, rounded corners, minimum width=3.2cm, minimum height=0.7cm, align=center, font=\small},
+  arrow/.style={->, thick, >=stealth}
+]
+\node[box, fill=lightblue] (sam) {SAM (2023)\\프롬프트 기반 세그멘테이션};
+\node[box, fill=lightblue, below left=1.2cm and -1cm of sam] (sam3) {SAM 3 (2025)\\비디오 세그멘테이션};
+\node[box, fill=lightblue, below right=1.2cm and -1cm of sam] (mhr) {MHR (2025)\\파라메트릭 인체 모델};
+\node[box, fill=lightorange, below right=1.2cm and -1cm of sam3] (sam3d) {SAM 3D Body (2025)\\단일 영상 $\to$ MHR};
+\node[box, fill=lightgreen, below=of sam3d] (body4d) {SAM-Body4D (2025)\\비디오 $\to$ 4D MHR};
+\node[box, fill={cvpurple!15}, below=of body4d] (sam4d) {\textbf{SAM4Dcap} (2026)\\비디오 $\to$ 생체역학};
+
+\draw[arrow] (sam) -- (sam3);
+\draw[arrow] (sam) -- (mhr);
+\draw[arrow] (sam3) -- (sam3d);
+\draw[arrow] (mhr) -- (sam3d);
+\draw[arrow] (sam3d) -- (body4d);
+\draw[arrow] (sam3) -- (body4d);
+\draw[arrow] (body4d) -- (sam4d);
+\end{tikzpicture}
+\end{center}
+
+
+\section{예비 검증 결과}
+
+\begin{warningbox}
+SAM4Dcap은 예비 연구(preliminary study) 단계이며, 대규모 정량적 평가는 아직 수행되지 않았습니다. 아래 결과는 소규모 사례 연구입니다.
+\end{warningbox}
+
+\begin{center}
+\renewcommand{\arraystretch}{1.2}
+\begin{tabular}{lll}
+\toprule
+\textbf{동작} & \textbf{결과} & \textbf{한계} \\
+\midrule
+보행 (Walking) & 무릎 운동학이 OpenCap과 유사 & 잔여 지터 \\
+드롭 점프 & 고관절 굴곡 피크 오차 $\sim$20° & 역동적 동작에서 오차 증가 \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+
+\section{현재 한계와 의의}
+
+\subsection{한계}
+
+\begin{enumerate}[leftmargin=*]
+  \item \textbf{MHR$\to$SMPL 변환 손실}: SMPL의 23관절 ball-and-socket 구조가 MHR의 127관절 해부학적 정밀도를 손상시킴
+  \item \textbf{시간적 매끄러움 부재}: SAM-Body4D 출력에 추가 시간 필터링이 없어 관절 각도에 지터 발생
+  \item \textbf{고관절 오차}: 역동적 동작(드롭 점프)에서 $\sim$20° 오차
+  \item \textbf{수동 마커 보정}: 43-마커 경로에서 16개 마커의 대화형 수동 보정 필요
+  \item \textbf{높은 하드웨어 요구}: RTX PRO 6000 (96GB) 이상 권장, 최소 24GB VRAM
+\end{enumerate}
+
+\subsection{의의}
+
+\begin{enumerate}[leftmargin=*]
+  \item \textbf{최초의 완전 오픈소스 파이프라인}: 단안 비디오 $\to$ 생체역학 분석의 전 과정을 공개
+  \item \textbf{Training-free}: 도메인 특화 학습 없이 파운데이션 모델 조합으로 구현
+  \item \textbf{힘판 불필요}: 단안 비디오만으로 역동역학(관절 토크) 추정 가능
+  \item \textbf{MHR 생태계 확장}: 컴퓨터 비전(MHR) $\to$ 생체역학(OpenSim) 브릿지 역할
+\end{enumerate}
+
+\begin{summary}
+SAM4Dcap은 Meta의 SAM/MHR 생태계를 OpenSim 생체역학 시뮬레이션과 연결하는 \textbf{학습 불필요(training-free) 파이프라인}입니다. 3단계 구조: (1) SAM-Body4D로 단안 비디오에서 4D MHR 메시 복원, (2) MHR $\to$ SMPL $\to$ 해부학적 마커(TRC) 변환, (3) OpenSim으로 역운동학/역동역학 풀이. 아직 예비 연구 단계이지만, 단안 비디오만으로 관절 각도와 근골격 힘을 추정할 수 있는 가능성을 보여줍니다. 이는 Chapter~\ref{ch:mhr}의 MHR과 Part~2의 보행 분석을 연결하는 핵심 기술입니다.
+\end{summary}
+
+
+% ====================================================================
+% CHAPTER 6: Dynamic 3DGS
 % ====================================================================
 \chapter{동적 3D Gaussian Splatting}
 \label{ch:dynamic}
@@ -1319,6 +1866,14 @@ f_x & 0 & c_x \\
   \item Cao, A. \& Johnson, J. ``HexPlane: A Fast Representation for Dynamic Scenes.'' \textit{CVPR}, 2023.
 
   \item Tancik, M. et al. ``Fourier Features Let Networks Learn High Frequency Functions in Low Dimensional Domains.'' \textit{NeurIPS}, 2020. (위치 인코딩 이론적 분석)
+
+  \item Wang, L. et al. ``SAM4Dcap: Training-free Biomechanical Twin System from Monocular Video.'' \textit{arXiv:2602.13760}, 2026.
+
+  \item Gao, Z. et al. ``SAM-Body4D: 4D Human Mesh Recovery with SAM 3D Body.'' \textit{arXiv:2512.08406}, 2025.
+
+  \item Romero, J. et al. ``Momentum Human Rig: A Parametric Full-Body Digital Human.'' \textit{arXiv:2511.15586}, 2025. (MHR)
+
+  \item Uhlrich, S. et al. ``OpenCap: Human movement dynamics from smartphone videos.'' \textit{PLOS Computational Biology}, 2023.
 \end{enumerate}
 
 
@@ -1368,6 +1923,14 @@ f_x & 0 & c_x \\
   \item[SDS] Score Distillation Sampling. 사전 학습된 확산 모델의 점수를 증류하여 3D 생성을 가이드하는 기법.
 
   \item[SH] Spherical Harmonics. 구면 조화. 구면 위의 함수를 표현하는 직교 기저 함수 집합.
+
+  \item[MHR] Momentum Human Rig. Meta의 차세대 파라메트릭 인체 모델. 127 관절, 비선형 자세 보정, Apache 2.0 라이선스.
+
+  \item[SAM 3D Body] 단일 영상에서 MHR 파라미터를 추론하는 프롬프트 기반 회귀 모델.
+
+  \item[SAM-Body4D] SAM 3 + SAM 3D Body를 결합하여 비디오에서 시간적으로 일관된 4D MHR 메시를 복원하는 방법.
+
+  \item[SAM4Dcap] SAM-Body4D + OpenSim을 연결하여 단안 비디오에서 생체역학 디지털 트윈을 생성하는 학습 불필요 파이프라인.
 
   \item[SMPL] Skinned Multi-Person Linear Model. 체형+자세 파라미터로 인체 메시를 생성하는 모델.
 

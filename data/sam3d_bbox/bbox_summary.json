@@ -1,0 +1,135 @@
+{
+  "cam1": {
+    "cam": "cam1",
+    "n_frames": 999,
+    "n_empty": 0,
+    "image_size": [
+      1080,
+      1920
+    ],
+    "bbox_width_mean": 364,
+    "bbox_height_mean": 869,
+    "bbox_width_range": [
+      196,
+      585
+    ],
+    "bbox_height_range": [
+      440,
+      1140
+    ]
+  },
+  "cam2": {
+    "cam": "cam2",
+    "n_frames": 999,
+    "n_empty": 0,
+    "image_size": [
+      1920,
+      1080
+    ],
+    "bbox_width_mean": 260,
+    "bbox_height_mean": 581,
+    "bbox_width_range": [
+      202,
+      436
+    ],
+    "bbox_height_range": [
+      352,
+      715
+    ]
+  },
+  "cam3": {
+    "cam": "cam3",
+    "n_frames": 1000,
+    "n_empty": 0,
+    "image_size": [
+      1920,
+      1080
+    ],
+    "bbox_width_mean": 256,
+    "bbox_height_mean": 540,
+    "bbox_width_range": [
+      176,
+      513
+    ],
+    "bbox_height_range": [
+      337,
+      634
+    ]
+  },
+  "cam4": {
+    "cam": "cam4",
+    "n_frames": 1000,
+    "n_empty": 0,
+    "image_size": [
+      1920,
+      1080
+    ],
+    "bbox_width_mean": 369,
+    "bbox_height_mean": 751,
+    "bbox_width_range": [
+      198,
+      738
+    ],
+    "bbox_height_range": [
+      547,
+      1044
+    ]
+  },
+  "cam5": {
+    "cam": "cam5",
+    "n_frames": 1000,
+    "n_empty": 0,
+    "image_size": [
+      1920,
+      1080
+    ],
+    "bbox_width_mean": 360,
+    "bbox_height_mean": 692,
+    "bbox_width_range": [
+      198,
+      686
+    ],
+    "bbox_height_range": [
+      610,
+      854
+    ]
+  },
+  "cam6": {
+    "cam": "cam6",
+    "n_frames": 1000,
+    "n_empty": 0,
+    "image_size": [
+      1920,
+      1080
+    ],
+    "bbox_width_mean": 225,
+    "bbox_height_mean": 476,
+    "bbox_width_range": [
+      132,
+      400
+    ],
+    "bbox_height_range": [
+      364,
+      625
+    ]
+  },
+  "cam7": {
+    "cam": "cam7",
+    "n_frames": 1000,
+    "n_empty": 0,
+    "image_size": [
+      1920,
+      1080
+    ],
+    "bbox_width_mean": 227,
+    "bbox_height_mean": 470,
+    "bbox_width_range": [
+      104,
+      513
+    ],
+    "bbox_height_range": [
+      390,
+      648
+    ]
+  }
+}

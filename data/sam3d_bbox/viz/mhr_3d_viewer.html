@@ -1,0 +1,305 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<title>MHR 3D Viewer - Baseball Pitching</title>
+<style>
+  body { margin: 0; overflow: hidden; background: #1a1a2e; font-family: monospace; }
+  canvas { display: block; }
+  #ui { position: absolute; top: 10px; left: 10px; color: #0f0; z-index: 10; }
+  #ui div { margin: 4px 0; }
+  #slider { width: 300px; }
+  #info { position: absolute; bottom: 10px; left: 10px; color: #aaa; font-size: 12px; }
+  button { background: #333; color: #0f0; border: 1px solid #0f0; padding: 4px 12px; cursor: pointer; margin: 0 4px; }
+  button:hover { background: #0f0; color: #000; }
+</style>
+</head>
+<body>
+<div id="ui">
+  <div>MHR 3D Viewer | Baseball Pitching | 7-View Triangulated</div>
+  <div>
+    <button id="btnPlay">Play</button>
+    <button id="btnPause">Pause</button>
+    <button id="btnReset">Reset</button>
+    <span id="frameLabel">Frame: 0</span>
+  </div>
+  <div>
+    <input type="range" id="slider" min="0" max="332" value="0">
+    <span id="speedLabel">Speed: 1x</span>
+    <button id="btnSlow">0.5x</button>
+    <button id="btn1x">1x</button>
+    <button id="btnFast">2x</button>
+  </div>
+  <div>
+    <label><input type="checkbox" id="chkMesh" checked> MHR Points</label>
+    <label><input type="checkbox" id="chkSkel" checked> Skeleton</label>
+    <label><input type="checkbox" id="chkTrail"> Wrist Trail</label>
+    <label><input type="checkbox" id="chkSmooth"> Smoothed</label>
+    <span id="smoothLabel" style="color:#888"></span>
+  </div>
+</div>
+<div id="info">Drag: rotate | Scroll: zoom | Right-drag: pan</div>
+
+<script type="importmap">
+{
+  "imports": {
+    "three": "https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js",
+    "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/"
+  }
+}
+</script>
+<script type="module">
+import * as THREE from 'three';
+import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+
+// Scene setup
+const scene = new THREE.Scene();
+scene.background = new THREE.Color(0x1a1a2e);
+
+const camera = new THREE.PerspectiveCamera(60, window.innerWidth / window.innerHeight, 0.01, 100);
+camera.position.set(3, 1, 3);
+
+const renderer = new THREE.WebGLRenderer({ antialias: true });
+renderer.setSize(window.innerWidth, window.innerHeight);
+document.body.appendChild(renderer.domElement);
+
+const controls = new OrbitControls(camera, renderer.domElement);
+controls.enableDamping = true;
+
+// Lights
+scene.add(new THREE.AmbientLight(0x404040, 2));
+const dirLight = new THREE.DirectionalLight(0xffffff, 1.5);
+dirLight.position.set(5, 5, 5);
+scene.add(dirLight);
+
+// Grid
+const grid = new THREE.GridHelper(4, 20, 0x333355, 0x222244);
+scene.add(grid);
+
+// Axes
+scene.add(new THREE.AxesHelper(0.5));
+
+// Skeleton edges (Body25 first 15)
+const EDGES = [
+  [0,1],[1,2],[2,3],[3,4],[1,5],[5,6],[6,7],
+  [1,8],[8,9],[9,10],[10,11],[8,12],[12,13],[13,14]
+];
+
+// Colors
+const L_COLOR = 0x00ff00;  // left = green
+const R_COLOR = 0xff8800;  // right = orange
+const EDGE_COLORS = [
+  0xffff00, // nose-neck
+  0xff8800, 0xff8800, 0xff8800, // R arm
+  0x00ff00, 0x00ff00, 0x00ff00, // L arm
+  0xffff00, // neck-midhip
+  0xff8800, 0xff8800, 0xff8800, // R leg
+  0x00ff00, 0x00ff00, 0x00ff00, // L leg
+];
+
+// Point cloud for MHR vertices
+const pointGeo = new THREE.BufferGeometry();
+const pointMat = new THREE.PointsMaterial({ color: 0x6699cc, size: 0.008, opacity: 0.6, transparent: true });
+const pointCloud = new THREE.Points(pointGeo, pointMat);
+scene.add(pointCloud);
+
+// Skeleton line segments
+const skelGeo = new THREE.BufferGeometry();
+const skelPositions = new Float32Array(EDGES.length * 6);
+const skelColors = new Float32Array(EDGES.length * 6);
+skelGeo.setAttribute('position', new THREE.BufferAttribute(skelPositions, 3));
+skelGeo.setAttribute('color', new THREE.BufferAttribute(skelColors, 3));
+const skelMat = new THREE.LineBasicMaterial({ vertexColors: true, linewidth: 2 });
+const skelLines = new THREE.LineSegments(skelGeo, skelMat);
+scene.add(skelLines);
+
+// Joint spheres
+const jointSpheres = [];
+for (let i = 0; i < 15; i++) {
+  let color = 0xff0000;
+  if (i === 4 || i === 7) color = 0x00ffff; // wrists
+  if (i === 11 || i === 14) color = 0xff00ff; // ankles
+  const mesh = new THREE.Mesh(
+    new THREE.SphereGeometry(0.015, 8, 8),
+    new THREE.MeshPhongMaterial({ color })
+  );
+  scene.add(mesh);
+  jointSpheres.push(mesh);
+}
+
+// Wrist trail
+const TRAIL_LEN = 60;
+const trailGeo = new THREE.BufferGeometry();
+const trailPositions = new Float32Array(TRAIL_LEN * 3);
+trailGeo.setAttribute('position', new THREE.BufferAttribute(trailPositions, 3));
+const trailMat = new THREE.LineBasicMaterial({ color: 0x00ffff, opacity: 0.5, transparent: true });
+const trailLine = new THREE.Line(trailGeo, trailMat);
+trailLine.visible = false;
+scene.add(trailLine);
+const trailHistory = [];
+
+// Load data
+let rawData = null;
+let smoothData = null;
+let viewerData = null;
+let currentFrame = 0;
+let playing = false;
+let speed = 1;
+let lastTime = 0;
+
+// Load both raw and smoothed data
+Promise.all([
+  fetch('viewer_data.json').then(r => r.json()),
+  fetch('viewer_data_smoothed.json').then(r => r.json()),
+]).then(([raw, smooth]) => {
+  rawData = raw;
+  smoothData = smooth;
+  viewerData = raw;  // default: raw
+  document.getElementById('slider').max = raw.frames.length - 1;
+
+  const j = raw.joints[0];
+  const midHip = j[8];
+  controls.target.set(midHip[0], midHip[1], midHip[2]);
+  camera.position.set(midHip[0] + 3, midHip[1] + 1, midHip[2] + 3);
+  controls.update();
+  grid.position.set(midHip[0], midHip[1] - 1, midHip[2]);
+
+  updateFrame(0);
+  console.log(`Loaded: raw=${raw.frames.length}, smooth=${smooth.frames.length} frames`);
+}).catch(e => {
+  // fallback: raw only
+  fetch('viewer_data.json').then(r => r.json()).then(data => {
+    rawData = data;
+    viewerData = data;
+    document.getElementById('slider').max = data.frames.length - 1;
+    const j = data.joints[0];
+    const midHip = j[8];
+    controls.target.set(midHip[0], midHip[1], midHip[2]);
+    camera.position.set(midHip[0] + 3, midHip[1] + 1, midHip[2] + 3);
+    controls.update();
+    grid.position.set(midHip[0], midHip[1] - 1, midHip[2]);
+    updateFrame(0);
+  });
+});
+
+// Smooth toggle
+document.getElementById('chkSmooth').onchange = (e) => {
+  if (e.target.checked && smoothData) {
+    viewerData = smoothData;
+    document.getElementById('smoothLabel').textContent = '(Savgol w=15 p=3, jitter -66%)';
+  } else {
+    viewerData = rawData;
+    document.getElementById('smoothLabel').textContent = '';
+  }
+  updateFrame(currentFrame);
+};
+
+function updateFrame(idx) {
+  if (!viewerData || idx >= viewerData.frames.length) return;
+  currentFrame = idx;
+
+  const joints = viewerData.joints[idx];
+  const vertices = viewerData.vertices[idx];
+
+  // Update point cloud
+  if (document.getElementById('chkMesh').checked) {
+    const pos = new Float32Array(vertices.length * 3);
+    for (let i = 0; i < vertices.length; i++) {
+      pos[i*3] = vertices[i][0];
+      pos[i*3+1] = vertices[i][1];
+      pos[i*3+2] = vertices[i][2];
+    }
+    pointGeo.setAttribute('position', new THREE.BufferAttribute(pos, 3));
+    pointCloud.visible = true;
+  } else {
+    pointCloud.visible = false;
+  }
+
+  // Update skeleton
+  if (document.getElementById('chkSkel').checked) {
+    for (let ei = 0; ei < EDGES.length; ei++) {
+      const [a, b] = EDGES[ei];
+      skelPositions[ei*6]   = joints[a][0];
+      skelPositions[ei*6+1] = joints[a][1];
+      skelPositions[ei*6+2] = joints[a][2];
+      skelPositions[ei*6+3] = joints[b][0];
+      skelPositions[ei*6+4] = joints[b][1];
+      skelPositions[ei*6+5] = joints[b][2];
+
+      const c = new THREE.Color(EDGE_COLORS[ei]);
+      skelColors[ei*6]   = c.r; skelColors[ei*6+1] = c.g; skelColors[ei*6+2] = c.b;
+      skelColors[ei*6+3] = c.r; skelColors[ei*6+4] = c.g; skelColors[ei*6+5] = c.b;
+    }
+    skelGeo.attributes.position.needsUpdate = true;
+    skelGeo.attributes.color.needsUpdate = true;
+    skelLines.visible = true;
+
+    for (let i = 0; i < 15; i++) {
+      jointSpheres[i].position.set(joints[i][0], joints[i][1], joints[i][2]);
+      jointSpheres[i].visible = true;
+    }
+  } else {
+    skelLines.visible = false;
+    jointSpheres.forEach(s => s.visible = false);
+  }
+
+  // Wrist trail (R_Wrist = idx 4)
+  if (document.getElementById('chkTrail').checked) {
+    trailHistory.push([joints[4][0], joints[4][1], joints[4][2]]);
+    if (trailHistory.length > TRAIL_LEN) trailHistory.shift();
+
+    const tp = trailGeo.attributes.position.array;
+    tp.fill(0);
+    for (let i = 0; i < trailHistory.length; i++) {
+      tp[i*3]   = trailHistory[i][0];
+      tp[i*3+1] = trailHistory[i][1];
+      tp[i*3+2] = trailHistory[i][2];
+    }
+    trailGeo.attributes.position.needsUpdate = true;
+    trailGeo.setDrawRange(0, trailHistory.length);
+    trailLine.visible = true;
+  } else {
+    trailLine.visible = false;
+  }
+
+  document.getElementById('frameLabel').textContent = `Frame: ${viewerData.frames[idx]} (${idx}/${viewerData.frames.length-1})`;
+  document.getElementById('slider').value = idx;
+}
+
+// UI
+document.getElementById('btnPlay').onclick = () => { playing = true; };
+document.getElementById('btnPause').onclick = () => { playing = false; };
+document.getElementById('btnReset').onclick = () => { currentFrame = 0; trailHistory.length = 0; updateFrame(0); };
+document.getElementById('slider').oninput = (e) => { updateFrame(parseInt(e.target.value)); };
+document.getElementById('btnSlow').onclick = () => { speed = 0.5; document.getElementById('speedLabel').textContent = 'Speed: 0.5x'; };
+document.getElementById('btn1x').onclick = () => { speed = 1; document.getElementById('speedLabel').textContent = 'Speed: 1x'; };
+document.getElementById('btnFast').onclick = () => { speed = 2; document.getElementById('speedLabel').textContent = 'Speed: 2x'; };
+
+// Animation loop
+function animate(time) {
+  requestAnimationFrame(animate);
+
+  if (playing && viewerData) {
+    const dt = time - lastTime;
+    if (dt > (1000 / 30) / speed) {
+      lastTime = time;
+      let next = currentFrame + 1;
+      if (next >= viewerData.frames.length) next = 0;
+      updateFrame(next);
+    }
+  }
+
+  controls.update();
+  renderer.render(scene, camera);
+}
+animate(0);
+
+// Resize
+window.addEventListener('resize', () => {
+  camera.aspect = window.innerWidth / window.innerHeight;
+  camera.updateProjectionMatrix();
+  renderer.setSize(window.innerWidth, window.innerHeight);
+});
+</script>
+</body>
+</html>

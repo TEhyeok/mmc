@@ -15,7 +15,8 @@ PARTS = main \
         part5_research_proposal \
         fitting_guide \
         methodology_survey \
-        vitpose_cam3_analysis
+        vitpose_cam3_analysis \
+        plan_7view_full
 
 all: $(addsuffix .pdf, $(PARTS))
 
