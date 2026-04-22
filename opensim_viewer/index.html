@@ -1,0 +1,1703 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8" />
+<title>OpenSim Viewer — bones + muscles + markers</title>
+<style>
+  html, body { margin: 0; height: 100%; background: #e8ecf2; color: #1a1f2b;
+               font-family: -apple-system, system-ui, sans-serif; overflow: hidden; }
+  #ui { position: absolute; top: 10px; left: 10px; z-index: 10;
+        background: rgba(255,255,255,0.9); padding: 10px 14px; border-radius: 6px;
+        font-size: 13px; line-height: 1.6; max-width: 260px;
+        box-shadow: 0 2px 8px rgba(0,0,0,0.1); color: #1a1f2b; }
+  #ui h1 { margin: 0 0 6px; font-size: 14px; color: #1a1f2b; }
+  #ui label { display: block; cursor: pointer; }
+  #ui select { width: 100%; background: #fff; color: #1a1f2b; border: 1px solid #bcc4d0;
+               border-radius: 4px; padding: 4px; margin-bottom: 8px; }
+  #ui button { background: #3b7cff; color: #fff; border: 0; border-radius: 4px;
+               padding: 4px 10px; cursor: pointer; }
+  #ui button:hover { background: #2a65e0; }
+  #info { font-size: 11px; color: #5a6474; margin-top: 6px; white-space: pre-wrap; }
+  #tooltip { position: absolute; pointer-events: none; background: rgba(30,35,45,0.9); color: #fff;
+             padding: 3px 6px; border-radius: 3px; font-size: 11px; display: none; }
+
+  /* Data info panel (right side) */
+  #dataPanel { position: absolute; top: 10px; right: 10px; z-index: 10;
+               background: rgba(255,255,255,0.95); padding: 12px 14px; border-radius: 6px;
+               font-size: 11px; line-height: 1.5; max-width: 320px; width: 300px;
+               max-height: calc(100vh - 40px); overflow-y: auto;
+               box-shadow: 0 2px 10px rgba(0,0,0,0.12); color: #1a1f2b; }
+  #dataPanel h2 { margin: 0 0 8px; font-size: 13px; color: #1a1f2b;
+                  border-bottom: 1px solid #c8cfd8; padding-bottom: 4px;
+                  display: flex; align-items: center; justify-content: space-between; gap: 6px; }
+  #graphBtn { background: #fff; border: 1px solid #bcc4d0; border-radius: 4px;
+              width: 26px; height: 22px; padding: 0; cursor: pointer;
+              display: inline-flex; align-items: center; justify-content: center;
+              position: relative; color: #3a4454; }
+  #graphBtn:hover { background: #e9eff8; border-color: #3b7cff; color: #3b7cff; }
+  #graphBtn svg { width: 12px; height: 12px; display: block; }
+  #graphBtn::after { content: attr(data-tip); position: absolute; top: 28px; right: 0;
+                     background: rgba(30,35,45,0.92); color: #fff;
+                     padding: 3px 8px; border-radius: 3px; font-size: 11px;
+                     white-space: nowrap; pointer-events: none;
+                     opacity: 0; transition: opacity 0.12s; }
+  #graphBtn:hover::after { opacity: 1; }
+  #dataPanel h3 { margin: 10px 0 4px; font-size: 11px; color: #3a4454;
+                  letter-spacing: 0.02em; text-transform: uppercase; }
+  #dataPanel .kv { display: grid; grid-template-columns: 100px 1fr; gap: 2px 8px; }
+  #dataPanel .kv .k { color: #6b7380; }
+  #dataPanel .kv .v { color: #1a1f2b; font-family: Menlo, monospace; font-size: 10.5px; word-break: break-all; }
+  #dataPanel .chip { display: inline-block; font-size: 9.5px; padding: 1px 6px; border-radius: 10px;
+                     margin: 0 4px 2px 0; background: #eef2f8; color: #3a4454;
+                     font-family: Menlo, monospace; }
+  #dataPanel .chip.body  { background: #d8e6f8; color: #1f3f6f; }
+  #dataPanel .chip.marker { background: #d8f3e0; color: #1f6f3f; }
+  #dataPanel details > summary { cursor: pointer; color: #2a65e0; user-select: none;
+                                  font-size: 10.5px; margin: 4px 0; }
+  #dataPanel details[open] > summary { margin-bottom: 6px; }
+  #dataPanel .badge-ok    { color: #1a8a4a; font-weight: 600; }
+  #dataPanel .badge-warn  { color: #c77b00; font-weight: 600; }
+
+  /* View container inside #dataPanel */
+  #viewContainer { position: relative; overflow: hidden; }
+  #viewContainer > .view { transition: transform 0.35s cubic-bezier(0.22, 0.61, 0.36, 1),
+                                         opacity 0.25s; }
+  #viewContainer > .view.back { transform: translateX(-30px); opacity: 0;
+                                 position: absolute; top: 0; left: 0; right: 0;
+                                 pointer-events: none; }
+  #viewContainer > .view.forward { transform: translateX(30px); opacity: 0;
+                                    position: absolute; top: 0; left: 0; right: 0;
+                                    pointer-events: none; }
+
+  /* Graph view */
+  #graphView { }
+  #graphView .chart { position: relative; margin-bottom: 14px; }
+  #graphView .chart-title { font-size: 11px; font-weight: 600; color: #3a4454;
+                             margin-bottom: 3px; display: flex; justify-content: space-between; }
+  #graphView .chart-title .val { color: #3b7cff; font-family: Menlo, monospace; font-weight: 500; }
+  #graphView canvas { display: block; width: 100%; height: 90px;
+                      background: #f6f8fb; border: 1px solid #dde3ec; border-radius: 4px; }
+  #graphView .legend { font-size: 9.5px; color: #6b7380; margin-top: 2px;
+                       display: flex; gap: 10px; }
+  #graphView .legend .dot { display: inline-block; width: 8px; height: 8px;
+                             border-radius: 2px; margin-right: 4px; vertical-align: middle; }
+
+  /* graph pager */
+  #graphView .graph-page { transition: transform 0.22s ease, opacity 0.18s ease; }
+  #graphView .graph-page.slide-out-left  { transform: translateX(-12px); opacity: 0; }
+  #graphView .graph-page.slide-out-right { transform: translateX(+12px); opacity: 0; }
+  #graphView .graph-page.slide-in-left   { transform: translateX(-12px); opacity: 0; }
+  #graphView .graph-page.slide-in-right  { transform: translateX(+12px); opacity: 0; }
+  #graphView .pager { display: flex; align-items: center; justify-content: space-between;
+                       gap: 8px; margin-top: 4px; padding-top: 6px;
+                       border-top: 1px dashed #dde3ec; }
+  #graphView .pgBtn { background: #fff; border: 1px solid #bcc4d0; border-radius: 4px;
+                       width: 30px; height: 24px; padding: 0; cursor: pointer;
+                       color: #3a4454; display: inline-flex; align-items: center; justify-content: center; }
+  #graphView .pgBtn:hover:not(:disabled) { background: #e9eff8; border-color: #3b7cff; color: #3b7cff; }
+  #graphView .pgBtn:disabled { opacity: 0.3; cursor: default; }
+  #graphView .pgBtn svg { width: 12px; height: 12px; }
+  #graphView .pgLabel { flex: 1; text-align: center; font-size: 11px; color: #1a1f2b;
+                         display: flex; align-items: center; justify-content: center; gap: 6px; }
+  #graphView .pgDots { display: inline-flex; gap: 4px; }
+  #graphView .pgDot { width: 6px; height: 6px; border-radius: 50%;
+                       background: #cdd4de; display: inline-block; }
+  #graphView .pgDot.on { background: #3b7cff; }
+</style>
+</head>
+<body>
+<div id="ui">
+  <h1>OpenSim 3D Viewer</h1>
+  <select id="model">
+    <option value="rajagopal_2016_walk_anim" selected>▶ Rajagopal 2016 — OFFICIAL walking example IK (animated)</option>
+  </select>
+  <label><input type="checkbox" id="toggleBones" checked> Bones</label>
+  <label><input type="checkbox" id="toggleMuscles"> Muscles</label>
+  <label><input type="checkbox" id="toggleMarkers" checked> Markers</label>
+  <label><input type="checkbox" id="toggleMarkerLabels"> Marker labels</label>
+  <label><input type="checkbox" id="toggleWireframe"> Wireframe</label>
+  <div style="margin-top:6px;padding-top:6px;border-top:1px dashed #cfd5df;">
+    <div style="font-size:10px;color:#6b7380;letter-spacing:.05em;margin-bottom:4px;">TRUNK</div>
+    <label><input type="checkbox" id="toggleTrunkAxis"> Axial rotation (수평면)</label>
+    <label><input type="checkbox" id="toggleTrunkLat"> Lateral bending (관상면)</label>
+    <label><input type="checkbox" id="toggleTrunkFlex"> Forward/ext (시상면)</label>
+    <div style="font-size:10px;color:#6b7380;letter-spacing:.05em;margin:6px 0 4px;">SHOULDER (basic)</div>
+    <label><input type="checkbox" id="toggleHorizPlane"> Horizontal plane @ shoulder</label>
+    <label><input type="checkbox" id="toggleArmVectors"> Humerus direction vectors</label>
+    <label><input type="checkbox" id="toggleArmProj"> Arm projection on floor</label>
+    <div style="font-size:10px;color:#6b7380;letter-spacing:.05em;margin:6px 0 4px;">SHOULDER DoF (R)</div>
+    <label><input type="checkbox" id="toggleShPlaneR"> Plane of elev axis (α)</label>
+    <label><input type="checkbox" id="toggleShElevR"> Elevation angle (β)</label>
+    <label><input type="checkbox" id="toggleShAxialR"> Axial rotation (γ)</label>
+    <div style="font-size:10px;color:#6b7380;letter-spacing:.05em;margin:6px 0 4px;">SHOULDER DoF (L)</div>
+    <label><input type="checkbox" id="toggleShPlaneL"> Plane of elev axis (α)</label>
+    <label><input type="checkbox" id="toggleShElevL"> Elevation angle (β)</label>
+    <label><input type="checkbox" id="toggleShAxialL"> Axial rotation (γ)</label>
+  </div>
+  <div id="playback" style="margin-top:8px;display:none;">
+    <button id="playBtn">▶ Play</button>
+    <input type="range" id="frameSlider" min="0" max="100" value="0" style="width:100%;">
+    <div id="frameInfo" style="font-size:11px;color:#9aa;"></div>
+  </div>
+  <div id="info"></div>
+</div>
+<div id="dataPanel">
+  <h2>
+    <span id="panelTitle">📊 Loaded Data</span>
+    <button id="graphBtn" data-tip="graph" aria-label="graph">
+      <svg viewBox="0 0 10 10" fill="currentColor" stroke="none">
+        <polygon points="2,1 9,5 2,9" />
+      </svg>
+    </button>
+  </h2>
+  <div id="viewContainer">
+    <div id="dataView" class="view">
+      <div id="dataBody">Loading…</div>
+    </div>
+    <div id="graphView" class="view forward" style="display:none;">
+      <!-- Joint charts will be inserted here -->
+    </div>
+  </div>
+</div>
+<div id="tooltip"></div>
+
+<script type="importmap">
+{
+  "imports": {
+    "three": "./vendor/three/three.module.js",
+    "three/addons/": "./vendor/three/"
+  }
+}
+</script>
+
+<script type="module">
+import * as THREE from 'three';
+import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
+import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+import { CSS2DRenderer, CSS2DObject } from 'three/addons/renderers/CSS2DRenderer.js';
+
+const scene = new THREE.Scene();
+scene.background = new THREE.Color(0xe8ecf2);
+
+const camera = new THREE.PerspectiveCamera(45, innerWidth/innerHeight, 0.01, 100);
+camera.position.set(2.5, 1.2, 2.5);
+
+const renderer = new THREE.WebGLRenderer({ antialias: true });
+renderer.setSize(innerWidth, innerHeight);
+renderer.setPixelRatio(devicePixelRatio);
+document.body.appendChild(renderer.domElement);
+
+const labelRenderer = new CSS2DRenderer();
+labelRenderer.setSize(innerWidth, innerHeight);
+labelRenderer.domElement.style.position = 'absolute';
+labelRenderer.domElement.style.top = '0';
+labelRenderer.domElement.style.pointerEvents = 'none';
+document.body.appendChild(labelRenderer.domElement);
+
+scene.add(new THREE.AmbientLight(0xffffff, 0.6));
+scene.add(new THREE.HemisphereLight(0xffffff, 0xbac4d0, 1.3));
+const dir = new THREE.DirectionalLight(0xffffff, 1.1);
+dir.position.set(3, 5, 2);
+scene.add(dir);
+const dir2 = new THREE.DirectionalLight(0xffffff, 0.5);
+dir2.position.set(-3, 4, -2);
+scene.add(dir2);
+
+// ground grid
+const grid = new THREE.GridHelper(4, 20, 0x8a94a6, 0xc4cbd6);
+scene.add(grid);
+const axes = new THREE.AxesHelper(0.3);
+scene.add(axes);
+
+const controls = new OrbitControls(camera, renderer.domElement);
+controls.target.set(0, 1, 0);
+controls.enableDamping = true;
+
+addEventListener('resize', () => {
+  camera.aspect = innerWidth/innerHeight;
+  camera.updateProjectionMatrix();
+  renderer.setSize(innerWidth, innerHeight);
+  labelRenderer.setSize(innerWidth, innerHeight);
+});
+
+// --- model root groups ---
+const boneGroup = new THREE.Group();
+const muscleGroup = new THREE.Group();
+const markerGroup = new THREE.Group();
+const labelGroup = new THREE.Group();
+const gizmoGroup = new THREE.Group();     // IK visualization overlays
+scene.add(boneGroup, muscleGroup, markerGroup, labelGroup, gizmoGroup);
+
+// ---------------- IK Gizmos ----------------
+// These get created once loadModel is finished (bodyNodes populated),
+// and updated per-frame in applyFrame().
+const giz = {
+  trunkAxisLine: null,   // purple vertical line through pelvis
+  trunkAxisArrow: null,
+  trunkZeroLine: null,   // gray: pelvis forward (axial ref)
+  trunkNowLine:  null,   // green: torso forward (current)
+  trunkRotArc:   null,   // arc on horizontal plane (axial)
+  // lateral bending (coronal plane)
+  trunkLatZero:  null,   // gray vertical: pelvis up axis
+  trunkLatNow:   null,   // orange: torso up axis (tilted left/right)
+  trunkLatArc:   null,   // arc showing lateral angle
+  // flexion/extension (sagittal plane)
+  trunkFlexZero: null,   // gray: pelvis up axis
+  trunkFlexNow:  null,   // brown: torso up axis tilted forward/back
+  trunkFlexArc:  null,   // arc in sagittal plane
+  horizPlane: null,      // semi-transparent horizontal disk at shoulder height
+  armR: null,            // orange 3D line: R shoulder → R elbow (hand side)
+  armL: null,            // pink   3D line: L shoulder → L elbow
+  armRProj: null,        // floor projection of armR
+  armLProj: null,
+  armRProjDrop: null,    // vertical drop line R
+  armLProjDrop: null,
+  // Shoulder DoF (YXY Euler) visualizers — built per side
+  shR: null,  // {planeDisk, planeArrow, elevArc, axialArrow, axialArc}
+  shL: null,
+  // internal
+  zeroForward: null,     // THREE.Vector3, world-anchored anterior direction captured at frame 0
+  trunkPivotY: 0,        // Y height where we draw the two reference lines
+};
+
+// Thick 3D line = unit cylinder mesh aligned between two endpoints.
+// (THREE.Line ignores linewidth on most platforms.)
+function makeLine(from, to, color, radius = 0.012, opacity = 0.95) {
+  // unit cylinder along +Y, height 1, repositioned/scaled per update
+  const geo = new THREE.CylinderGeometry(radius, radius, 1, 14, 1, false);
+  // translate so that the base is at origin, top at (0,1,0)
+  geo.translate(0, 0.5, 0);
+  const mat = new THREE.MeshBasicMaterial({
+    color, transparent: true, opacity,
+    depthTest: true, depthWrite: false,
+  });
+  const mesh = new THREE.Mesh(geo, mat);
+  mesh.renderOrder = 999;
+  // endpoint caps (spheres) for nicer look
+  const capGeo = new THREE.SphereGeometry(radius * 1.25, 10, 8);
+  const capMat = new THREE.MeshBasicMaterial({
+    color, transparent: true, opacity,
+    depthTest: true, depthWrite: false,
+  });
+  const capA = new THREE.Mesh(capGeo, capMat);
+  const capB = new THREE.Mesh(capGeo, capMat);
+  capA.renderOrder = capB.renderOrder = 999;
+  mesh.add(capA);        // so we can reposition both with the line
+  mesh.userData._capB = capB;
+  mesh.userData._capRadius = radius * 1.25;
+  // capB lives in world space (added to parent later on first update)
+  updateLine(mesh, from, to);
+  return mesh;
+}
+
+const _tmpUp = new THREE.Vector3(0, 1, 0);
+function updateLine(mesh, from, to) {
+  if (!mesh) return;
+  const dir = new THREE.Vector3().subVectors(to, from);
+  const len = dir.length();
+  if (len < 1e-6) { mesh.visible = false; return; }
+  mesh.visible = true;
+  mesh.position.copy(from);
+  mesh.scale.set(1, len, 1);
+  const q = new THREE.Quaternion().setFromUnitVectors(_tmpUp, dir.clone().normalize());
+  mesh.quaternion.copy(q);
+  // caps: capA is a child → at local (0, 0, 0) after translate; we reset
+  // capA.position = (0,0,0) and capB.position = (0,1,0) in local (cylinder) coords.
+  if (mesh.children[0]) mesh.children[0].position.set(0, 0, 0);
+  const capB = mesh.userData._capB;
+  if (capB) {
+    // we put capB at world `to` by attaching it to the mesh, local (0,1,0)
+    if (!capB.parent) mesh.add(capB);
+    capB.position.set(0, 1, 0);
+    // un-scale the caps so they stay spherical despite parent scale
+    const invY = 1 / Math.max(len, 1e-6);
+    mesh.children[0].scale.set(1, invY, 1);
+    capB.scale.set(1, invY, 1);
+  }
+}
+
+function makeDisk(radius, color, opacity = 0.18) {
+  const geo = new THREE.CircleGeometry(radius, 48);
+  geo.rotateX(-Math.PI / 2);   // lie on XZ plane
+  const mat = new THREE.MeshBasicMaterial({ color, transparent: true, opacity,
+    side: THREE.DoubleSide, depthWrite: false });
+  const disk = new THREE.Mesh(geo, mat);
+  // outline ring
+  const ring = new THREE.RingGeometry(radius * 0.99, radius, 64);
+  ring.rotateX(-Math.PI / 2);
+  const ringMat = new THREE.MeshBasicMaterial({ color, transparent: true, opacity: 0.7,
+    side: THREE.DoubleSide });
+  const ringMesh = new THREE.Mesh(ring, ringMat);
+  disk.add(ringMesh);
+  return disk;
+}
+
+// World-space horizontal forward direction for a named body using that
+// body's local +X axis, projected onto the floor (y=0). In Rajagopal the
+// pelvis and torso local +X points anatomically forward (anterior).
+function bodyForwardDir(bname) {
+  const n = bodyNodes[bname];
+  if (!n) return null;
+  n.updateMatrixWorld(true);
+  // world rotation column 0 = direction of local +X in world space
+  const e = n.matrixWorld.elements;
+  const x = new THREE.Vector3(e[0], e[1], e[2]);
+  x.y = 0;
+  if (x.lengthSq() < 1e-8) return null;
+  return x.normalize();
+}
+
+// Anterior = torso +X (current frame)
+function torsoAnterior() {
+  return bodyForwardDir('torso')
+      || bodyForwardDir('pelvis')
+      || new THREE.Vector3(1, 0, 0);
+}
+
+// Zero reference = pelvis +X (current frame). This rotates with the pelvis,
+// so the angle between (torsoAnterior) and (pelvisAnterior) is exactly
+// lumbar_rotation.
+function pelvisAnterior() {
+  return bodyForwardDir('pelvis') || new THREE.Vector3(1, 0, 0);
+}
+
+// World-space direction of a body's local +Y (vertical/up axis in Rajagopal).
+function bodyUpDir(bname) {
+  const n = bodyNodes[bname];
+  if (!n) return null;
+  n.updateMatrixWorld(true);
+  const e = n.matrixWorld.elements;
+  return new THREE.Vector3(e[4], e[5], e[6]).normalize();
+}
+
+// World-space direction of a body's local +Z (right/lateral axis in Rajagopal).
+function bodyRightDir(bname) {
+  const n = bodyNodes[bname];
+  if (!n) return null;
+  n.updateMatrixWorld(true);
+  const e = n.matrixWorld.elements;
+  return new THREE.Vector3(e[8], e[9], e[10]).normalize();
+}
+
+function pelvisUp()   { return bodyUpDir('pelvis') || new THREE.Vector3(0,1,0); }
+function torsoUp()    { return bodyUpDir('torso') || bodyUpDir('pelvis') || new THREE.Vector3(0,1,0); }
+function pelvisRight(){ return bodyRightDir('pelvis') || new THREE.Vector3(0,0,1); }
+
+function buildGizmos() {
+  // clear prior
+  gizmoGroup.clear();
+  for (const k in giz) giz[k] = null;
+  giz.zeroForward = null;
+
+  // 1) Trunk axial axis (purple vertical cylinder through pelvis, up to top of head)
+  giz.trunkAxisLine = makeLine(
+    new THREE.Vector3(0, 0, 0), new THREE.Vector3(0, 1, 0), 0x8e44ad, 0.016);
+  gizmoGroup.add(giz.trunkAxisLine);
+
+  // 1b) Trunk rotation 0° reference line (gray, locked to zero-pose anterior direction)
+  giz.trunkZeroLine = makeLine(
+    new THREE.Vector3(), new THREE.Vector3(0.01, 0, 0), 0x6b7380, 0.010, 0.85);
+  gizmoGroup.add(giz.trunkZeroLine);
+
+  // 1c) Trunk rotation current-frame direction (green, rotates with torso)
+  giz.trunkNowLine = makeLine(
+    new THREE.Vector3(), new THREE.Vector3(0.01, 0, 0), 0x1a8a4a, 0.014, 0.95);
+  gizmoGroup.add(giz.trunkNowLine);
+
+  // 1d) Arc between zero and current direction (visualize rotation angle)
+  const arcGeo = new THREE.BufferGeometry();
+  arcGeo.setAttribute('position', new THREE.Float32BufferAttribute(new Array(3 * 32), 3));
+  giz.trunkRotArc = new THREE.Line(
+    arcGeo,
+    new THREE.LineBasicMaterial({ color: 0x1a8a4a, transparent: true, opacity: 0.8 })
+  );
+  giz.trunkRotArc.renderOrder = 1000;
+  gizmoGroup.add(giz.trunkRotArc);
+
+  // 1e) Lateral bending: pelvis up axis (gray) vs torso up axis (orange)
+  //     shown in the pelvis-local coronal plane (plane normal = pelvis forward).
+  giz.trunkLatZero = makeLine(
+    new THREE.Vector3(), new THREE.Vector3(0, 0.01, 0), 0x6b7380, 0.010, 0.85);
+  giz.trunkLatNow = makeLine(
+    new THREE.Vector3(), new THREE.Vector3(0, 0.01, 0), 0xe27f3a, 0.014, 0.95);
+  gizmoGroup.add(giz.trunkLatZero);
+  gizmoGroup.add(giz.trunkLatNow);
+
+  const latArcGeo = new THREE.BufferGeometry();
+  latArcGeo.setAttribute('position', new THREE.Float32BufferAttribute(new Array(3 * 32), 3));
+  giz.trunkLatArc = new THREE.Line(
+    latArcGeo,
+    new THREE.LineBasicMaterial({ color: 0xe27f3a, transparent: true, opacity: 0.85 })
+  );
+  giz.trunkLatArc.renderOrder = 1000;
+  gizmoGroup.add(giz.trunkLatArc);
+
+  // 1f) Flexion/Extension: pelvis up (gray) vs torso up projected into sagittal plane (brown)
+  giz.trunkFlexZero = makeLine(
+    new THREE.Vector3(), new THREE.Vector3(0, 0.01, 0), 0x6b7380, 0.010, 0.85);
+  giz.trunkFlexNow = makeLine(
+    new THREE.Vector3(), new THREE.Vector3(0, 0.01, 0), 0xd35400, 0.014, 0.95);
+  gizmoGroup.add(giz.trunkFlexZero);
+  gizmoGroup.add(giz.trunkFlexNow);
+
+  const flexArcGeo = new THREE.BufferGeometry();
+  flexArcGeo.setAttribute('position', new THREE.Float32BufferAttribute(new Array(3 * 32), 3));
+  giz.trunkFlexArc = new THREE.Line(
+    flexArcGeo,
+    new THREE.LineBasicMaterial({ color: 0xd35400, transparent: true, opacity: 0.85 })
+  );
+  giz.trunkFlexArc.renderOrder = 1000;
+  gizmoGroup.add(giz.trunkFlexArc);
+
+  // 2) Horizontal plane disk at shoulder height (radius scales later)
+  giz.horizPlane = makeDisk(0.35, 0x2a9d8f, 0.15);
+  gizmoGroup.add(giz.horizPlane);
+
+  // 3) Humerus direction vectors (shoulder -> elbow)
+  giz.armR = makeLine(
+    new THREE.Vector3(), new THREE.Vector3(0, 0.2, 0), 0xe27f3a, 0.018);
+  giz.armL = makeLine(
+    new THREE.Vector3(), new THREE.Vector3(0, 0.2, 0), 0xc94b7c, 0.018);
+  gizmoGroup.add(giz.armR);
+  gizmoGroup.add(giz.armL);
+
+  // 4) Floor projections (slightly thinner, semi-transparent)
+  giz.armRProj = makeLine(
+    new THREE.Vector3(), new THREE.Vector3(0.01, 0, 0), 0xe27f3a, 0.013, 0.6);
+  giz.armLProj = makeLine(
+    new THREE.Vector3(), new THREE.Vector3(0.01, 0, 0), 0xc94b7c, 0.013, 0.6);
+  gizmoGroup.add(giz.armRProj);
+  gizmoGroup.add(giz.armLProj);
+
+  // Vertical "drop" cylinders from shoulder to floor (thin, semi-transparent)
+  giz.armRProjDrop = makeLine(
+    new THREE.Vector3(), new THREE.Vector3(0, 0.01, 0), 0xe27f3a, 0.006, 0.45);
+  giz.armLProjDrop = makeLine(
+    new THREE.Vector3(), new THREE.Vector3(0, 0.01, 0), 0xc94b7c, 0.006, 0.45);
+  gizmoGroup.add(giz.armRProjDrop);
+  gizmoGroup.add(giz.armLProjDrop);
+
+  // ---- Shoulder DoF gizmos (R/L) ----
+  giz.shR = makeShoulderGizmo('#2a9d8f', '#e76f51', '#264653');   // teal, orange, dark
+  giz.shL = makeShoulderGizmo('#2a9d8f', '#e76f51', '#264653');
+  gizmoGroup.add(giz.shR.group);
+  gizmoGroup.add(giz.shL.group);
+
+  applyGizmoVisibility();
+}
+
+/**
+ * Make a reusable shoulder-DoF gizmo group.
+ *   planeColor  : color for plane-of-elevation marker (α)
+ *   elevColor   : color for elevation angle arc (β)
+ *   axialColor  : color for axial rotation marker (γ)
+ *
+ * Returns { group, planeDisk, planeArrow, elevArc, axialTick, axialArc, armLine }
+ */
+function makeShoulderGizmo(planeColor, elevColor, axialColor) {
+  const group = new THREE.Group();
+
+  // Plane of elevation (α): small horizontal disk anchored at shoulder,
+  // with a thin arrow indicating the current plane direction (projected onto torso-horizontal).
+  const planeDisk = makeDisk(0.20, planeColor, 0.18);
+  group.add(planeDisk);
+  const planeArrow = makeLine(
+    new THREE.Vector3(), new THREE.Vector3(0.01, 0, 0), planeColor, 0.010, 0.9);
+  group.add(planeArrow);
+
+  // Reference forward line (anatomically 0° for plane of elevation)
+  const planeRef = makeLine(
+    new THREE.Vector3(), new THREE.Vector3(0.01, 0, 0), 0x6b7380, 0.006, 0.7);
+  group.add(planeRef);
+
+  // Elevation arc (β): on the plane containing the humerus long axis and shoulder vertical
+  const elevArcGeo = new THREE.BufferGeometry();
+  elevArcGeo.setAttribute('position', new THREE.Float32BufferAttribute(new Array(3 * 32), 3));
+  const elevArc = new THREE.Line(elevArcGeo,
+    new THREE.LineBasicMaterial({ color: new THREE.Color(elevColor),
+      transparent: true, opacity: 0.9 }));
+  elevArc.renderOrder = 1000;
+  group.add(elevArc);
+
+  // Vertical reference (torso up) from shoulder, length ~= upper arm
+  const elevRef = makeLine(
+    new THREE.Vector3(), new THREE.Vector3(0, 0.01, 0), 0x6b7380, 0.006, 0.6);
+  group.add(elevRef);
+
+  // Axial rotation (γ): three parts
+  //   1) axialAxisLine — thick dark bar along the humerus long axis
+  //      (this IS the rotation axis, highlighted)
+  //   2) axialRing     — a ring (circle) around the humerus mid, in the
+  //      plane perpendicular to the humerus axis → shows the rotation plane
+  //   3) axialTickRef  — gray radial tick on the ring at 0°
+  //      axialTickNow  — colored radial tick at current γ
+  const axialAxisLine = makeLine(
+    new THREE.Vector3(), new THREE.Vector3(0, 0.01, 0), axialColor, 0.013, 0.95);
+  group.add(axialAxisLine);
+
+  const ringGeo = new THREE.BufferGeometry();
+  ringGeo.setAttribute('position', new THREE.Float32BufferAttribute(new Array(3 * 48), 3));
+  const axialRing = new THREE.Line(ringGeo,
+    new THREE.LineBasicMaterial({ color: new THREE.Color(axialColor),
+      transparent: true, opacity: 0.55 }));
+  axialRing.renderOrder = 1000;
+  group.add(axialRing);
+
+  const axialTickRef = makeLine(
+    new THREE.Vector3(), new THREE.Vector3(0.01, 0, 0), 0x6b7380, 0.006, 0.8);
+  group.add(axialTickRef);
+  const axialTickNow = makeLine(
+    new THREE.Vector3(), new THREE.Vector3(0.01, 0, 0), axialColor, 0.010, 0.95);
+  group.add(axialTickNow);
+
+  const axialArcGeo = new THREE.BufferGeometry();
+  axialArcGeo.setAttribute('position', new THREE.Float32BufferAttribute(new Array(3 * 32), 3));
+  const axialArc = new THREE.Line(axialArcGeo,
+    new THREE.LineBasicMaterial({ color: new THREE.Color(axialColor),
+      transparent: true, opacity: 0.95 }));
+  axialArc.renderOrder = 1001;
+  group.add(axialArc);
+
+  return { group, planeDisk, planeArrow, planeRef, elevArc, elevRef,
+           axialAxisLine, axialRing, axialTickRef, axialTickNow, axialArc };
+}
+
+function applyGizmoVisibility() {
+  const on = {
+    trunk: document.getElementById('toggleTrunkAxis')?.checked,
+    lat:   document.getElementById('toggleTrunkLat')?.checked,
+    flex:  document.getElementById('toggleTrunkFlex')?.checked,
+    plane: document.getElementById('toggleHorizPlane')?.checked,
+    arms:  document.getElementById('toggleArmVectors')?.checked,
+    proj:  document.getElementById('toggleArmProj')?.checked,
+  };
+  // Axial rotation group (horizontal plane lines + pivot axis)
+  if (giz.trunkAxisLine) giz.trunkAxisLine.visible = !!on.trunk;
+  if (giz.trunkZeroLine) giz.trunkZeroLine.visible = !!on.trunk;
+  if (giz.trunkNowLine)  giz.trunkNowLine.visible  = !!on.trunk;
+  if (giz.trunkRotArc)   giz.trunkRotArc.visible   = !!on.trunk;
+  // Lateral bending group (coronal plane up vectors)
+  if (giz.trunkLatZero)  giz.trunkLatZero.visible  = !!on.lat;
+  if (giz.trunkLatNow)   giz.trunkLatNow.visible   = !!on.lat;
+  if (giz.trunkLatArc)   giz.trunkLatArc.visible   = !!on.lat;
+  // Flexion/extension group (sagittal plane up vectors)
+  if (giz.trunkFlexZero) giz.trunkFlexZero.visible = !!on.flex;
+  if (giz.trunkFlexNow)  giz.trunkFlexNow.visible  = !!on.flex;
+  if (giz.trunkFlexArc)  giz.trunkFlexArc.visible  = !!on.flex;
+  // Shoulder / arm gizmos (basic)
+  if (giz.horizPlane)    giz.horizPlane.visible = !!on.plane;
+  if (giz.armR)          giz.armR.visible = !!on.arms;
+  if (giz.armL)          giz.armL.visible = !!on.arms;
+  if (giz.armRProj)      giz.armRProj.visible = !!on.proj;
+  if (giz.armLProj)      giz.armLProj.visible = !!on.proj;
+  if (giz.armRProjDrop)  giz.armRProjDrop.visible = !!on.proj;
+  if (giz.armLProjDrop)  giz.armLProjDrop.visible = !!on.proj;
+
+  // Shoulder DoF gizmos (per side)
+  const setSh = (side, prefix) => {
+    const sh = giz[side];
+    if (!sh) return;
+    const planeOn = document.getElementById(prefix + 'Plane')?.checked;
+    const elevOn  = document.getElementById(prefix + 'Elev')?.checked;
+    const axialOn = document.getElementById(prefix + 'Axial')?.checked;
+    // per-component visibility
+    if (sh.planeDisk)    sh.planeDisk.visible   = !!planeOn;
+    if (sh.planeArrow)   sh.planeArrow.visible  = !!planeOn;
+    if (sh.planeRef)     sh.planeRef.visible    = !!planeOn;
+    if (sh.elevArc)      sh.elevArc.visible     = !!elevOn;
+    if (sh.elevRef)      sh.elevRef.visible     = !!elevOn;
+    if (sh.axialTick)    sh.axialTick.visible   = !!axialOn;
+    if (sh.axialTickRef) sh.axialTickRef.visible= !!axialOn;
+    if (sh.axialArc)     sh.axialArc.visible    = !!axialOn;
+    // group visibility handled implicitly by children
+    sh.group.visible = !!(planeOn || elevOn || axialOn);
+  };
+  setSh('shR', 'toggleSh'); setSh('shR', 'toggleSh'); // no-op placeholder
+  // pairs of (side key, toggle prefix suffix)
+  const pairs = [['shR', 'R'], ['shL', 'L']];
+  for (const [sideKey, suffix] of pairs) {
+    const sh = giz[sideKey];
+    if (!sh) continue;
+    const pOn = document.getElementById('toggleShPlane' + suffix)?.checked;
+    const eOn = document.getElementById('toggleShElev'  + suffix)?.checked;
+    const aOn = document.getElementById('toggleShAxial' + suffix)?.checked;
+    if (sh.planeDisk)    sh.planeDisk.visible    = !!pOn;
+    if (sh.planeArrow)   sh.planeArrow.visible   = !!pOn;
+    if (sh.planeRef)     sh.planeRef.visible     = !!pOn;
+    if (sh.elevArc)      sh.elevArc.visible      = !!eOn;
+    if (sh.elevRef)      sh.elevRef.visible      = !!eOn;
+    if (sh.axialAxisLine) sh.axialAxisLine.visible = !!aOn;
+    if (sh.axialRing)     sh.axialRing.visible     = !!aOn;
+    if (sh.axialTickRef)  sh.axialTickRef.visible  = !!aOn;
+    if (sh.axialTickNow)  sh.axialTickNow.visible  = !!aOn;
+    if (sh.axialArc)      sh.axialArc.visible      = !!aOn;
+    sh.group.visible = !!(pOn || eOn || aOn);
+  }
+}
+
+// Compute world position of a body node
+function bodyPos(bname) {
+  const n = bodyNodes[bname];
+  if (!n) return null;
+  return n.getWorldPosition(new THREE.Vector3());
+}
+
+/**
+ * Shoulder DoF gizmo update.
+ * - shoulder center   = humerus_* body world origin
+ * - humerus long axis = (humerus_*) origin → (ulna_*) origin, distal direction
+ * - torso frame used as reference (forward = torso +X, up = torso +Y, right = torso +Z)
+ */
+function updateShoulderGizmo(sideKey, humBody, ulnaBody) {
+  const sh = giz[sideKey];
+  if (!sh || !sh.group.visible) return;
+  const shoulder = bodyPos(humBody);
+  const elbow    = bodyPos(ulnaBody);
+  const torsoNode = bodyNodes['torso'];
+  if (!shoulder || !elbow || !torsoNode) return;
+
+  // Torso basis in world
+  torsoNode.updateMatrixWorld(true);
+  const e = torsoNode.matrixWorld.elements;
+  const forward = new THREE.Vector3(e[0], e[1], e[2]).normalize();  // +X
+  const up      = new THREE.Vector3(e[4], e[5], e[6]).normalize();  // +Y
+  const right   = new THREE.Vector3(e[8], e[9], e[10]).normalize(); // +Z
+
+  // Humerus long-axis (distal direction): shoulder → elbow
+  const hum = new THREE.Vector3().subVectors(elbow, shoulder);
+  const humLen = hum.length();
+  if (humLen < 1e-6) return;
+  const humN = hum.clone().divideScalar(humLen);
+
+  // ---- Elevation β ----
+  // β = angle between hum long axis and torso up? No — elevation convention:
+  // When arm points along -up (arm down), elevation = 0.
+  // So β = angle between humN and (-up).
+  const downT = up.clone().negate();
+  const cosB = THREE.MathUtils.clamp(humN.dot(downT), -1, 1);
+  const beta = Math.acos(cosB);   // [0, π]
+
+  // ---- Plane of elevation α ----
+  // Project humN onto torso-horizontal plane (perpendicular to up).
+  const horiz = humN.clone().addScaledVector(up, -humN.dot(up));
+  let alpha = 0;
+  if (horiz.lengthSq() > 1e-8) {
+    horiz.normalize();
+    // α measured from torso forward (+X) around up axis, toward torso right (+Z)
+    const cos = horiz.dot(forward);
+    const sin = horiz.dot(right);
+    alpha = Math.atan2(sin, cos);   // radians
+  }
+
+  // ---- α gizmo ----
+  //   planeDisk placed at shoulder center, on torso-horizontal plane
+  //   planeRef  = forward direction line
+  //   planeArrow = horiz direction line (current α)
+  const pDisk = sh.planeDisk;
+  if (pDisk && pDisk.visible) {
+    pDisk.position.copy(shoulder);
+    // rotate disk so its normal = up (torso up)
+    pDisk.quaternion.setFromUnitVectors(new THREE.Vector3(0,1,0), up);
+  }
+  const Lp = 0.22;
+  if (sh.planeRef && sh.planeRef.visible) {
+    const a = shoulder.clone().addScaledVector(forward, -Lp * 0.1);
+    const b = shoulder.clone().addScaledVector(forward,  Lp);
+    updateLine(sh.planeRef, a, b);
+  }
+  if (sh.planeArrow && sh.planeArrow.visible) {
+    const dir = (horiz.lengthSq() > 1e-8) ? horiz : forward;
+    const a = shoulder.clone().addScaledVector(dir, -Lp * 0.1);
+    const b = shoulder.clone().addScaledVector(dir,  Lp);
+    updateLine(sh.planeArrow, a, b);
+  }
+
+  // ---- β elevation arc ----
+  // The arc lives on the plane spanned by (up, humN) and goes from -up to humN.
+  // We parameterise with basis e1=-up, e2 = (humN - cos(β)*(-up)) normalised.
+  if (sh.elevRef && sh.elevRef.visible) {
+    updateLine(sh.elevRef,
+      shoulder,
+      shoulder.clone().addScaledVector(downT, humLen));
+  }
+  if (sh.elevArc && sh.elevArc.visible) {
+    const e1 = downT.clone();
+    const perp = humN.clone().addScaledVector(downT, -humN.dot(downT));
+    let e2;
+    if (perp.lengthSq() > 1e-8) {
+      e2 = perp.normalize();
+    } else {
+      // humerus parallel to down: degenerate β=0 or π — pick forward
+      e2 = forward.clone();
+    }
+    const R = 0.15;
+    const n = 32;
+    const arr = sh.elevArc.geometry.attributes.position.array;
+    for (let i = 0; i < n; i++) {
+      const t = i / (n - 1);
+      const a = beta * t;
+      const c = Math.cos(a), s = Math.sin(a);
+      const v = new THREE.Vector3()
+        .addScaledVector(e1, c)
+        .addScaledVector(e2, s)
+        .multiplyScalar(R);
+      arr[i*3 + 0] = shoulder.x + v.x;
+      arr[i*3 + 1] = shoulder.y + v.y;
+      arr[i*3 + 2] = shoulder.z + v.z;
+    }
+    sh.elevArc.geometry.attributes.position.needsUpdate = true;
+    sh.elevArc.geometry.computeBoundingSphere();
+  }
+
+  // ---- γ axial rotation ----
+  // Make the rotation AXIS explicit:
+  //   1) A thick dark bar along the humerus long axis (= the rotation axis)
+  //   2) A ring perpendicular to the axis at mid-humerus (shows the plane of rotation)
+  //   3) Reference tick (gray, at 0°) + current tick (colored, at γ) on that ring
+  //   4) Arc on the ring from 0° to γ (fills the rotated angle)
+  if ((sh.axialAxisLine && sh.axialAxisLine.visible) ||
+      (sh.axialRing && sh.axialRing.visible)) {
+    const col = (sideKey === 'shR') ? 'arm_rot_r' : 'arm_rot_l';
+    const gamma = angles && angles[col]
+      ? (angles[col][currentFrame] || 0) * Math.PI / 180.0
+      : 0;
+
+    // Orthonormal basis around humN
+    //   e_r = lateral-like reference (used as 0° ring point)
+    //   e_a = second in-ring basis
+    let eRight = new THREE.Vector3().crossVectors(humN, up);
+    if (eRight.lengthSq() < 1e-8)
+      eRight = new THREE.Vector3().crossVectors(humN, forward);
+    eRight.normalize();
+    const eAnt = new THREE.Vector3().crossVectors(humN, eRight).normalize();
+
+    const mid = shoulder.clone().addScaledVector(humN, humLen * 0.55);
+    const R = 0.08;
+
+    // 1) Axis line = humerus long axis extended a bit past shoulder/elbow
+    if (sh.axialAxisLine && sh.axialAxisLine.visible) {
+      const extend = 0.04;
+      const a = shoulder.clone().addScaledVector(humN, -extend);
+      const b = shoulder.clone().addScaledVector(humN, humLen + extend);
+      updateLine(sh.axialAxisLine, a, b);
+    }
+
+    // 2) Ring perpendicular to humerus axis at mid-humerus
+    if (sh.axialRing && sh.axialRing.visible) {
+      const n = 48;
+      const arr = sh.axialRing.geometry.attributes.position.array;
+      for (let i = 0; i < n; i++) {
+        const t = (i / (n - 1)) * Math.PI * 2;
+        const c = Math.cos(t), s = Math.sin(t);
+        const v = eRight.clone().multiplyScalar(c * R)
+          .addScaledVector(eAnt, s * R);
+        arr[i*3 + 0] = mid.x + v.x;
+        arr[i*3 + 1] = mid.y + v.y;
+        arr[i*3 + 2] = mid.z + v.z;
+      }
+      sh.axialRing.geometry.attributes.position.needsUpdate = true;
+      sh.axialRing.geometry.computeBoundingSphere();
+    }
+
+    // 3a) Gray reference tick: 0° direction (eRight), radial (axis → ring)
+    if (sh.axialTickRef && sh.axialTickRef.visible) {
+      updateLine(sh.axialTickRef,
+        mid.clone(),
+        mid.clone().addScaledVector(eRight, R * 1.15));
+    }
+
+    // 3b) Current tick at γ
+    if (sh.axialTickNow && sh.axialTickNow.visible) {
+      const c = Math.cos(gamma), s = Math.sin(gamma);
+      const tickDir = eRight.clone().multiplyScalar(c)
+        .addScaledVector(eAnt, s);
+      updateLine(sh.axialTickNow,
+        mid.clone(),
+        mid.clone().addScaledVector(tickDir, R * 1.15));
+    }
+
+    // 4) Arc filling from 0° to γ on the ring
+    if (sh.axialArc && sh.axialArc.visible) {
+      const n = 32;
+      const arr = sh.axialArc.geometry.attributes.position.array;
+      for (let i = 0; i < n; i++) {
+        const t = i / (n - 1);
+        const a = gamma * t;
+        const c = Math.cos(a), s = Math.sin(a);
+        const v = eRight.clone().multiplyScalar(c * R * 0.88)
+          .addScaledVector(eAnt, s * R * 0.88);
+        arr[i*3 + 0] = mid.x + v.x;
+        arr[i*3 + 1] = mid.y + v.y;
+        arr[i*3 + 2] = mid.z + v.z;
+      }
+      sh.axialArc.geometry.attributes.position.needsUpdate = true;
+      sh.axialArc.geometry.computeBoundingSphere();
+    }
+  }
+}
+
+function updateGizmos() {
+  // requires pelvis / torso / humerus / ulna to exist as bodyNodes
+  const pelvis = bodyPos('pelvis');
+  const torso  = bodyPos('torso');
+  if (!pelvis) return;
+
+  // Back joint pivot: in Rajagopal 2016, the `back` joint origin on the
+  // torso side is collocated with the torso body origin. Use that as the
+  // true pivot for trunk gizmos.
+  const lumbarPivot = torso ? torso.clone() : pelvis.clone().add(new THREE.Vector3(0, 0.35, 0));
+
+  // 1) Trunk axial axis: draw through the lumbar pivot along the pelvis up
+  //    direction. Kept short so it stays visually "in the torso" instead of
+  //    extending up into the shoulders.
+  if (giz.trunkAxisLine && giz.trunkAxisLine.visible) {
+    const upDir = pelvisUp();
+    const bottom = lumbarPivot.clone().addScaledVector(upDir, -0.22);   // ~ down to pelvis level
+    const top    = lumbarPivot.clone().addScaledVector(upDir, +0.22);   // ~ up to mid-chest
+    updateLine(giz.trunkAxisLine, bottom, top);
+  }
+
+  // 1b) Trunk rotation 0° reference (gray) = pelvis forward (local +X) —
+  //     this rotates with the pelvis, so the angle between pelvis and torso
+  //     forward vectors is exactly lumbar_rotation (axial twist of the trunk).
+  // 1c) Trunk current direction (green) = torso forward (local +X).
+  if (giz.trunkZeroLine && giz.trunkZeroLine.visible) {
+    const center = lumbarPivot;   // true back joint pivot
+    const L = 0.45;
+
+    const vZero = pelvisAnterior();   // rotates with pelvis → zero reference
+    const vNow  = torsoAnterior();    // rotates with torso
+
+    const zero = vZero.clone().multiplyScalar(L);
+    updateLine(giz.trunkZeroLine,
+      new THREE.Vector3(center.x - zero.x, center.y, center.z - zero.z),
+      new THREE.Vector3(center.x + zero.x, center.y, center.z + zero.z));
+
+    const now = vNow.clone().multiplyScalar(L);
+    updateLine(giz.trunkNowLine,
+      new THREE.Vector3(center.x - now.x, center.y, center.z - now.z),
+      new THREE.Vector3(center.x + now.x, center.y, center.z + now.z));
+
+    // Arc between pelvis-forward and torso-forward on the horizontal plane
+    if (giz.trunkRotArc) {
+      const cross = new THREE.Vector3().crossVectors(vZero, vNow);
+      const signedAngle = Math.atan2(cross.y, vZero.dot(vNow));
+      const R = 0.25;
+      const nSeg = 32;
+      const arr = giz.trunkRotArc.geometry.attributes.position.array;
+      for (let i = 0; i < nSeg; i++) {
+        const t = i / (nSeg - 1);
+        const a = signedAngle * t;
+        const cos = Math.cos(a), sin = Math.sin(a);
+        const vx = vZero.x * cos - vZero.z * sin;
+        const vz = vZero.x * sin + vZero.z * cos;
+        arr[i*3 + 0] = center.x + R * vx;
+        arr[i*3 + 1] = center.y;
+        arr[i*3 + 2] = center.z + R * vz;
+      }
+      giz.trunkRotArc.geometry.attributes.position.needsUpdate = true;
+      giz.trunkRotArc.geometry.computeBoundingSphere();
+      giz.trunkRotArc.visible = true;
+    }
+  } else {
+    if (giz.trunkNowLine) giz.trunkNowLine.visible = false;
+    if (giz.trunkRotArc)  giz.trunkRotArc.visible  = false;
+  }
+
+  // 1e) Lateral bending gizmo (coronal plane)
+  //     In the pelvis-local coronal plane (spanned by pelvis-right and pelvis-up,
+  //     normal = pelvis-forward), draw:
+  //       - gray line = pelvis up axis (reference / 0°)
+  //       - orange line = torso up axis projected onto that coronal plane
+  //     Signed angle (sideways tilt) corresponds to lumbar_bending.
+  if (giz.trunkLatZero && giz.trunkLatZero.visible) {
+    const center = lumbarPivot;
+    const L = 0.40;
+
+    const up0 = pelvisUp();
+    const upT = torsoUp();
+    // Project torso up onto coronal plane (normal = pelvis forward)
+    const normal = pelvisAnterior();
+    // component along normal
+    const alongN = normal.clone().multiplyScalar(upT.dot(normal));
+    const upTproj = upT.clone().sub(alongN).normalize();
+
+    // Lines along full length (bidirectional)
+    const zero = up0.clone().multiplyScalar(L);
+    updateLine(giz.trunkLatZero,
+      new THREE.Vector3(center.x - zero.x, center.y - zero.y, center.z - zero.z),
+      new THREE.Vector3(center.x + zero.x, center.y + zero.y, center.z + zero.z));
+
+    const now = upTproj.clone().multiplyScalar(L);
+    updateLine(giz.trunkLatNow,
+      new THREE.Vector3(center.x - now.x, center.y - now.y, center.z - now.z),
+      new THREE.Vector3(center.x + now.x, center.y + now.y, center.z + now.z));
+
+    // Arc from pelvisUp → torsoUp in the coronal plane, around pelvis forward axis
+    if (giz.trunkLatArc) {
+      // signed angle: rotate up0 toward upTproj around +normal (right-hand rule)
+      const cross = new THREE.Vector3().crossVectors(up0, upTproj);
+      const signedAngle = Math.atan2(cross.dot(normal), up0.dot(upTproj));
+      const R = 0.22;
+      const nSeg = 32;
+      const arr = giz.trunkLatArc.geometry.attributes.position.array;
+      // Orthonormal basis for rotation: e1 = up0, e2 = normal × up0 (lies in coronal plane)
+      const e1 = up0.clone();
+      const e2 = new THREE.Vector3().crossVectors(normal, up0).normalize();
+      for (let i = 0; i < nSeg; i++) {
+        const t = i / (nSeg - 1);
+        const a = signedAngle * t;
+        const cos = Math.cos(a), sin = Math.sin(a);
+        const v = new THREE.Vector3()
+          .addScaledVector(e1, cos)
+          .addScaledVector(e2, sin)
+          .multiplyScalar(R);
+        arr[i*3 + 0] = center.x + v.x;
+        arr[i*3 + 1] = center.y + v.y;
+        arr[i*3 + 2] = center.z + v.z;
+      }
+      giz.trunkLatArc.geometry.attributes.position.needsUpdate = true;
+      giz.trunkLatArc.geometry.computeBoundingSphere();
+    }
+  }
+
+  // 1f) Flexion/extension gizmo (sagittal plane)
+  //     Plane normal = pelvis-right (+Z in pelvis local).
+  //     - gray  : pelvis up axis (reference / 0°)
+  //     - brown : torso up axis projected into sagittal plane
+  //     Signed angle corresponds to lumbar_extension (forward bend = negative).
+  if (giz.trunkFlexZero && giz.trunkFlexZero.visible) {
+    const center = lumbarPivot;
+    const L = 0.40;
+
+    const up0 = pelvisUp();
+    const upT = torsoUp();
+    const normal = pelvisRight();   // sagittal plane normal
+    const alongN = normal.clone().multiplyScalar(upT.dot(normal));
+    const upTproj = upT.clone().sub(alongN).normalize();
+
+    const zero = up0.clone().multiplyScalar(L);
+    updateLine(giz.trunkFlexZero,
+      new THREE.Vector3(center.x - zero.x, center.y - zero.y, center.z - zero.z),
+      new THREE.Vector3(center.x + zero.x, center.y + zero.y, center.z + zero.z));
+
+    const now = upTproj.clone().multiplyScalar(L);
+    updateLine(giz.trunkFlexNow,
+      new THREE.Vector3(center.x - now.x, center.y - now.y, center.z - now.z),
+      new THREE.Vector3(center.x + now.x, center.y + now.y, center.z + now.z));
+
+    if (giz.trunkFlexArc) {
+      const cross = new THREE.Vector3().crossVectors(up0, upTproj);
+      const signedAngle = Math.atan2(cross.dot(normal), up0.dot(upTproj));
+      const R = 0.22;
+      const nSeg = 32;
+      const arr = giz.trunkFlexArc.geometry.attributes.position.array;
+      const e1 = up0.clone();
+      const e2 = new THREE.Vector3().crossVectors(normal, up0).normalize();
+      for (let i = 0; i < nSeg; i++) {
+        const t = i / (nSeg - 1);
+        const a = signedAngle * t;
+        const cos = Math.cos(a), sin = Math.sin(a);
+        const v = new THREE.Vector3()
+          .addScaledVector(e1, cos)
+          .addScaledVector(e2, sin)
+          .multiplyScalar(R);
+        arr[i*3 + 0] = center.x + v.x;
+        arr[i*3 + 1] = center.y + v.y;
+        arr[i*3 + 2] = center.z + v.z;
+      }
+      giz.trunkFlexArc.geometry.attributes.position.needsUpdate = true;
+      giz.trunkFlexArc.geometry.computeBoundingSphere();
+    }
+  }
+
+  // 2) Horizontal plane at shoulder height
+  const humR = bodyPos('humerus_r');
+  const humL = bodyPos('humerus_l');
+  const shoulderMid = (humR && humL)
+    ? humR.clone().add(humL).multiplyScalar(0.5)
+    : (torso ? torso.clone() : pelvis.clone().add(new THREE.Vector3(0, 0.5, 0)));
+  if (giz.horizPlane && giz.horizPlane.visible) {
+    giz.horizPlane.position.copy(shoulderMid);
+  }
+
+  // 3) Humerus direction: shoulder → elbow
+  //    In Rajagopal, "elbow" center ≈ ulna body origin (proximal end of ulna).
+  const elbR = bodyPos('ulna_r');
+  const elbL = bodyPos('ulna_l');
+  if (giz.armR && giz.armR.visible && humR && elbR) {
+    updateLine(giz.armR, humR, elbR);
+  }
+  if (giz.armL && giz.armL.visible && humL && elbL) {
+    updateLine(giz.armL, humL, elbL);
+  }
+
+  // 5) Shoulder DoF gizmos (left & right)
+  //    Visualise the three Euler components used in Rajagopal acromial_* joints.
+  //    Reference frame for shoulder = torso frame (local basis of torso body).
+  //    α (plane of elevation)  : azimuth of humerus long-axis projected on torso-horizontal
+  //    β (elevation)           : angle between humerus long-axis and torso +Y
+  //    γ (axial rotation)      : twist around humerus long-axis
+  updateShoulderGizmo('shR', 'humerus_r', 'ulna_r');
+  updateShoulderGizmo('shL', 'humerus_l', 'ulna_l');
+
+  // 4) Floor projections (y = 0)
+  if (giz.armRProj && giz.armRProj.visible && humR && elbR) {
+    updateLine(giz.armRProj,
+      new THREE.Vector3(humR.x, 0, humR.z),
+      new THREE.Vector3(elbR.x, 0, elbR.z));
+    if (giz.armRProjDrop)
+      updateLine(giz.armRProjDrop, humR, new THREE.Vector3(humR.x, 0, humR.z));
+  }
+  if (giz.armLProj && giz.armLProj.visible && humL && elbL) {
+    updateLine(giz.armLProj,
+      new THREE.Vector3(humL.x, 0, humL.z),
+      new THREE.Vector3(elbL.x, 0, elbL.z));
+    if (giz.armLProjDrop)
+      updateLine(giz.armLProjDrop, humL, new THREE.Vector3(humL.x, 0, humL.z));
+  }
+}
+
+const loader = new GLTFLoader();
+
+// animation state
+let anim = null;         // { n_frames, times, bodies, transforms }
+let markerAnim = null;   // { names, positions }
+let angles = null;       // { times, knee_angle_r, knee_angle_l, elbow_flex_r, elbow_flex_l }
+let bodyNodes = {};      // bodyName -> THREE.Object3D
+let markerSpheres = [];  // THREE.Mesh[]
+let isPlaying = false;
+let currentFrame = 0;
+let lastTickMs = 0;
+
+async function loadModel(tag) {
+  boneGroup.clear(); muscleGroup.clear(); markerGroup.clear(); labelGroup.clear();
+  anim = null; markerAnim = null; angles = null;
+  bodyNodes = {}; markerSpheres = [];
+  document.getElementById('playback').style.display = 'none';
+  isPlaying = false;
+
+  const gltf = await loader.loadAsync(`${tag}/bones.glb`);
+  gltf.scene.traverse(o => {
+    if (o.isMesh) {
+      o.material = new THREE.MeshStandardMaterial({
+        color: 0xffffff,
+        emissive: 0x222222,
+        roughness: 0.6, metalness: 0.0,
+        flatShading: false, side: THREE.DoubleSide,
+      });
+    }
+  });
+  boneGroup.add(gltf.scene);
+
+  // collect per-body nodes for animation
+  gltf.scene.traverse(o => {
+    if (o.name) bodyNodes[o.name] = o;
+  });
+
+  // Check if this is an animated model (has animation.json)
+  let isAnimated = false;
+  try {
+    const res = await fetch(`${tag}/animation.json`);
+    if (res.ok) {
+      anim = await res.json();
+      isAnimated = true;
+      // markers_anim.json instead of markers.json
+      markerAnim = await fetch(`${tag}/markers_anim.json`).then(r => r.json());
+      // Optional: joint angle time series (for graph panel)
+      try {
+        const r = await fetch(`${tag}/angles.json`);
+        if (r.ok) angles = await r.json();
+      } catch (_) { /* optional */ }
+    }
+  } catch (e) { /* not animated */ }
+
+  const meta = await fetch(`${tag}/meta.json`).then(r => r.json());
+
+  if (isAnimated) {
+    // set up per-frame marker spheres (count = markerAnim.names.length)
+    const mkMat = new THREE.MeshBasicMaterial({ color: 0x3fa7ff });
+    const mkGeo = new THREE.SphereGeometry(0.015, 12, 12);
+    for (let i = 0; i < markerAnim.names.length; i++) {
+      const s = new THREE.Mesh(mkGeo, mkMat);
+      s.userData.name = markerAnim.names[i];
+      markerGroup.add(s);
+      markerSpheres.push(s);
+
+      const div = document.createElement('div');
+      div.textContent = markerAnim.names[i];
+      div.style.cssText = 'color:#9cf;font-size:9px;background:rgba(0,0,0,0.4);padding:1px 3px;border-radius:2px;';
+      const lbl = new CSS2DObject(div);
+      labelGroup.add(lbl);
+    }
+    // build IK gizmos & apply frame 0
+    buildGizmos();
+    applyFrame(0);
+
+    // show playback UI
+    const pb = document.getElementById('playback');
+    pb.style.display = 'block';
+    const slider = document.getElementById('frameSlider');
+    slider.max = anim.n_frames - 1;
+    slider.value = 0;
+    updateFrameInfo();
+
+    document.getElementById('info').textContent =
+      `model: ${meta.name}\nframes: ${anim.n_frames}   duration: ${meta.duration.toFixed(2)}s\nfps: ${meta.fps.toFixed(1)}\nmarkers: ${meta.n_markers}`;
+    updateDataPanel({ tag, meta, anim, markerAnim, animated: true });
+  } else {
+    // Static model: old behavior
+    const [muscles, markers] = await Promise.all([
+      fetch(`${tag}/muscles.json`).then(r => r.json()).catch(()=>[]),
+      fetch(`${tag}/markers.json`).then(r => r.json()).catch(()=>[]),
+    ]);
+
+    const mMat = new THREE.LineBasicMaterial({ color: 0xff3b47, linewidth: 1 });
+    for (const m of muscles) {
+      const pts = m.points.map(p => new THREE.Vector3(p[0], p[1], p[2]));
+      const geom = new THREE.BufferGeometry().setFromPoints(pts);
+      const line = new THREE.Line(geom, mMat);
+      line.userData.name = m.name;
+      muscleGroup.add(line);
+    }
+
+    const mkMat = new THREE.MeshBasicMaterial({ color: 0x3fa7ff });
+    const mkGeo = new THREE.SphereGeometry(0.012, 12, 12);
+    for (const mk of markers) {
+      const s = new THREE.Mesh(mkGeo, mkMat);
+      s.position.fromArray(mk.pos);
+      s.userData.name = mk.name + ' @ ' + mk.body;
+      markerGroup.add(s);
+
+      const div = document.createElement('div');
+      div.textContent = mk.name;
+      div.style.cssText = 'color:#9cf;font-size:9px;background:rgba(0,0,0,0.4);padding:1px 3px;border-radius:2px;';
+      const lbl = new CSS2DObject(div);
+      lbl.position.fromArray(mk.pos);
+      labelGroup.add(lbl);
+    }
+
+    const bodyCount = meta.bodies ? meta.bodies.length : 0;
+    document.getElementById('info').textContent =
+      `model: ${meta.name}\nbodies: ${bodyCount}\nmuscles: ${meta.n_muscles}\nmarkers: ${meta.n_markers}`;
+    updateDataPanel({ tag, meta, staticMuscles: muscles, staticMarkers: markers, animated: false });
+  }
+
+  // center camera on bones bbox (for animated model this is evaluated AFTER frame 0)
+  let box;
+  if (isAnimated && markerAnim && markerAnim.positions.length > 0) {
+    // compute from all marker positions across all frames for a stable view
+    box = new THREE.Box3();
+    for (const frame of markerAnim.positions) {
+      for (const p of frame) {
+        box.expandByPoint(new THREE.Vector3(p[0], p[1], p[2]));
+      }
+    }
+  } else {
+    box = new THREE.Box3().setFromObject(boneGroup);
+  }
+  const ctr = box.getCenter(new THREE.Vector3());
+  const sz = box.getSize(new THREE.Vector3()).length();
+  controls.target.copy(ctr);
+  camera.position.copy(ctr).add(new THREE.Vector3(sz*0.9, sz*0.4, sz*0.9));
+  camera.near = Math.max(0.001, sz/1000);
+  camera.far = sz*100;
+  camera.updateProjectionMatrix();
+
+  applyToggles();
+}
+
+// ------------ Data panel (right side) ------------
+function esc(s) { return String(s).replace(/[&<>"']/g,
+  c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
+
+function chipList(items, cls, maxShown = 40) {
+  const arr = items || [];
+  const shown = arr.slice(0, maxShown);
+  const rest = arr.length - shown.length;
+  const html = shown.map(x => `<span class="chip ${cls||''}">${esc(x)}</span>`).join('');
+  const more = rest > 0
+    ? `<details><summary>+${rest} more</summary>${arr.slice(maxShown)
+        .map(x => `<span class="chip ${cls||''}">${esc(x)}</span>`).join('')}</details>`
+    : '';
+  return html + more;
+}
+
+function updateDataPanel({ tag, meta, anim, markerAnim, animated,
+                            staticMuscles, staticMarkers }) {
+  const host = document.getElementById('dataBody');
+
+  // Common header
+  const lines = [];
+  lines.push(`<div class="kv">`);
+  lines.push(`<div class="k">Tag</div><div class="v">${esc(tag)}</div>`);
+  lines.push(`<div class="k">Name</div><div class="v">${esc(meta.name || '-')}</div>`);
+  lines.push(`<div class="k">Mode</div><div class="v">${animated
+      ? '<span class="badge-ok">Animated (IK)</span>'
+      : '<span class="badge-warn">Static pose</span>'}</div>`);
+  lines.push(`</div>`);
+
+  if (animated) {
+    const bodyNames = anim?.bodies || [];
+    const markerNames = markerAnim?.names || [];
+
+    // Files
+    lines.push(`<h3>Source files</h3><div class="kv">`);
+    lines.push(`<div class="k">bones</div><div class="v">${esc(tag)}/bones.glb</div>`);
+    lines.push(`<div class="k">animation</div><div class="v">${esc(tag)}/animation.json</div>`);
+    lines.push(`<div class="k">markers</div><div class="v">${esc(tag)}/markers_anim.json</div>`);
+    lines.push(`<div class="k">meta</div><div class="v">${esc(tag)}/meta.json</div>`);
+    lines.push(`</div>`);
+
+    // Animation meta
+    lines.push(`<h3>Animation</h3><div class="kv">`);
+    lines.push(`<div class="k">frames</div><div class="v">${anim.n_frames}</div>`);
+    lines.push(`<div class="k">duration</div><div class="v">${Number(meta.duration).toFixed(3)} s</div>`);
+    lines.push(`<div class="k">fps</div><div class="v">${Number(meta.fps).toFixed(2)}</div>`);
+    if (anim.times && anim.times.length >= 2) {
+      lines.push(`<div class="k">time</div><div class="v">${anim.times[0].toFixed(3)} → ${anim.times[anim.times.length-1].toFixed(3)} s</div>`);
+    }
+    lines.push(`</div>`);
+
+    // Bodies
+    lines.push(`<h3>Bodies (${bodyNames.length})</h3>`);
+    lines.push(chipList(bodyNames, 'body', 30));
+
+    // Markers
+    lines.push(`<h3>Markers (${markerNames.length})</h3>`);
+    lines.push(chipList(markerNames, 'marker', 20));
+  } else {
+    // Static
+    const bodies = meta.bodies || [];
+    const bodyNames = bodies.map(b => typeof b === 'string' ? b : b.name);
+    const markerNames = (staticMarkers || []).map(m => m.name);
+
+    lines.push(`<h3>Source files</h3><div class="kv">`);
+    lines.push(`<div class="k">bones</div><div class="v">${esc(tag)}/bones.glb</div>`);
+    lines.push(`<div class="k">markers</div><div class="v">${esc(tag)}/markers.json</div>`);
+    lines.push(`<div class="k">muscles</div><div class="v">${esc(tag)}/muscles.json</div>`);
+    lines.push(`<div class="k">meta</div><div class="v">${esc(tag)}/meta.json</div>`);
+    lines.push(`</div>`);
+
+    lines.push(`<h3>Model stats</h3><div class="kv">`);
+    lines.push(`<div class="k">bodies</div><div class="v">${bodyNames.length}</div>`);
+    lines.push(`<div class="k">muscles</div><div class="v">${(staticMuscles || []).length}</div>`);
+    lines.push(`<div class="k">markers</div><div class="v">${markerNames.length}</div>`);
+    lines.push(`</div>`);
+
+    lines.push(`<h3>Bodies (${bodyNames.length})</h3>`);
+    lines.push(chipList(bodyNames, 'body', 30));
+
+    lines.push(`<h3>Markers (${markerNames.length})</h3>`);
+    lines.push(chipList(markerNames, 'marker', 20));
+  }
+
+  host.innerHTML = lines.join('\n');
+}
+
+// Apply a specific frame: decompose the row-major world matrix into
+// position/quaternion/scale for each body node (robust across node types).
+const _tmpMat = new THREE.Matrix4();
+const _tmpPos = new THREE.Vector3();
+const _tmpQuat = new THREE.Quaternion();
+const _tmpScale = new THREE.Vector3();
+function applyFrame(fi) {
+  if (!anim) return;
+  fi = Math.max(0, Math.min(anim.n_frames-1, fi|0));
+  currentFrame = fi;
+  for (const bname of anim.bodies) {
+    const node = bodyNodes[bname];
+    if (!node) continue;
+    const m = anim.transforms[bname][fi];  // row-major 16 floats
+    // three.js Matrix4.set takes row-major args; internal storage is column-major.
+    _tmpMat.set(
+      m[0], m[1], m[2], m[3],
+      m[4], m[5], m[6], m[7],
+      m[8], m[9], m[10], m[11],
+      m[12], m[13], m[14], m[15]
+    );
+    _tmpMat.decompose(_tmpPos, _tmpQuat, _tmpScale);
+    node.position.copy(_tmpPos);
+    node.quaternion.copy(_tmpQuat);
+    node.scale.copy(_tmpScale);
+    node.updateMatrix();
+    node.updateMatrixWorld(true);
+  }
+  if (markerAnim) {
+    const pts = markerAnim.positions[fi];
+    for (let i = 0; i < markerSpheres.length; i++) {
+      markerSpheres[i].position.fromArray(pts[i]);
+      const lbl = labelGroup.children[i];
+      if (lbl) lbl.position.fromArray(pts[i]);
+    }
+  }
+  // IK gizmos (trunk axis, horizontal plane, arm vectors, projections)
+  updateGizmos();
+}
+
+function updateFrameInfo() {
+  if (!anim) return;
+  const t = anim.times[currentFrame];
+  document.getElementById('frameInfo').textContent =
+    `frame ${currentFrame+1}/${anim.n_frames}   t=${t.toFixed(3)}s`;
+}
+
+// --- toggles ---
+const tB = document.getElementById('toggleBones');
+const tM = document.getElementById('toggleMuscles');
+const tK = document.getElementById('toggleMarkers');
+const tL = document.getElementById('toggleMarkerLabels');
+const tW = document.getElementById('toggleWireframe');
+function applyToggles() {
+  boneGroup.visible = tB.checked;
+  muscleGroup.visible = tM.checked;
+  markerGroup.visible = tK.checked;
+  // Marker labels: toggle each CSS2DObject individually AND set parent
+  // group visibility, to override any child default state.
+  const labelsOn = tL.checked;
+  labelGroup.visible = labelsOn;
+  labelGroup.traverse(o => { o.visible = labelsOn; });
+  boneGroup.traverse(o => { if (o.isMesh) o.material.wireframe = tW.checked; });
+}
+[tB,tM,tK,tL,tW].forEach(el => el.addEventListener('change', applyToggles));
+// Apply once on startup so the initial checkbox state is honored even if no
+// model has been loaded yet.
+applyToggles();
+
+// IK gizmo toggles
+['toggleTrunkAxis', 'toggleTrunkLat', 'toggleTrunkFlex',
+ 'toggleHorizPlane', 'toggleArmVectors', 'toggleArmProj',
+ 'toggleShPlaneR', 'toggleShElevR', 'toggleShAxialR',
+ 'toggleShPlaneL', 'toggleShElevL', 'toggleShAxialL']
+  .forEach(id => {
+    const el = document.getElementById(id);
+    if (el) el.addEventListener('change', () => {
+      applyGizmoVisibility();
+      updateGizmos();
+    });
+  });
+
+document.getElementById('model').addEventListener('change', e => loadModel(e.target.value));
+
+// --- playback controls ---
+const playBtn = document.getElementById('playBtn');
+const frameSlider = document.getElementById('frameSlider');
+playBtn.addEventListener('click', () => {
+  if (!anim) return;
+  isPlaying = !isPlaying;
+  playBtn.textContent = isPlaying ? '⏸ Pause' : '▶ Play';
+  lastTickMs = performance.now();
+});
+frameSlider.addEventListener('input', e => {
+  isPlaying = false;
+  playBtn.textContent = '▶ Play';
+  const fi = parseInt(e.target.value);
+  applyFrame(fi);
+  updateFrameInfo();
+  if (currentView === 'graph') updateGraphCursor(fi);
+});
+
+// --- hover tooltip on muscles/markers ---
+const tt = document.getElementById('tooltip');
+const ray = new THREE.Raycaster();
+const mouse = new THREE.Vector2();
+ray.params.Line.threshold = 0.005;
+ray.params.Points.threshold = 0.02;
+addEventListener('mousemove', e => {
+  mouse.x = (e.clientX/innerWidth)*2 - 1;
+  mouse.y = -(e.clientY/innerHeight)*2 + 1;
+  ray.setFromCamera(mouse, camera);
+  const hit = ray.intersectObjects([muscleGroup, markerGroup], true)[0];
+  if (hit && hit.object.userData.name) {
+    tt.textContent = hit.object.userData.name;
+    tt.style.left = (e.clientX+10)+'px';
+    tt.style.top  = (e.clientY+10)+'px';
+    tt.style.display = 'block';
+  } else tt.style.display = 'none';
+});
+
+function tick() {
+  // advance animation
+  if (isPlaying && anim) {
+    const now = performance.now();
+    const dt = (now - lastTickMs) / 1000;
+    lastTickMs = now;
+    // find next frame based on times array (playback at real time)
+    const t0 = anim.times[0];
+    const tCur = anim.times[currentFrame] - t0 + dt;
+    if (tCur >= anim.times[anim.n_frames-1] - t0) {
+      applyFrame(0);  // loop
+    } else {
+      let fi = currentFrame;
+      while (fi < anim.n_frames-1 && (anim.times[fi+1]-t0) < tCur) fi++;
+      applyFrame(fi);
+    }
+    frameSlider.value = currentFrame;
+    updateFrameInfo();
+    // graph cursor follows animation
+    if (currentView === 'graph') updateGraphCursor(currentFrame);
+  }
+  controls.update();
+  renderer.render(scene, camera);
+  labelRenderer.render(scene, camera);
+  requestAnimationFrame(tick);
+}
+tick();
+
+// ---------------- Graph panel ----------------
+const GRAPH_PAGES = [
+  {
+    title: 'Limb Joints',
+    series: [
+      { title: 'Knee flex (Right)',  col: 'knee_angle_r',  color: '#3b7cff', unit: '°' },
+      { title: 'Knee flex (Left)',   col: 'knee_angle_l',  color: '#2aa875', unit: '°' },
+      { title: 'Elbow flex (Right)', col: 'elbow_flex_r',  color: '#e27f3a', unit: '°' },
+      { title: 'Elbow flex (Left)',  col: 'elbow_flex_l',  color: '#c94b7c', unit: '°' },
+    ],
+  },
+  {
+    title: 'Trunk (Lumbar)',
+    series: [
+      { title: 'Trunk axial rotation',  col: 'lumbar_rotation',  color: '#8e44ad', unit: '°' },
+      { title: 'Trunk lateral bending', col: 'lumbar_bending',   color: '#16a085', unit: '°' },
+      { title: 'Trunk forward/ext',     col: 'lumbar_extension', color: '#d35400', unit: '°' },
+    ],
+  },
+  {
+    title: 'Shoulder (Right, YXY Euler)',
+    series: [
+      { title: 'Plane of elevation (arm_flex_r)', col: 'arm_flex_r', color: '#2a9d8f', unit: '°' },
+      { title: 'Elevation (arm_add_r)',           col: 'arm_add_r',  color: '#e76f51', unit: '°' },
+      { title: 'Axial rotation (arm_rot_r)',      col: 'arm_rot_r',  color: '#264653', unit: '°' },
+    ],
+  },
+  {
+    title: 'Shoulder (Left, YXY Euler)',
+    series: [
+      { title: 'Plane of elevation (arm_flex_l)', col: 'arm_flex_l', color: '#2a9d8f', unit: '°' },
+      { title: 'Elevation (arm_add_l)',           col: 'arm_add_l',  color: '#e76f51', unit: '°' },
+      { title: 'Axial rotation (arm_rot_l)',      col: 'arm_rot_l',  color: '#264653', unit: '°' },
+    ],
+  },
+];
+let currentGraphPage = 0;
+// Convenience: flat list of ALL series so cursor updates cover every page's canvases
+function allSeries() {
+  const out = [];
+  for (const p of GRAPH_PAGES) for (const s of p.series) out.push(s);
+  return out;
+}
+
+function buildGraphView() {
+  const host = document.getElementById('graphView');
+  host.innerHTML = '';
+  if (!angles) {
+    host.innerHTML = '<div style="color:#888;font-size:11px;padding:8px 0;">'
+      + 'No angle data (angles.json not found).</div>';
+    return;
+  }
+  const page = GRAPH_PAGES[currentGraphPage];
+
+  // Charts host (transition-ready)
+  const pageDiv = document.createElement('div');
+  pageDiv.id = 'graphPage';
+  pageDiv.className = 'graph-page';
+  for (const s of page.series) {
+    const values = angles[s.col];
+    if (!values) continue;
+    const lo = Math.min(...values), hi = Math.max(...values);
+    const box = document.createElement('div');
+    box.className = 'chart';
+    box.innerHTML = `
+      <div class="chart-title">
+        <span style="color:${s.color};">${s.title}</span>
+        <span class="val" data-col="${s.col}">— ${s.unit}</span>
+      </div>
+      <canvas data-col="${s.col}" width="280" height="90"></canvas>
+      <div class="legend">
+        <span><span class="dot" style="background:${s.color};"></span>range ${lo.toFixed(1)} ~ ${hi.toFixed(1)} ${s.unit}</span>
+        <span style="color:#aab;">${values.length} frames</span>
+      </div>`;
+    pageDiv.appendChild(box);
+  }
+  host.appendChild(pageDiv);
+
+  // Pager (below charts)
+  const pager = document.createElement('div');
+  pager.className = 'pager';
+  const prevDisabled = currentGraphPage === 0;
+  const nextDisabled = currentGraphPage === GRAPH_PAGES.length - 1;
+  pager.innerHTML = `
+    <button id="pagePrev" class="pgBtn" ${prevDisabled ? 'disabled' : ''}
+            aria-label="previous page">
+      <svg viewBox="0 0 10 10" fill="currentColor"><polygon points="8,1 1,5 8,9"/></svg>
+    </button>
+    <span class="pgLabel">
+      <b>${esc(page.title)}</b>
+      <span class="pgDots">${
+        GRAPH_PAGES.map((_, i) => `<span class="pgDot${i===currentGraphPage?' on':''}"></span>`).join('')
+      }</span>
+      <span style="color:#6b7380;">${currentGraphPage+1}/${GRAPH_PAGES.length}</span>
+    </span>
+    <button id="pageNext" class="pgBtn" ${nextDisabled ? 'disabled' : ''}
+            aria-label="next page">
+      <svg viewBox="0 0 10 10" fill="currentColor"><polygon points="2,1 9,5 2,9"/></svg>
+    </button>`;
+  host.appendChild(pager);
+
+  // Wire pager
+  document.getElementById('pagePrev').addEventListener('click', () => changePage(-1));
+  document.getElementById('pageNext').addEventListener('click', () => changePage(+1));
+
+  // Draw this page's series
+  for (const s of page.series) drawSeries(s);
+  updateGraphCursor(currentFrame);
+}
+
+function changePage(delta) {
+  const next = currentGraphPage + delta;
+  if (next < 0 || next >= GRAPH_PAGES.length) return;
+  // slide transition
+  const page = document.getElementById('graphPage');
+  if (!page) { currentGraphPage = next; buildGraphView(); return; }
+  page.classList.add(delta > 0 ? 'slide-out-left' : 'slide-out-right');
+  setTimeout(() => {
+    currentGraphPage = next;
+    buildGraphView();
+    const p = document.getElementById('graphPage');
+    if (p) {
+      p.classList.add(delta > 0 ? 'slide-in-right' : 'slide-in-left');
+      requestAnimationFrame(() => {
+        p.classList.remove('slide-in-right', 'slide-in-left');
+      });
+    }
+  }, 200);
+}
+
+function drawSeries(series) {
+  const canvas = document.querySelector(`canvas[data-col="${series.col}"]`);
+  if (!canvas || !angles || !angles[series.col]) return;
+  const v = angles[series.col];
+  // HiDPI
+  const dpr = window.devicePixelRatio || 1;
+  const cssW = canvas.clientWidth || canvas.width;
+  const cssH = canvas.clientHeight || 90;
+  canvas.width = cssW * dpr; canvas.height = cssH * dpr;
+  const ctx = canvas.getContext('2d');
+  ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+  ctx.clearRect(0, 0, cssW, cssH);
+
+  const padX = 4, padY = 6;
+  const w = cssW - padX * 2, h = cssH - padY * 2;
+  const n = v.length;
+  const lo = Math.min(...v), hi = Math.max(...v);
+  const span = Math.max(1e-6, hi - lo);
+
+  // zero reference line if 0 is in range
+  if (lo < 0 && hi > 0) {
+    const y0 = padY + h - ((0 - lo) / span) * h;
+    ctx.strokeStyle = '#e0e5ee'; ctx.lineWidth = 1;
+    ctx.beginPath(); ctx.moveTo(padX, y0); ctx.lineTo(padX + w, y0); ctx.stroke();
+  }
+
+  // area fill
+  ctx.fillStyle = series.color + '22';
+  ctx.beginPath();
+  for (let i = 0; i < n; i++) {
+    const x = padX + (i / (n - 1)) * w;
+    const y = padY + h - ((v[i] - lo) / span) * h;
+    if (i === 0) ctx.moveTo(x, padY + h);
+    ctx.lineTo(x, y);
+  }
+  ctx.lineTo(padX + w, padY + h);
+  ctx.closePath(); ctx.fill();
+
+  // line
+  ctx.strokeStyle = series.color; ctx.lineWidth = 1.5;
+  ctx.beginPath();
+  for (let i = 0; i < n; i++) {
+    const x = padX + (i / (n - 1)) * w;
+    const y = padY + h - ((v[i] - lo) / span) * h;
+    if (i === 0) ctx.moveTo(x, y); else ctx.lineTo(x, y);
+  }
+  ctx.stroke();
+
+  // store meta for cursor
+  canvas._meta = { padX, padY, w, h, lo, span, n, color: series.color, col: series.col };
+}
+
+let _lastCursorFrame = -1;
+function updateGraphCursor(fi) {
+  if (!angles) return;
+  if (_lastCursorFrame === fi) return;
+  _lastCursorFrame = fi;
+  for (const s of allSeries()) {
+    const canvas = document.querySelector(`canvas[data-col="${s.col}"]`);
+    if (!canvas || !canvas._meta) continue;
+    const meta = canvas._meta;
+    const v = angles[s.col]; if (!v) continue;
+    const dpr = window.devicePixelRatio || 1;
+    const ctx = canvas.getContext('2d');
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    // Re-draw underlying series first (simple: full redraw)
+    drawSeries(s);
+    // then cursor
+    const clamped = Math.max(0, Math.min(v.length - 1, fi));
+    const x = meta.padX + (clamped / (v.length - 1)) * meta.w;
+    ctx.strokeStyle = '#ff3b47'; ctx.lineWidth = 1.5;
+    ctx.beginPath();
+    ctx.moveTo(x, meta.padY); ctx.lineTo(x, meta.padY + meta.h); ctx.stroke();
+    // dot at current value
+    const y = meta.padY + meta.h - ((v[clamped] - meta.lo) / meta.span) * meta.h;
+    ctx.fillStyle = '#ff3b47';
+    ctx.beginPath(); ctx.arc(x, y, 3.2, 0, Math.PI * 2); ctx.fill();
+    // current value readout
+    const valEl = document.querySelector(`.val[data-col="${s.col}"]`);
+    if (valEl) valEl.textContent = v[clamped].toFixed(1) + ' ' + s.unit;
+  }
+}
+
+// ---------------- View switcher ----------------
+let currentView = 'data';   // 'data' | 'graph'
+function switchView(target) {
+  if (currentView === target) return;
+  const dataView  = document.getElementById('dataView');
+  const graphView = document.getElementById('graphView');
+  const title = document.getElementById('panelTitle');
+  const btn = document.getElementById('graphBtn');
+
+  if (target === 'graph') {
+    buildGraphView();
+    graphView.style.display = '';
+    dataView.classList.remove('view');
+    dataView.classList.add('view', 'back');       // slides left
+    graphView.classList.remove('forward');
+    graphView.classList.add('view');
+    requestAnimationFrame(() => { graphView.classList.remove('forward', 'back'); });
+    title.textContent = '📈 Joint Angles';
+    btn.setAttribute('data-tip', 'back');
+    btn.innerHTML = '<svg viewBox="0 0 10 10" fill="currentColor"><polygon points="8,1 1,5 8,9" /></svg>';
+    updateGraphCursor(currentFrame);
+  } else {
+    dataView.classList.remove('back');
+    graphView.classList.add('forward');
+    setTimeout(() => { graphView.style.display = 'none'; }, 400);
+    title.textContent = '📊 Loaded Data';
+    btn.setAttribute('data-tip', 'graph');
+    btn.innerHTML = '<svg viewBox="0 0 10 10" fill="currentColor"><polygon points="2,1 9,5 2,9" /></svg>';
+  }
+  currentView = target;
+}
+document.getElementById('graphBtn').addEventListener('click', () => {
+  switchView(currentView === 'data' ? 'graph' : 'data');
+});
+
+// applyFrame already keeps currentFrame in sync; graph cursor is updated
+// from the main tick() loop via currentFrame.
+
+// Load whichever model is selected in the dropdown (defaults to the
+// `selected` option in HTML).
+loadModel(document.getElementById('model').value);
+</script>
+</body>
+</html>

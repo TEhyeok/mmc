@@ -1,0 +1,761 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8" />
+<title>Marker Mapping Viewer — Vicon PiG ↔ OpenSim Model</title>
+<style>
+  html, body { margin: 0; height: 100%; background: #e8ecf2; color: #1a1f2b;
+               font-family: -apple-system, system-ui, sans-serif; overflow: hidden; }
+  #main { display: grid; grid-template-columns: 1fr 340px; height: 100vh; }
+  #viewer { position: relative; }
+  #side { background: #f6f8fb; border-left: 1px solid #ccd4e0;
+          overflow-y: auto; padding: 10px 14px; font-size: 12px; }
+  #side h2 { font-size: 13px; margin: 12px 0 6px; color: #1a1f2b;
+             border-bottom: 1px solid #ccd4e0; padding-bottom: 3px; }
+  #side h2:first-child { margin-top: 0; }
+  #ui { position: absolute; top: 10px; left: 10px; z-index: 10;
+        background: rgba(255,255,255,0.95); padding: 10px 14px; border-radius: 6px;
+        font-size: 12px; line-height: 1.6; max-width: 300px;
+        box-shadow: 0 2px 8px rgba(0,0,0,0.12); }
+  #ui h1 { margin: 0 0 6px; font-size: 13px; }
+  #ui label { display: block; cursor: pointer; font-size: 11px; }
+  #ui select { width: 100%; background: #fff; border: 1px solid #bcc4d0;
+               border-radius: 4px; padding: 3px; margin-bottom: 6px; font-size: 11px; }
+  button { background: #3b7cff; color: #fff; border: 0; border-radius: 4px;
+           padding: 4px 10px; cursor: pointer; font-size: 11px; }
+  button:hover { background: #2a65e0; }
+  button:disabled { background: #aab; cursor: default; }
+  button.danger { background: #e25a5a; }
+  button.danger:hover { background: #c44; }
+  button.success { background: #36b37e; }
+  button.success:hover { background: #2a8f64; }
+  .pair { padding: 4px 6px; border-radius: 3px; margin-bottom: 2px;
+          font-size: 11px; display: flex; justify-content: space-between; align-items: center; }
+  .pair:hover { background: #e0e7f0; }
+  .pair.confirmed { background: #d4f5e1; }
+  .pair.suggested { background: #fff2d4; }
+  .pair .name { font-family: Menlo, monospace; }
+  .pair .del { cursor: pointer; color: #c44; font-weight: bold; padding: 0 4px; }
+  #tooltip { position: absolute; pointer-events: none; background: rgba(30,35,45,0.92); color: #fff;
+             padding: 3px 6px; border-radius: 3px; font-size: 11px; display: none; z-index: 20; }
+  .status { font-size: 10px; color: #5a6474; }
+  .chip { display: inline-block; padding: 1px 5px; border-radius: 3px; font-size: 10px; margin-left: 4px; }
+  .chip.model { background: #ddd; }
+  .chip.vicon { background: #bcd7f2; }
+  .sel-row { display: grid; grid-template-columns: 1fr auto 1fr; gap: 6px;
+             align-items: center; margin: 6px 0; font-size: 11px; }
+  .sel-row .slot { background: #fff; border: 1px solid #bcc4d0; padding: 4px 6px;
+                   border-radius: 4px; min-height: 22px; text-align: center;
+                   font-family: Menlo, monospace; }
+  .sel-row .slot.empty { color: #aab; }
+  .sel-row .slot.model-sel { background: #fff7d6; border-color: #d4b85a; }
+  .sel-row .slot.vicon-sel { background: #d4e7fa; border-color: #5aa0e0; }
+  .arrow { font-size: 14px; color: #5a6474; }
+  .filter-group { margin: 4px 0; }
+  .filter-group input { width: 100%; padding: 3px 6px; border: 1px solid #bcc4d0;
+                        border-radius: 3px; font-size: 11px; }
+</style>
+</head>
+<body>
+<div id="main">
+  <div id="viewer">
+    <div id="ui">
+      <h1>🎯 Marker Mapping</h1>
+      <div class="filter-group">
+        <label>Model:</label>
+        <select id="modelSel">
+          <option value="rajagopal_2016">Rajagopal 2016 (39 DoF, 66 markers)</option>
+        </select>
+      </div>
+      <div class="filter-group">
+        <label>Subject/Trial:</label>
+        <select id="trialSel"></select>
+      </div>
+      <label><input type="checkbox" id="toggleBones" checked> Bones</label>
+      <label><input type="checkbox" id="toggleModelMk" checked> Model markers</label>
+      <label><input type="checkbox" id="toggleViconMk"> Vicon markers</label>
+      <label><input type="checkbox" id="toggleLabels"> Labels</label>
+      <label><input type="checkbox" id="toggleLines" checked> Mapping lines</label>
+      <div id="info" style="font-size:10px;color:#6b7380;margin-top:6px;"></div>
+    </div>
+  </div>
+  <div id="side">
+    <h2>🎯 Selection</h2>
+    <div class="sel-row">
+      <div id="sel-vicon" class="slot empty">— Vicon —</div>
+      <div class="arrow">→</div>
+      <div id="sel-model" class="slot empty">— Model —</div>
+    </div>
+    <div style="display:flex;gap:4px;margin-bottom:10px;">
+      <button id="linkBtn" class="success" disabled>Link</button>
+      <button id="clearSelBtn">Clear</button>
+      <button id="autoSuggestBtn">Auto-suggest</button>
+      <button id="mirrorBtn">Mirror L↔R</button>
+    </div>
+
+    <h2>✅ Mapped (<span id="countMapped">0</span>)</h2>
+    <div id="mappedList"></div>
+
+    <h2>⚠️ Suggested (<span id="countSuggested">0</span>)</h2>
+    <div id="suggestedList"></div>
+
+    <h2>❌ Unmapped Model (<span id="countUnmappedModel">0</span>)</h2>
+    <div id="unmappedModelList" style="max-height:150px;overflow-y:auto;"></div>
+
+    <h2>🔵 Unmapped Vicon (<span id="countUnmappedVicon">0</span>)</h2>
+    <div id="unmappedViconList" style="max-height:150px;overflow-y:auto;"></div>
+
+    <h2>📤 Export</h2>
+    <div style="display:flex;flex-direction:column;gap:4px;">
+      <button id="exportBtn" class="success">Download mapping.json</button>
+      <button id="importBtn">Load mapping.json</button>
+      <input type="file" id="importInput" style="display:none" accept=".json">
+      <button id="resetBtn" class="danger">Reset all</button>
+    </div>
+    <div class="status" style="margin-top:10px">
+      · Click Vicon marker (blue) → select<br>
+      · Click Model marker (white) → select<br>
+      · Click <b>Link</b> → connect as pair<br>
+      · Mirror L↔R auto-suggests opposite side<br>
+      · Auto-suggest uses nearest neighbor
+    </div>
+  </div>
+</div>
+<div id="tooltip"></div>
+
+<script type="importmap">
+{
+  "imports": {
+    "three": "./vendor/three/three.module.js",
+    "three/addons/": "./vendor/three/"
+  }
+}
+</script>
+
+<script type="module">
+import * as THREE from 'three';
+import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
+import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+import { CSS2DRenderer, CSS2DObject } from 'three/addons/renderers/CSS2DRenderer.js';
+
+const viewerEl = document.getElementById('viewer');
+const scene = new THREE.Scene();
+scene.background = new THREE.Color(0xe8ecf2);
+
+const camera = new THREE.PerspectiveCamera(45, viewerEl.clientWidth / window.innerHeight, 0.01, 100);
+camera.position.set(2.5, 1.2, 2.5);
+
+const renderer = new THREE.WebGLRenderer({ antialias: true });
+renderer.setSize(viewerEl.clientWidth, window.innerHeight);
+renderer.setPixelRatio(devicePixelRatio);
+viewerEl.appendChild(renderer.domElement);
+
+const labelRenderer = new CSS2DRenderer();
+labelRenderer.setSize(viewerEl.clientWidth, window.innerHeight);
+labelRenderer.domElement.style.position = 'absolute';
+labelRenderer.domElement.style.top = '0';
+labelRenderer.domElement.style.pointerEvents = 'none';
+viewerEl.appendChild(labelRenderer.domElement);
+
+const controls = new OrbitControls(camera, renderer.domElement);
+controls.target.set(0, 1.0, 0);
+
+scene.add(new THREE.AmbientLight(0xffffff, 0.6));
+const dirLight = new THREE.DirectionalLight(0xffffff, 0.7);
+dirLight.position.set(3, 5, 2);
+scene.add(dirLight);
+
+const grid = new THREE.GridHelper(4, 40, 0xbbbbbb, 0xdddddd);
+grid.position.y = 0;
+scene.add(grid);
+
+window.addEventListener('resize', () => {
+  const w = viewerEl.clientWidth, h = window.innerHeight;
+  camera.aspect = w / h; camera.updateProjectionMatrix();
+  renderer.setSize(w, h);
+  labelRenderer.setSize(w, h);
+});
+
+// ================== State ==================
+const state = {
+  currentModel: 'rajagopal_2016',
+  currentTrial: 'subject_1_set_002',
+  modelMarkers: {},    // name → {mesh, label, pos, body}
+  viconMarkers: {},    // name → {mesh, label, pos}
+  bones: null,
+  mappings: [],        // [{model, vicon, confidence}]
+  suggested: [],       // [{model, vicon, distance}]
+  selModel: null,
+  selVicon: null,
+  mappingLines: [],    // THREE.Line objects
+  showLabels: false,
+};
+
+// Trial list — all our Vicon subject_1 data (Z-up → Y-up conversion needed)
+const TRIALS = [
+  { val: 'subject_1_set_002', label: 'subject_1 / set_002 (좌투)', source: 'vicon_zup' },
+  { val: 'subject_1_set_004', label: 'subject_1 / set_004', source: 'vicon_zup' },
+  { val: 'subject_1_set_005', label: 'subject_1 / set_005', source: 'vicon_zup' },
+  { val: 'subject_1_set_010', label: 'subject_1 / set_010', source: 'vicon_zup' },
+  { val: 'subject_1_set_014', label: 'subject_1 / set_014', source: 'vicon_zup' },
+  { val: 'subject_1_set_015', label: 'subject_1 / set_015', source: 'vicon_zup' },
+  { val: 'subject_1_set_016', label: 'subject_1 / set_016', source: 'vicon_zup' },
+  { val: 'subject_1_set_017', label: 'subject_1 / set_017', source: 'vicon_zup' },
+  { val: 'subject_1_set_018', label: 'subject_1 / set_018', source: 'vicon_zup' },
+  { val: 'subject_1_set_019', label: 'subject_1 / set_019', source: 'vicon_zup' },
+];
+const trialSel = document.getElementById('trialSel');
+const trialMeta = {};
+for (const t of TRIALS) {
+  const o = document.createElement('option');
+  o.value = t.val; o.textContent = t.label;
+  trialSel.appendChild(o);
+  trialMeta[t.val] = t;
+}
+state.currentTrial = 'subject_1_set_002';
+trialSel.value = state.currentTrial;
+
+// ================== Marker creation ==================
+function createMarkerSphere(pos, color, radius) {
+  const geo = new THREE.SphereGeometry(radius, 14, 10);
+  const mat = new THREE.MeshStandardMaterial({
+    color, roughness: 0.5, metalness: 0.1,
+    transparent: true, opacity: 0.9
+  });
+  const mesh = new THREE.Mesh(geo, mat);
+  mesh.position.set(pos[0], pos[1], pos[2]);
+  return mesh;
+}
+
+function makeLabel(text, color = '#333') {
+  const div = document.createElement('div');
+  div.textContent = text;
+  div.style.cssText = `color:${color};font-size:10px;background:rgba(255,255,255,0.8);
+                        padding:1px 4px;border-radius:2px;font-family:Menlo,monospace;
+                        pointer-events:none;`;
+  const label = new CSS2DObject(div);
+  return label;
+}
+
+// ================== Load model bones + markers ==================
+async function loadModel(tag) {
+  // Remove previous
+  if (state.bones) {
+    scene.remove(state.bones);
+    state.bones.traverse(o => {
+      if (o.geometry) o.geometry.dispose();
+      if (o.material) {
+        if (Array.isArray(o.material)) o.material.forEach(m => m.dispose());
+        else o.material.dispose();
+      }
+    });
+    state.bones = null;
+  }
+  for (const name in state.modelMarkers) {
+    const item = state.modelMarkers[name];
+    scene.remove(item.mesh);
+    if (item.label) item.mesh.remove(item.label);
+    item.mesh.geometry.dispose();
+    item.mesh.material.dispose();
+  }
+  state.modelMarkers = {};
+
+  // Load bones.glb
+  const loader = new GLTFLoader();
+  const glb = await loader.loadAsync(`./${tag}/bones.glb`);
+  const root = glb.scene;
+  root.traverse(o => {
+    if (o.isMesh) {
+      o.material = new THREE.MeshStandardMaterial({
+        color: 0xd8dce3, roughness: 0.7, metalness: 0.05,
+        transparent: true, opacity: 0.35, depthWrite: false,
+      });
+    }
+  });
+  scene.add(root);
+  state.bones = root;
+
+  // Load markers
+  const markersData = await fetch(`./${tag}/markers.json`).then(r => r.json());
+  for (const m of markersData) {
+    const mesh = createMarkerSphere(m.pos, 0xffffff, 0.018);
+    mesh.userData.type = 'model';
+    mesh.userData.name = m.name;
+    mesh.userData.body = m.body;
+    scene.add(mesh);
+    const label = makeLabel(m.name, '#333');
+    label.position.set(0, 0.025, 0);
+    label.visible = state.showLabels;
+    mesh.add(label);
+    state.modelMarkers[m.name] = { mesh, label, pos: m.pos, body: m.body };
+  }
+  updateMarkerVisibility();
+}
+
+// ================== Load Vicon static markers ==================
+async function loadVicon(trialTag) {
+  for (const name in state.viconMarkers) {
+    const item = state.viconMarkers[name];
+    scene.remove(item.mesh);
+    if (item.label) item.mesh.remove(item.label);
+    item.mesh.geometry.dispose();
+    item.mesh.material.dispose();
+  }
+  state.viconMarkers = {};
+
+  const data = await fetch(`./vicon_data/${trialTag}_static.json`).then(r => r.json());
+
+  // Vicon (Z-up, 실험실 좌표) → Rajagopal (Y-up, origin 중심)
+  //   Vicon: X=앞, Y=좌우(R=−Y, L=+Y), Z=up
+  //   Rajagopal: X=뒤(−X=앞), Y=up, Z=좌우(R=+Z, L=−Z)
+  // 변환: model.x = −vicon.x,  model.y = vicon.z,  model.z = −vicon.y
+  const markers = data.markers;
+  const key4 = ['RASI', 'LASI', 'RPSI', 'LPSI'];
+  const pelvisPts = key4.filter(k => markers[k]).map(k => markers[k]);
+  const pelvisCenter = pelvisPts.length > 0
+    ? pelvisPts.reduce((a, p) => [a[0]+p[0], a[1]+p[1], a[2]+p[2]], [0,0,0]).map(v => v / pelvisPts.length)
+    : [0, 0, 0];
+  const TRANSLATE_Y = 0.94;
+
+  function transformVicon(p) {
+    const cx = p[0] - pelvisCenter[0];
+    const cy = p[1] - pelvisCenter[1];
+    const cz = p[2] - pelvisCenter[2];
+    return [-cx, cz + TRANSLATE_Y, -cy];
+  }
+
+  for (const [name, p] of Object.entries(markers)) {
+    const tp = transformVicon(p);
+    const mesh = createMarkerSphere(tp, 0x4488ff, 0.014);
+    mesh.userData.type = 'vicon';
+    mesh.userData.name = name;
+    scene.add(mesh);
+    const label = makeLabel(name, '#2a5aa0');
+    label.position.set(0, 0.025, 0);
+    label.visible = state.showLabels;
+    mesh.add(label);
+    state.viconMarkers[name] = { mesh, label, pos: tp, origPos: p };
+  }
+  updateMarkerVisibility();
+}
+
+// ================== Selection & mapping ==================
+const raycaster = new THREE.Raycaster();
+const mouse = new THREE.Vector2();
+
+function getMarkerMeshes() {
+  const res = [];
+  for (const k in state.modelMarkers) res.push(state.modelMarkers[k].mesh);
+  for (const k in state.viconMarkers) res.push(state.viconMarkers[k].mesh);
+  return res;
+}
+
+renderer.domElement.addEventListener('pointerdown', (e) => {
+  const rect = renderer.domElement.getBoundingClientRect();
+  mouse.x = ((e.clientX - rect.left) / rect.width) * 2 - 1;
+  mouse.y = -((e.clientY - rect.top) / rect.height) * 2 + 1;
+  raycaster.setFromCamera(mouse, camera);
+  const meshes = getMarkerMeshes();
+  const hits = raycaster.intersectObjects(meshes, false);
+  if (hits.length === 0) return;
+  const m = hits[0].object;
+  if (m.userData.type === 'model') {
+    setSelection('model', m.userData.name);
+  } else if (m.userData.type === 'vicon') {
+    setSelection('vicon', m.userData.name);
+  }
+});
+
+function setSelection(type, name) {
+  // Clear previous highlight
+  if (type === 'model') {
+    if (state.selModel && state.modelMarkers[state.selModel]) {
+      setColor(state.modelMarkers[state.selModel].mesh, 0xffffff);
+    }
+    state.selModel = name;
+    if (state.modelMarkers[name]) setColor(state.modelMarkers[name].mesh, 0xffdd33);
+  } else {
+    if (state.selVicon && state.viconMarkers[state.selVicon]) {
+      setColor(state.viconMarkers[state.selVicon].mesh, 0x4488ff);
+    }
+    state.selVicon = name;
+    if (state.viconMarkers[name]) setColor(state.viconMarkers[name].mesh, 0xff3333);
+  }
+  updateSelectionUI();
+}
+
+function setColor(mesh, color) {
+  mesh.material.color.set(color);
+}
+
+function updateSelectionUI() {
+  document.getElementById('sel-model').textContent = state.selModel || '— Model —';
+  document.getElementById('sel-model').className = 'slot' + (state.selModel ? ' model-sel' : ' empty');
+  document.getElementById('sel-vicon').textContent = state.selVicon || '— Vicon —';
+  document.getElementById('sel-vicon').className = 'slot' + (state.selVicon ? ' vicon-sel' : ' empty');
+  document.getElementById('linkBtn').disabled = !(state.selModel && state.selVicon);
+}
+
+document.getElementById('linkBtn').addEventListener('click', () => {
+  if (!state.selModel || !state.selVicon) return;
+  addMapping(state.selModel, state.selVicon, 'manual');
+  clearSelection();
+});
+
+document.getElementById('clearSelBtn').addEventListener('click', clearSelection);
+
+function clearSelection() {
+  if (state.selModel && state.modelMarkers[state.selModel]) {
+    setColor(state.modelMarkers[state.selModel].mesh, 0xffffff);
+  }
+  if (state.selVicon && state.viconMarkers[state.selVicon]) {
+    setColor(state.viconMarkers[state.selVicon].mesh, 0x4488ff);
+  }
+  state.selModel = null;
+  state.selVicon = null;
+  updateSelectionUI();
+}
+
+function addMapping(model, vicon, confidence = 'manual') {
+  // Remove any existing mapping with same model or vicon
+  state.mappings = state.mappings.filter(m => m.model !== model && m.vicon !== vicon);
+  state.mappings.push({ model, vicon, confidence });
+  // Remove from suggested
+  state.suggested = state.suggested.filter(s => s.model !== model && s.vicon !== vicon);
+  // Mark colors
+  if (state.modelMarkers[model]) {
+    setColor(state.modelMarkers[model].mesh, 0x44cc88);
+  }
+  if (state.viconMarkers[vicon]) {
+    setColor(state.viconMarkers[vicon].mesh, 0x44cc88);
+  }
+  rebuildMappingLines();
+  refreshAllLists();
+}
+
+function removeMapping(model) {
+  const idx = state.mappings.findIndex(m => m.model === model);
+  if (idx < 0) return;
+  const { vicon } = state.mappings[idx];
+  state.mappings.splice(idx, 1);
+  if (state.modelMarkers[model]) setColor(state.modelMarkers[model].mesh, 0xffffff);
+  if (state.viconMarkers[vicon]) setColor(state.viconMarkers[vicon].mesh, 0x4488ff);
+  rebuildMappingLines();
+  refreshAllLists();
+}
+
+function rebuildMappingLines() {
+  for (const ln of state.mappingLines) {
+    scene.remove(ln);
+    ln.geometry.dispose();
+    ln.material.dispose();
+  }
+  state.mappingLines = [];
+  if (!document.getElementById('toggleLines').checked) return;
+  for (const m of state.mappings) {
+    const mm = state.modelMarkers[m.model];
+    const vm = state.viconMarkers[m.vicon];
+    if (!mm || !vm) continue;
+    const color = m.confidence === 'suggested' ? 0xffaa33 : 0x00bb55;
+    const geo = new THREE.BufferGeometry().setFromPoints([mm.mesh.position, vm.mesh.position]);
+    const mat = new THREE.LineBasicMaterial({ color, opacity: 0.75, transparent: true, linewidth: 2 });
+    const line = new THREE.Line(geo, mat);
+    scene.add(line);
+    state.mappingLines.push(line);
+  }
+}
+
+// ================== Auto-suggest ==================
+document.getElementById('autoSuggestBtn').addEventListener('click', () => {
+  state.suggested = [];
+  const mappedModel = new Set(state.mappings.map(m => m.model));
+  const mappedVicon = new Set(state.mappings.map(m => m.vicon));
+  const candidates = [];
+  for (const [mname, mdata] of Object.entries(state.modelMarkers)) {
+    if (mappedModel.has(mname)) continue;
+    for (const [vname, vdata] of Object.entries(state.viconMarkers)) {
+      if (mappedVicon.has(vname)) continue;
+      const d = Math.hypot(
+        mdata.pos[0] - vdata.pos[0],
+        mdata.pos[1] - vdata.pos[1],
+        mdata.pos[2] - vdata.pos[2]
+      );
+      candidates.push({ model: mname, vicon: vname, distance: d });
+    }
+  }
+  candidates.sort((a, b) => a.distance - b.distance);
+  const usedM = new Set(), usedV = new Set();
+  for (const c of candidates) {
+    if (c.distance > 0.15) break;  // 15cm threshold
+    if (usedM.has(c.model) || usedV.has(c.vicon)) continue;
+    // Case-insensitive name similarity
+    const sim = nameSimilarity(c.model, c.vicon);
+    if (c.distance < 0.05 || sim > 0.5) {
+      state.suggested.push(c);
+      usedM.add(c.model); usedV.add(c.vicon);
+    }
+  }
+  refreshAllLists();
+  renderInfo(`Auto-suggested ${state.suggested.length} pairs (distance < 15cm)`);
+});
+
+function nameSimilarity(a, b) {
+  const strip = s => s.toUpperCase().replace(/[^A-Z]/g, '');
+  const A = strip(a), B = strip(b);
+  if (A === B) return 1;
+  if (A.includes(B) || B.includes(A)) return 0.7;
+  // shared prefix/suffix
+  let p = 0;
+  while (p < A.length && p < B.length && A[p] === B[p]) p++;
+  return p / Math.max(A.length, B.length);
+}
+
+document.getElementById('mirrorBtn').addEventListener('click', () => {
+  // For each mapping, suggest the mirrored pair
+  let added = 0;
+  const mirror = s => {
+    if (s.startsWith('R')) return 'L' + s.slice(1);
+    if (s.startsWith('L')) return 'R' + s.slice(1);
+    return null;
+  };
+  const copy = [...state.mappings];
+  for (const m of copy) {
+    const mm = mirror(m.model), vv = mirror(m.vicon);
+    if (!mm || !vv) continue;
+    if (!state.modelMarkers[mm] || !state.viconMarkers[vv]) continue;
+    if (state.mappings.some(x => x.model === mm || x.vicon === vv)) continue;
+    addMapping(mm, vv, 'manual');
+    added++;
+  }
+  renderInfo(`Mirrored ${added} pairs`);
+});
+
+// ================== Lists UI ==================
+function refreshAllLists() {
+  refreshMappedList();
+  refreshSuggestedList();
+  refreshUnmappedLists();
+}
+
+function refreshMappedList() {
+  const el = document.getElementById('mappedList');
+  el.innerHTML = '';
+  document.getElementById('countMapped').textContent = state.mappings.length;
+  const sorted = [...state.mappings].sort((a, b) => a.model.localeCompare(b.model));
+  for (const m of sorted) {
+    const d = document.createElement('div');
+    d.className = 'pair confirmed';
+    d.innerHTML = `<span class="name">
+      <span class="chip vicon">${m.vicon}</span>
+      →
+      <span class="chip model">${m.model}</span>
+    </span>
+    <span class="del" title="Remove">✕</span>`;
+    d.querySelector('.del').addEventListener('click', () => removeMapping(m.model));
+    el.appendChild(d);
+  }
+}
+
+function refreshSuggestedList() {
+  const el = document.getElementById('suggestedList');
+  el.innerHTML = '';
+  document.getElementById('countSuggested').textContent = state.suggested.length;
+  for (const s of state.suggested) {
+    const d = document.createElement('div');
+    d.className = 'pair suggested';
+    d.innerHTML = `<span class="name">
+      <span class="chip vicon">${s.vicon}</span>
+      →
+      <span class="chip model">${s.model}</span>
+      <span style="font-size:10px;color:#888">${(s.distance*1000).toFixed(0)}mm</span>
+    </span>
+    <span>
+      <button style="padding:1px 6px;font-size:10px" class="accept">✓</button>
+      <button style="padding:1px 6px;font-size:10px" class="reject">✕</button>
+    </span>`;
+    d.querySelector('.accept').addEventListener('click', () => {
+      addMapping(s.model, s.vicon, 'suggested');
+    });
+    d.querySelector('.reject').addEventListener('click', () => {
+      state.suggested = state.suggested.filter(x => x !== s);
+      refreshSuggestedList();
+    });
+    el.appendChild(d);
+  }
+}
+
+function refreshUnmappedLists() {
+  const mappedModel = new Set(state.mappings.map(m => m.model));
+  const suggestedModel = new Set(state.suggested.map(s => s.model));
+  const mappedVicon = new Set(state.mappings.map(m => m.vicon));
+  const suggestedVicon = new Set(state.suggested.map(s => s.vicon));
+
+  const unM = Object.keys(state.modelMarkers).filter(n => !mappedModel.has(n) && !suggestedModel.has(n));
+  const unV = Object.keys(state.viconMarkers).filter(n => !mappedVicon.has(n) && !suggestedVicon.has(n));
+
+  const elM = document.getElementById('unmappedModelList');
+  elM.innerHTML = '';
+  document.getElementById('countUnmappedModel').textContent = unM.length;
+  for (const n of unM.sort()) {
+    const d = document.createElement('div');
+    d.className = 'pair';
+    d.innerHTML = `<span class="name chip model">${n}</span>
+      <button style="padding:0 5px;font-size:10px">Sel</button>`;
+    d.querySelector('button').addEventListener('click', () => setSelection('model', n));
+    elM.appendChild(d);
+  }
+
+  const elV = document.getElementById('unmappedViconList');
+  elV.innerHTML = '';
+  document.getElementById('countUnmappedVicon').textContent = unV.length;
+  for (const n of unV.sort()) {
+    const d = document.createElement('div');
+    d.className = 'pair';
+    d.innerHTML = `<span class="name chip vicon">${n}</span>
+      <button style="padding:0 5px;font-size:10px">Sel</button>`;
+    d.querySelector('button').addEventListener('click', () => setSelection('vicon', n));
+    elV.appendChild(d);
+  }
+}
+
+// ================== Export / Import ==================
+document.getElementById('exportBtn').addEventListener('click', () => {
+  const out = {
+    model: state.currentModel,
+    subject_trial: state.currentTrial,
+    created: new Date().toISOString(),
+    n_mappings: state.mappings.length,
+    mappings: state.mappings,
+    unmapped_model: Object.keys(state.modelMarkers).filter(
+      n => !state.mappings.some(m => m.model === n)),
+    unmapped_vicon: Object.keys(state.viconMarkers).filter(
+      n => !state.mappings.some(m => m.vicon === n)),
+  };
+  const blob = new Blob([JSON.stringify(out, null, 2)], { type: 'application/json' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = `mapping_${state.currentTrial}_${state.currentModel}.json`;
+  a.click();
+  URL.revokeObjectURL(url);
+  renderInfo(`Exported ${out.n_mappings} mappings.`);
+});
+
+document.getElementById('importBtn').addEventListener('click', () => {
+  document.getElementById('importInput').click();
+});
+document.getElementById('importInput').addEventListener('change', async (e) => {
+  const file = e.target.files[0];
+  if (!file) return;
+  const text = await file.text();
+  try {
+    const data = JSON.parse(text);
+    clearSelection();
+    state.mappings = [];
+    state.suggested = [];
+    for (const m of data.mappings || []) {
+      if (state.modelMarkers[m.model] && state.viconMarkers[m.vicon]) {
+        addMapping(m.model, m.vicon, m.confidence || 'imported');
+      }
+    }
+    renderInfo(`Loaded ${state.mappings.length} mappings from file.`);
+  } catch (err) {
+    renderInfo(`Import error: ${err.message}`);
+  }
+});
+
+document.getElementById('resetBtn').addEventListener('click', () => {
+  if (!confirm('Clear all mappings?')) return;
+  for (const m of state.mappings) {
+    if (state.modelMarkers[m.model]) setColor(state.modelMarkers[m.model].mesh, 0xffffff);
+    if (state.viconMarkers[m.vicon]) setColor(state.viconMarkers[m.vicon].mesh, 0x4488ff);
+  }
+  state.mappings = [];
+  state.suggested = [];
+  rebuildMappingLines();
+  refreshAllLists();
+  renderInfo('Reset.');
+});
+
+// ================== Visibility toggles ==================
+function updateMarkerVisibility() {
+  const showModel = document.getElementById('toggleModelMk').checked;
+  const showVicon = document.getElementById('toggleViconMk').checked;
+  for (const k in state.modelMarkers) state.modelMarkers[k].mesh.visible = showModel;
+  for (const k in state.viconMarkers) state.viconMarkers[k].mesh.visible = showVicon;
+}
+
+document.getElementById('toggleBones').addEventListener('change', (e) => {
+  if (state.bones) state.bones.visible = e.target.checked;
+});
+document.getElementById('toggleModelMk').addEventListener('change', updateMarkerVisibility);
+document.getElementById('toggleViconMk').addEventListener('change', updateMarkerVisibility);
+document.getElementById('toggleLabels').addEventListener('change', (e) => {
+  state.showLabels = e.target.checked;
+  for (const k in state.modelMarkers) state.modelMarkers[k].label.visible = state.showLabels;
+  for (const k in state.viconMarkers) state.viconMarkers[k].label.visible = state.showLabels;
+});
+document.getElementById('toggleLines').addEventListener('change', rebuildMappingLines);
+
+document.getElementById('modelSel').addEventListener('change', async (e) => {
+  state.currentModel = e.target.value;
+  state.mappings = [];
+  state.suggested = [];
+  clearSelection();
+  await loadModel(state.currentModel);
+  rebuildMappingLines();
+  refreshAllLists();
+});
+
+trialSel.addEventListener('change', async (e) => {
+  state.currentTrial = e.target.value;
+  state.mappings = [];
+  state.suggested = [];
+  clearSelection();
+  await loadVicon(state.currentTrial);
+  rebuildMappingLines();
+  refreshAllLists();
+});
+
+function renderInfo(s) {
+  document.getElementById('info').textContent = s;
+}
+
+// ================== Tooltip on hover ==================
+const tooltip = document.getElementById('tooltip');
+renderer.domElement.addEventListener('pointermove', (e) => {
+  const rect = renderer.domElement.getBoundingClientRect();
+  mouse.x = ((e.clientX - rect.left) / rect.width) * 2 - 1;
+  mouse.y = -((e.clientY - rect.top) / rect.height) * 2 + 1;
+  raycaster.setFromCamera(mouse, camera);
+  const hits = raycaster.intersectObjects(getMarkerMeshes(), false);
+  if (hits.length > 0) {
+    const m = hits[0].object;
+    tooltip.textContent = `${m.userData.type === 'model' ? '◯' : '●'} ${m.userData.name}`;
+    tooltip.style.display = 'block';
+    tooltip.style.left = (e.clientX + 10) + 'px';
+    tooltip.style.top = (e.clientY + 10) + 'px';
+  } else {
+    tooltip.style.display = 'none';
+  }
+});
+
+// ================== Animation loop ==================
+function animate() {
+  requestAnimationFrame(animate);
+  controls.update();
+  renderer.render(scene, camera);
+  labelRenderer.render(scene, camera);
+}
+animate();
+
+// ================== Init ==================
+(async () => {
+  await loadModel(state.currentModel);
+  await loadVicon(state.currentTrial);
+  refreshAllLists();
+  renderInfo('Click Vicon (blue) + Model (white) markers, then Link.');
+})();
+</script>
+</body>
+</html>

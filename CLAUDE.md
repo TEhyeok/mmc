@@ -20,6 +20,7 @@ LaTeX (XeLaTeX) 기반 한국어 교과서 시리즈.
 | `part5_constraints_setup.tex` | 제약조건 분석 + 개발 세팅 |
 | `part5_dev_setup.tex` | 개발 환경 A-to-Z 매뉴얼 |
 | `part5_research_proposal.tex` | 연구 제안서 |
+| `part6_opensim_ik_viewer.tex` | Part 6: Rajagopal 2016 IK 파이프라인 + Three.js 3D 뷰어 |
 | `fitting_guide.tex` | SMPL 피팅 실전 가이드 & 오답노트 |
 | `methodology_survey.tex` | SMPL-free 방법론 서베이 (독립 프리앰블) |
 | `vitpose_cam3_analysis.tex` | ViTPose cam3 분석 보고서 (article 클래스, 독립) |

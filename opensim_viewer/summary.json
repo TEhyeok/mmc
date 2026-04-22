@@ -1,0 +1,32 @@
+[
+  {
+    "tag": "merged_v0",
+    "n_muscles": 180,
+    "n_markers": 46,
+    "n_bodies": 36
+  },
+  {
+    "tag": "rajagopal_mj",
+    "n_muscles": 80,
+    "n_markers": 64,
+    "n_bodies": 26
+  },
+  {
+    "tag": "rajagopal_2016",
+    "n_muscles": 80,
+    "n_markers": 66,
+    "n_bodies": 22
+  },
+  {
+    "tag": "mobl_bimanual",
+    "n_muscles": 100,
+    "n_markers": 0,
+    "n_bodies": 23
+  },
+  {
+    "tag": "mobl_41",
+    "n_muscles": 50,
+    "n_markers": 10,
+    "n_bodies": 12
+  }
+]

@@ -13,6 +13,7 @@ PARTS = main \
         part5_constraints_setup \
         part5_dev_setup \
         part5_research_proposal \
+        part6_opensim_ik_viewer \
         fitting_guide \
         methodology_survey \
         vitpose_cam3_analysis \

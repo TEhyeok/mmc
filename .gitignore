@@ -59,3 +59,22 @@ colmap/visualizations/*.glb
 
 # Claude internal
 .claude/
+
+# OpenSim IK pipeline — local videos & regenerable artifacts
+opensim_viewer/videos_subject_1/
+opensim_viewer/**/*.mp4
+opensim_viewer/**/*.mov
+opensim_viewer/**/*.avi
+# regenerable large IK files (keep run.py + build_viewer.py in git)
+ik_rajagopal_walk/scaled_model.osim
+ik_rajagopal_walk/ik.mot
+ik_rajagopal_walk/scale_setup_patched.xml
+ik_rajagopal_walk/ik_setup_patched.xml
+ik_subject1_set002/*.osim
+ik_subject1_set002/*.mot
+ik_subject1_set002/*.sto
+ik_subject1_set002/*.trc
+ik_subject1_set002_fbls/*.osim
+ik_subject1_set002_fbls/*.mot
+ik_subject1_set002_fbls/*.sto
+ik_subject1_set002_fbls/*.trc

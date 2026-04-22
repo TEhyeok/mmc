@@ -1,0 +1,80 @@
+<!doctype html>
+<html lang="ko"><head><meta charset="utf-8"/>
+<title>OBP user 000002 — Shoulder + Fz (SFC/MER)</title>
+<style>
+  body { font-family: -apple-system, sans-serif; background: #f4f6f9; margin: 0; color: #1a1f2b; }
+  header { background: #fff; padding: 12px 20px; border-bottom: 1px solid #dde2e8;
+           position: sticky; top: 0; z-index: 10; box-shadow: 0 2px 4px rgba(0,0,0,0.04); }
+  h1 { margin: 0 0 6px; font-size: 16px; }
+  .ctrl { display: flex; gap: 12px; align-items: center; font-size: 13px; flex-wrap: wrap; }
+  select, button { font-size: 13px; padding: 6px 10px; border: 1px solid #bcc4d0; border-radius: 6px; cursor: pointer; background: #fff; }
+  button { background: #3b7cff; color: #fff; border: 0; }
+  main { padding: 14px; text-align: center; }
+  img { max-width: 100%; border-radius: 6px; box-shadow: 0 2px 10px rgba(0,0,0,0.08); }
+  .obp { color: #5a6474; font-size: 12px; margin-top: 6px; line-height: 1.6; text-align: left; max-width: 1100px; margin-left: auto; margin-right: auto; }
+  .thumbs { display: grid; grid-template-columns: repeat(auto-fill, minmax(160px, 1fr)); gap: 6px; margin-top: 12px; }
+  .thumb { cursor: pointer; border: 2px solid transparent; border-radius: 4px; background: #fff; padding: 6px 8px; font-size: 11px; text-align: center; }
+  .thumb.selected { border-color: #3b7cff; background: #e8f0ff; }
+  .legend { display: inline-block; margin-right: 14px; }
+  .legend::before { content: '●'; margin-right: 4px; }
+</style>
+</head><body>
+<header>
+  <h1>OBP user 000002 · Shoulder 3 vars + Fz per plate · SFC + MER</h1>
+  <div class="ctrl">
+    <label>Trial:</label>
+    <select id="sel"></select>
+    <button id="prev">← prev</button>
+    <button id="next">next →</button>
+    <span id="info"></span>
+    <span style="margin-left:auto; font-size:11px;">
+      <span class="legend" style="color:#27ae60">SFC (Fz>20N)</span>
+      <span class="legend" style="color:#e74c3c">MER (peak ER)</span>
+    </span>
+  </div>
+</header>
+<main>
+  <img id="plot" src=""/>
+  <div class="obp" id="obp"></div>
+  <div class="thumbs" id="thumbs"></div>
+</main>
+<script>
+const trials = [{"tag": "pitch_002_809mph", "speed": "809", "duration": 2.013888888888889, "sfc": 1.4361111111111111, "mer": 1.5361111111111112, "br": 1.586111111111111, "obp_max_er": "154.3221", "obp_sh_abd_fp": "92.46", "obp_sh_horz_fp": "39.8363", "obp_sh_er_fp": "16.4324", "obp_sh_abd_mer": "43.0824", "obp_lead_grf_z_max": "1588.4867", "obp_rear_grf_z_max": "1332.9857"}, {"tag": "pitch_005_814mph", "speed": "814", "duration": 1.9944444444444445, "sfc": 1.4083333333333334, "mer": 1.2555555555555555, "br": 1.5472222222222223, "obp_max_er": "150.9881", "obp_sh_abd_fp": "91.6518", "obp_sh_horz_fp": "43.1678", "obp_sh_er_fp": "-0.1465", "obp_sh_abd_mer": "39.6506", "obp_lead_grf_z_max": "1625.7807", "obp_rear_grf_z_max": "1373.4216"}, {"tag": "pitch_006_803mph", "speed": "803", "duration": 1.863888888888889, "sfc": 1.3111111111111111, "mer": 1.1777777777777778, "br": 1.4388888888888889, "obp_max_er": null, "obp_sh_abd_fp": null, "obp_sh_horz_fp": null, "obp_sh_er_fp": null, "obp_sh_abd_mer": null, "obp_lead_grf_z_max": null, "obp_rear_grf_z_max": null}, {"tag": "pitch_008_798mph", "speed": "798", "duration": 1.8666666666666667, "sfc": 1.3138888888888889, "mer": 1.2527777777777778, "br": 1.4361111111111111, "obp_max_er": null, "obp_sh_abd_fp": null, "obp_sh_horz_fp": null, "obp_sh_er_fp": null, "obp_sh_abd_mer": null, "obp_lead_grf_z_max": null, "obp_rear_grf_z_max": null}, {"tag": "pitch_011_799mph", "speed": "799", "duration": 1.8555555555555556, "sfc": 1.2305555555555556, "mer": 1.1777777777777778, "br": 1.3972222222222221, "obp_max_er": null, "obp_sh_abd_fp": null, "obp_sh_horz_fp": null, "obp_sh_er_fp": null, "obp_sh_abd_mer": null, "obp_lead_grf_z_max": null, "obp_rear_grf_z_max": null}];
+const sel = document.getElementById('sel');
+const img = document.getElementById('plot');
+const info = document.getElementById('info');
+const obp = document.getElementById('obp');
+const thumbs = document.getElementById('thumbs');
+let cur = 0;
+trials.forEach((t, i) => {
+  const opt = document.createElement('option'); opt.value = i; opt.textContent = t.tag;
+  sel.appendChild(opt);
+  const d = document.createElement('div');
+  d.className = 'thumb'; d.dataset.i = i;
+  d.innerHTML = `<div style="font-weight:600">${t.tag}</div>
+                 <div style="color:#888">${t.speed} mph · ${((t.br-t.sfc)*1000).toFixed(0)} ms</div>`;
+  d.onclick = () => { cur = i; render(); };
+  thumbs.appendChild(d);
+});
+function render() {
+  const t = trials[cur];
+  img.src = `obp_user_000002/${t.tag}.png?v=${Date.now()}`;
+  sel.value = cur;
+  info.textContent = `SFC ${t.sfc.toFixed(3)}s · MER ${t.mer.toFixed(3)}s · BR ${t.br.toFixed(3)}s · SFC→BR ${((t.br-t.sfc)*1000).toFixed(0)}ms`;
+  obp.innerHTML = `
+    <b>OBP POI ground truth (for cross-check):</b><br/>
+    · Shoulder abduction @FP = <b>${t.obp_sh_abd_fp}°</b> / @MER = <b>${t.obp_sh_abd_mer ?? 'n/a'}°</b><br/>
+    · Shoulder horizontal abduction @FP = <b>${t.obp_sh_horz_fp}°</b><br/>
+    · Shoulder external rotation @FP = <b>${t.obp_sh_er_fp}°</b> · peak ER = <b>${t.obp_max_er}°</b><br/>
+    · Peak GRF: rear Fz = ${t.obp_rear_grf_z_max} N, lead Fz = ${t.obp_lead_grf_z_max} N`;
+  for (const d of document.querySelectorAll('.thumb')) d.classList.toggle('selected', parseInt(d.dataset.i) === cur);
+}
+sel.addEventListener('change', e => { cur = parseInt(e.target.value); render(); });
+document.getElementById('prev').onclick = () => { cur = (cur-1+trials.length)%trials.length; render(); };
+document.getElementById('next').onclick = () => { cur = (cur+1)%trials.length; render(); };
+document.addEventListener('keydown', e => {
+  if (e.key==='ArrowLeft') { cur=(cur-1+trials.length)%trials.length; render(); }
+  else if (e.key==='ArrowRight') { cur=(cur+1)%trials.length; render(); }
+});
+render();
+</script></body></html>

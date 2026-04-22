@@ -1,0 +1,441 @@
+\documentclass[11pt, a4paper]{report}
+
+\input{preamble/packages}
+\usepackage{multirow}
+\input{preamble/colors}
+\input{preamble/tcolorboxes}
+\input{preamble/commands}
+\input{preamble/listings}
+\input{preamble/formatting}
+
+\begin{document}
+
+% ==================== TITLE PAGE ====================
+\begin{titlepage}
+\centering
+\vspace*{2cm}
+{\Large\color{gray} Part 6 -- OpenSim Pipeline \& 3D Web Viewer}
+\vspace{0.6cm}
+
+{\Huge\bfseries\color{defblue} Rajagopal 2016 기반\\[0.3cm]
+Inverse Kinematics 파이프라인과\\[0.3cm]
+Three.js 3D 뷰어 구축}
+
+\vspace{0.8cm}
+
+{\large\color{defblue!70!black} Visual3D 한계 분석 → OpenSim IK 대안 →\\
+웹 기반 시각화·그래프·IK Gizmo 시스템}
+
+\vspace{2cm}
+
+\begin{tcolorbox}[colback=defblue!5, colframe=defblue!40, width=0.8\textwidth,
+  arc=4pt, boxrule=0.6pt]
+\centering\small
+\textbf{본 리포트의 범위}
+
+\medskip
+이 문서는 2026-04 기간에 걸쳐 진행한 \emph{마커 기반 생체역학 분석
+파이프라인 전환}을 정리합니다. Visual3D(상용) 의 내부 IK 엔진 복제를
+시도한 결과와 한계, 대안으로 선택한 OpenSim Rajagopal 2016 파이프라인,
+그리고 그 결과를 브라우저에서 볼 수 있도록 만든 \textbf{Three.js 기반 3D
+OpenSim 뷰어} 까지를 다룹니다.
+\end{tcolorbox}
+
+\vfill
+{\small\color{gray}
+작성일: 2026-04-22 \\
+경로: \texttt{opensim\_viewer/index.html}, \texttt{ik\_rajagopal\_walk/}}
+\end{titlepage}
+
+\tableofcontents
+\newpage
+
+% ============================================================
+\chapter{배경 -- 왜 OpenSim IK 로 갔는가}
+% ============================================================
+
+\section{Visual3D 기반 OBP 각도 재현 시도와 한계}
+
+Driveline OpenBiomechanics Project(OBP)의 100명 공개 투구 데이터는
+\textbf{Visual3D(C-Motion, proprietary)} 로 전 처리되어
+\texttt{joint\_angles.csv} 형태로만 제공된다. 우리가 같은 c3d 로
+동일 각도를 재현하려면 Visual3D 내부 알고리즘을 복제해야 한다.
+
+\begin{keyidea}
+\textbf{Visual3D 는 "공식(수식) 공개, 엔진(구현) 비공개" 이다.}
+따라서 \emph{개념 수준 복제는 가능하지만 숫자 수준 복제는 불가능}하다.
+\end{keyidea}
+
+\subsection*{공개되어 있는 부분}
+\begin{itemize}
+  \item Joint angle 계산 수식: $R_{\text{joint}} = R_{\text{distal}} \cdot R_{\text{proximal}}^\top$
+  \item Cardan / Euler 분해 순서 선택(\texttt{AXIS1/2/3}), 부호 반전(\texttt{NEGATEX/Y/Z})
+  \item OBP 가 사용한 \texttt{CMO.v3s} 스크립트(2,638 라인) 전체
+  \item 세그먼트 좌표계 관례(Z=distal $\to$ proximal long axis, X=medio-lateral)
+\end{itemize}
+
+\subsection*{비공개/복제 불가}
+\begin{itemize}
+  \item Visual3D 의 Inverse Kinematics 솔버 C++ 구현체
+  \item 전 신체 Global Optimization(Lu \& O'Connor 1999) 의 weight,
+    수렴 기준, 외삽 방식 디테일
+  \item 결과적으로 같은 입력 c3d 에서 \textbf{수치가 최대 $\pm$ 60$^\circ$
+    까지 차이}가 났다 (우리 YZX Cardan 직계산 vs V3D IK 결과)
+\end{itemize}
+
+\begin{warningbox}
+\textbf{수식만 맞춰도 최종 각도가 같지 않다.} 이유는 IK 솔버가
+전신 마커 제약 하에 \emph{관절별 DoF 를 풀어내는 최적화}를 하기 때문.
+단순 Cardan 분해는 분절별로 독립적으로 계산하므로, soft-tissue artifact 와
+비대칭 마커 노이즈가 관절각에 그대로 반영된다.
+\end{warningbox}
+
+\section{대안 -- OpenSim Rajagopal 2016}
+
+Visual3D 대신 \textbf{OpenSim} 을 선택한 이유는 다음 셋이다.
+
+\begin{enumerate}
+  \item \textbf{오픈소스 + 완전 공개} (Apache 2.0, Python/C++ API)
+  \item \textbf{동일 IK 패러다임}: Lu \& O'Connor 1999 Global Optimization
+  \item \textbf{공식 예제 데이터} 포함: subject 11 walk/run trial
+\end{enumerate}
+
+Rajagopal 2016 은 IEEE TBME 공식 full-body 모델로, DoF 구성은 다음과 같다.
+
+\begin{table}[h!]
+\centering
+\caption{Rajagopal 2016 모델의 39 DoF (22 body)}
+\begin{tabular}{l|r|l}
+\toprule
+\textbf{부위} & \textbf{DoF} & \textbf{좌표 이름} \\
+\midrule
+Pelvis (root) & 6 & \texttt{pelvis\_tilt, \_list, \_rotation, \_tx, \_ty, \_tz} \\
+Lumbar (trunk) & 3 & \texttt{lumbar\_extension, \_bending, \_rotation} \\
+Hip $\times$ 2 & 6 & \texttt{hip\_flexion/adduction/rotation\_r/l} \\
+Knee $\times$ 2 & 2 & \texttt{knee\_angle\_r/l} \\
+Ankle/foot $\times$ 2 & 6 & \texttt{ankle, subtalar, mtp\_angle\_r/l} \\
+Shoulder $\times$ 2 & 6 & \texttt{arm\_flex, arm\_add, arm\_rot\_r/l} (YXY Euler) \\
+Elbow $\times$ 2 & 2 & \texttt{elbow\_flex\_r/l} \\
+Forearm $\times$ 2 & 2 & \texttt{pro\_sup\_r/l} \\
+Wrist $\times$ 2 & 4 & \texttt{wrist\_flex, wrist\_dev\_r/l} \\
+Patella (dependent) & 2 & \texttt{knee\_angle\_r/l\_beta} \\
+\midrule
+\textbf{합계} & \textbf{39} & \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+
+% ============================================================
+\chapter{파이프라인 구축 -- Scale \& IK}
+% ============================================================
+
+\section{입력 데이터 -- opensim-org 공식 walk 예제}
+
+\begin{keyidea}
+\texttt{opensim-org/opensim-models} 레포의
+\texttt{Pipelines/Rajagopal/} 에 있는 \textbf{DARPA Subject 11}
+보행 trial 이 사실상 유일한 공식 예제 데이터이다.
+\end{keyidea}
+
+다운로드 파일 구성:
+\begin{itemize}
+  \item \texttt{Models/Rajagopal/Rajagopal2016.osim} (875 KB, 80 muscles)
+  \item \texttt{Pipelines/Rajagopal/ExpData/static\_walk\_1.trc} (64 markers, 287 frames @ 100 Hz)
+  \item \texttt{Pipelines/Rajagopal/ExpData/motion\_capture\_walk.trc} (41 markers, 238 frames)
+  \item \texttt{Pipelines/Rajagopal/Scale/scale\_setup\_walk.xml}
+  \item \texttt{Pipelines/Rajagopal/IK/ik\_setup\_walk.xml}
+  \item \texttt{Pipelines/Rajagopal/Scale/markerset\_walk\_preScale.xml}
+\end{itemize}
+
+\section{Scale Tool + IK Tool 자동 실행}
+
+\texttt{ik\_rajagopal\_walk/run.py} 스크립트는 XML setup 파일의 상대
+경로를 패치한 뒤 OpenSim Python API 를 호출한다.
+
+\begin{lstlisting}[language=Python, caption={ik\_rajagopal\_walk/run.py 핵심}]
+import opensim as osim
+osim.ScaleTool('scale_setup_patched.xml').run()
+osim.InverseKinematicsTool('ik_setup_patched.xml').run()
+\end{lstlisting}
+
+\noindent
+\textbf{실행 결과} (자동 리포트):
+
+\begin{center}
+\small
+\begin{tabular}{l|r|r}
+\toprule
+Coordinate & min [deg] & max [deg] \\
+\midrule
+\texttt{knee\_angle\_r} & +0.4 & +64.7 \\
+\texttt{knee\_angle\_l} & +0.1 & +65.3 \\
+\texttt{hip\_flexion\_r} & --28.4 & +21.7 \\
+\texttt{ankle\_angle\_r} & --24.8 & +9.8 \\
+\texttt{lumbar\_extension} & --16.4 & --9.7 \\
+\texttt{arm\_flex\_r} & --10.9 & +11.0 \\
+\texttt{arm\_add\_r} & --23.2 & --12.9 \\
+\texttt{arm\_rot\_r} & --12.6 & +4.3 \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+모두 보행 문헌 범위와 일치(knee 0--65$^\circ$, hip $\pm$30$^\circ$ 등).
+
+
+% ============================================================
+\chapter{웹뷰어 설계 -- Three.js 기반 시각화}
+% ============================================================
+
+\section{전체 구조}
+
+\begin{lstlisting}[language=bash, caption={opensim\_viewer 디렉토리}]
+opensim_viewer/
+  index.html                         # 메인 뷰어 (단일 페이지)
+  vendor/three/                      # Three.js + GLTFLoader + OrbitControls
+  rajagopal_2016/                    # 정적 Rajagopal 2016 모델 (static pose)
+    bones.glb, markers.json,
+    muscles.json, meta.json
+  rajagopal_2016_walk_anim/          # 보행 IK 애니메이션 산출물
+    bones.glb                        # 22 bodies, 단일 node-per-body
+    animation.json                   # 80 frames x 22 bodies x 16 float (row-major)
+    markers_anim.json                # 80 frames x 64 markers
+    angles.json                      # 13 channels 각도 시계열
+    meta.json
+\end{lstlisting}
+
+\section{IK 결과 → GLB + JSON 변환}
+
+\texttt{ik\_rajagopal\_walk/build\_viewer.py} 는 다음을 수행한다.
+
+\begin{enumerate}
+  \item \texttt{scaled\_model.osim} 의 22 body 각각에 대해
+    \textbf{local frame 기준} VTP mesh 를 trimesh 로 읽어 합침
+  \item 한 body 의 모든 mesh 를 \texttt{trimesh.util.concatenate} 로 합쳐
+    \textbf{node-per-body, 같은 이름} (\texttt{pelvis, femur\_r, ...}) 으로 GLB 저장
+  \item \texttt{ik.mot} 을 프레임별로 읽어서 각 body 의 world transform
+    4$\times$4 를 계산(forward kinematics) → \texttt{animation.json} 에
+    \textbf{row-major 16 float} 로 저장
+  \item 마커도 프레임별 world 위치로 \texttt{markers\_anim.json} 저장
+  \item 핵심 관절 각도(knee, elbow, lumbar, shoulder) 13 채널은 별도로
+    \texttt{angles.json} 에 저장 → 그래프 용도
+\end{enumerate}
+
+\begin{warningbox}
+\textbf{재생이 안 되는 원인 디버그 한 조: GLB node 이름}.
+\texttt{trimesh} 가 같은 body 의 여러 mesh 를
+\texttt{hand\_l\_0, hand\_l\_1, \dots} 으로 별도 노드화하면
+뷰어가 \texttt{bodyNodes['hand\_l']} 을 찾을 수 없다.
+\textbf{한 body = 한 node, 같은 이름} 을 엄격히 지켜야 한다.
+\end{warningbox}
+
+\section{뷰어 주요 기능}
+
+\begin{center}
+\begin{tabular}{l|l}
+\toprule
+\textbf{영역} & \textbf{기능} \\
+\midrule
+좌측 UI & Bones/Muscles/Markers/Labels/Wireframe 토글, Play/Slider \\
+\midrule
+\multirow{2}{*}{좌측 UI (IK Gizmos)} & TRUNK: axial / lateral / forward-ext \\
+  & SHOULDER: horizontal plane, humerus vector, floor projection \\
+  & SHOULDER DoF (R/L): plane $\alpha$ / elevation $\beta$ / axial $\gamma$ \\
+\midrule
+\multirow{3}{*}{우측 패널} & \texttt{Loaded Data} (기본): 파일/DoF/body/marker 요약 \\
+  & \texttt{Joint Angles} (graph 버튼): 4 페이지 시계열 \\
+  & 프레임 동기 cursor (재생 중 좌 $\to$ 우로 이동) \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+
+% ============================================================
+\chapter{IK Gizmo -- 각도 정의의 시각화}
+% ============================================================
+
+\section{Trunk 3 DoF}
+
+Lumbar joint (\texttt{back}) 는 pelvis $\to$ torso 의 상대 회전이며,
+pivot 은 torso body origin $\approx$ L5/S1 수준에 위치한다.
+
+\begin{table}[h!]
+\centering
+\caption{Trunk gizmo 3 DoF 매핑}
+\begin{tabular}{l|l|l|l}
+\toprule
+\textbf{DoF} & \textbf{평면} & \textbf{normal} & \textbf{시각} \\
+\midrule
+\texttt{lumbar\_rotation} & 수평(XZ) & pelvis +Y & 회색(pelvis fwd) vs 녹색(torso fwd) + arc \\
+\texttt{lumbar\_bending} & 관상(XY) & pelvis +X (fwd) & 회색(pelvis up) vs 주황(torso up) \\
+\texttt{lumbar\_extension} & 시상(YZ) & pelvis +Z (right) & 회색(pelvis up) vs 갈색(torso up) \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\begin{keyidea}
+\textbf{0$^\circ$ 기준선은 항상 "pelvis 가 따라 돌아가는 선"}.
+기준을 world 에 고정하면 pelvis 자체 회전까지 포함되어
+\texttt{lumbar\_rotation} 과 일치하지 않는다.
+\end{keyidea}
+
+\section{Shoulder 3 DoF -- YXY Euler (globographic)}
+
+Rajagopal \texttt{acromial\_r/l} 관절의 3 DoF 는 ISB Wu 2005 권장
+\textbf{Y-X-Y Euler} 로 분해된다.
+
+\begin{center}
+\begin{tabular}{l|l|l}
+\toprule
+\textbf{좌표} & \textbf{역할} & \textbf{시각화} \\
+\midrule
+\texttt{arm\_flex} ($\alpha$) & Plane of elevation & torso-horizontal 원판 + 화살 \\
+\texttt{arm\_add} ($\beta$) & Elevation amount & 어깨 $\to$ 아래 수직 기준 + arc \\
+\texttt{arm\_rot} ($\gamma$) & Axial rotation & \textbf{상완 장축 막대 + 링 + 2 tick} \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+\begin{warningbox}
+\textbf{$\gamma$ 축은 \emph{상완 장축 그 자체}}. 이전 버전은 tick 만
+그려서 회전축이 보이지 않았다 -- 현재는 \textbf{굵은 막대로
+어깨 $\to$ 팔꿈치 연장선}을 그리고, 중간에 \textbf{링(원)}을 걸어
+\textbf{회전 평면}을 명시하고, 그 위에 두 tick 으로
+\textbf{0$^\circ$ vs 현재 $\gamma$} 를 표시한다.
+\end{warningbox}
+
+
+% ============================================================
+\chapter{그래프 패널 -- 각도 시계열 + 프레임 cursor}
+% ============================================================
+
+\section{페이지 구성}
+
+\texttt{angles.json} 의 13 채널을 4 페이지로 분리:
+
+\begin{center}
+\small
+\begin{tabular}{l|l|l}
+\toprule
+\textbf{페이지} & \textbf{시리즈} & \textbf{색상} \\
+\midrule
+1/4 Limb Joints & knee\_r, knee\_l, elbow\_r, elbow\_l & 파/녹/주/핑크 \\
+2/4 Trunk (Lumbar) & rotation, bending, extension & 자주/청록/갈 \\
+3/4 Shoulder (R) & arm\_flex, arm\_add, arm\_rot & 청록/주/남 \\
+4/4 Shoulder (L) & arm\_flex, arm\_add, arm\_rot & 청록/주/남 \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+각 차트는:
+\begin{itemize}
+  \item 영역(alpha 22) + 라인(full) Canvas 2D 렌더
+  \item 0$^\circ$ 기준선이 범위에 포함되면 회색 guide line
+  \item 빨간 \textbf{세로선 + 점} 으로 현재 프레임 cursor
+  \item 차트 제목 옆 \texttt{53.4$^\circ$} 식 실시간 수치 표시
+\end{itemize}
+
+\section{재생 ↔ 그래프 동기화}
+
+\begin{lstlisting}[language=Java, caption={그래프 cursor 동기 (JS 유사)}]
+function tick() {
+  if (isPlaying && anim) {
+    applyFrame(fi);
+    if (currentView === 'graph') updateGraphCursor(currentFrame);
+  }
+  requestAnimationFrame(tick);
+}
+\end{lstlisting}
+
+프레임 슬라이더를 드래그하거나 페이지 전환 시에도 cursor 가 즉시 갱신된다.
+
+
+% ============================================================
+\chapter{현재 한계와 다음 단계}
+% ============================================================
+
+\section{현재 뷰어 / 파이프라인의 한계}
+
+\begin{enumerate}
+  \item \textbf{입력은 아직 DARPA subject 11 보행 뿐} -- 우리 좌투수
+    Vicon 투구 데이터로 대체하려면 마커 매핑 필요
+  \item \textbf{마커 매핑 도구}(\texttt{mapping.html}) 는 별도 있으나
+    현재 뷰어와 분리 -- 통합 필요
+  \item Shoulder $\beta$ (\texttt{arm\_add}) 는 이름이 \texttt{add} 이지만
+    실제는 elevation -- UI 주석이 부족
+  \item $\gamma$ 값 자체는 \texttt{angles.json} 에서 읽어 표시 (pure
+    geometry 로 복원하기는 어려움)
+\end{enumerate}
+
+\section{다음 단계 후보}
+
+\begin{tcolorbox}[colback=thmgreen!5, colframe=thmgreen!60, title=Short-term]
+\begin{itemize}
+  \item \textbf{우리 Vicon subject\_1 데이터로 동일 파이프라인 실행}:
+    \texttt{export\_vicon\_markers.py} $\to$ TRC $\to$ Rajagopal Scale $\to$ IK
+  \item 매핑 JSON 을 scale setup 에 자동 적용하는 브리지 스크립트
+  \item \textbf{좌/우투 대칭 옵션} (좌투는 L arm dominant)
+\end{itemize}
+\end{tcolorbox}
+
+\begin{tcolorbox}[colback=defblue!5, colframe=defblue!60, title=Mid-term]
+\begin{itemize}
+  \item OBP 100명 × 5피치 IK 배치 처리
+  \item Visual3D 결과(\texttt{joint\_angles.csv}) 와 OpenSim IK 결과의
+    변인별 차이 통계(CMC, RMSE)
+  \item 투구 이벤트(SFC/MER/BR) 자동 표시 on 그래프
+\end{itemize}
+\end{tcolorbox}
+
+\begin{tcolorbox}[colback=noteorange!5, colframe=noteorange!60, title=Long-term]
+\begin{itemize}
+  \item 마커리스(ViTPose, OpenCap) 결과 vs 마커기반 IK 비교
+  \item 8개 투구 변인 재현 validation
+  \item 교재 Part 3 (야구 투구 분석) 에 본 뷰어를 교재 도구로 편입
+\end{itemize}
+\end{tcolorbox}
+
+
+% ============================================================
+\chapter*{부록 A -- 산출물 파일 정리}
+\addcontentsline{toc}{chapter}{부록 A: 산출물 파일 정리}
+% ============================================================
+
+\section*{스크립트}
+\begin{itemize}
+  \item \texttt{ik\_rajagopal\_walk/run.py} -- Scale + IK 자동 실행
+  \item \texttt{ik\_rajagopal\_walk/build\_viewer.py} -- GLB / JSON 생성
+  \item \texttt{export\_vicon\_markers.py} -- Vicon c3d $\to$ marker JSON
+  \item \texttt{convert\_trc\_to\_json.py} -- TRC $\to$ 뷰어 JSON
+\end{itemize}
+
+\section*{IK 산출물}
+\begin{itemize}
+  \item \texttt{ik\_rajagopal\_walk/scaled\_model.osim} -- subject 11 맞춤 모델
+  \item \texttt{ik\_rajagopal\_walk/ik.mot} -- 238 frames × 39 coordinates
+\end{itemize}
+
+\section*{웹 뷰어}
+\begin{itemize}
+  \item \texttt{opensim\_viewer/index.html} -- 메인 뷰어
+  \item \texttt{opensim\_viewer/mapping.html} -- 마커 매핑 도구 (초안)
+  \item \texttt{opensim\_viewer/rajagopal\_2016\_walk\_anim/} -- 현재 재생 중 데이터셋
+\end{itemize}
+
+\section*{실행 방법 (재현)}
+\begin{lstlisting}[language=bash]
+# 1) Scale + IK 실행
+cd ik_rajagopal_walk
+conda activate opensim45
+python run.py                     # -> scaled_model.osim, ik.mot
+
+# 2) 뷰어 산출물 생성
+python build_viewer.py            # -> opensim_viewer/rajagopal_2016_walk_anim/*
+
+# 3) 로컬 서버 띄우고 브라우저 열기
+cd ../opensim_viewer
+python3 -m http.server 8765
+# 브라우저에서 http://127.0.0.1:8765/index.html
+\end{lstlisting}
+
+\end{document}

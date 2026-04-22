@@ -1,0 +1,218 @@
+<!doctype html>
+<html lang="ko"><head>
+<meta charset="utf-8"/>
+<title>subject_1 trials — graph + video</title>
+<style>
+  html, body { margin: 0; height: 100%; background: #f4f6f9;
+               font-family: -apple-system, system-ui, sans-serif; color: #1a1f2b; }
+  header { background: #fff; padding: 12px 20px; border-bottom: 1px solid #dde2e8;
+           box-shadow: 0 2px 4px rgba(0,0,0,0.04); position: sticky; top: 0; z-index: 10; }
+  h1 { margin: 0 0 8px; font-size: 16px; }
+  .ctrl { display: flex; flex-wrap: wrap; gap: 14px; align-items: center; font-size: 13px; }
+  label { font-weight: 600; }
+  select, button { font-size: 13px; padding: 6px 10px; border: 1px solid #bcc4d0;
+                   border-radius: 6px; background: #fff; cursor: pointer; }
+  button { background: #3b7cff; color: #fff; border: 0; }
+  button:hover { background: #2a65e0; }
+  button.jump { background: #4caf50; padding: 5px 10px; font-size: 12px; }
+  button.jump:hover { background: #388e3c; }
+  #info { color: #5a6474; font-size: 12px; }
+  main { padding: 14px; }
+  .split { display: grid; grid-template-columns: minmax(0, 1.2fr) minmax(0, 1fr); gap: 14px;
+           align-items: start; }
+  .box { background: #fff; border-radius: 8px; box-shadow: 0 2px 10px rgba(0,0,0,0.08);
+         padding: 10px; }
+  .box h2 { margin: 4px 0 8px; font-size: 14px; color: #3b7cff; }
+  img, video { width: 100%; height: auto; display: block; border-radius: 4px; }
+  video { background: #000; max-height: 70vh; object-fit: contain; }
+  .vid-ctrl { display: flex; gap: 8px; margin: 8px 0 6px; flex-wrap: wrap; align-items: center; }
+  .thumbs { display: grid; grid-template-columns: repeat(auto-fill, minmax(120px, 1fr));
+            gap: 6px; margin-top: 12px; }
+  .thumb { cursor: pointer; border: 2px solid transparent; border-radius: 4px;
+           background: #fff; padding: 4px 6px; font-size: 11px; text-align: center; }
+  .thumb.selected { border-color: #3b7cff; background: #e8f0ff; }
+  .thumb:hover { background: #eef2f8; }
+  @media (max-width: 1100px) { .split { grid-template-columns: 1fr; } }
+</style>
+</head><body>
+<header>
+  <h1>subject_1 — 8 pitching variables + multi-camera video (Vicon JCS, cjh Table 6)</h1>
+  <div class="ctrl">
+    <label>Trial:</label>
+    <select id="trial"></select>
+    <button id="prev">← prev</button>
+    <button id="next">next →</button>
+    <label>Camera:</label>
+    <select id="cam"></select>
+    <span id="info"></span>
+  </div>
+</header>
+<main>
+  <div class="split">
+    <div class="box">
+      <h2>Kinematic variables (8 per trial)</h2>
+      <img id="plot" src=""/>
+    </div>
+    <div class="box">
+      <h2>Synchronized video</h2>
+      <video id="vid" controls playsinline preload="metadata"></video>
+      <div class="vid-ctrl">
+        <button class="jump" id="jsfc">⤴ SFC</button>
+        <button class="jump" id="jmer">⤴ MER</button>
+        <button class="jump" id="jbr">⤴ BR</button>
+        <span style="color:#777;font-size:11px;">버튼 = 해당 이벤트에서 <b>일시정지</b></span>
+        <button id="fstep-" style="background:#777;">⟨ -1f</button>
+        <button id="fstep+" style="background:#777;">+1f ⟩</button>
+        <span id="curframe" style="color:#444;font-size:11px;margin-left:auto;"></span>
+      </div>
+      <div class="vid-ctrl" style="gap:6px;">
+        <label style="font-size:11px;color:#555;">Video offset (s):</label>
+        <input type="range" id="offset" min="-3" max="3" step="0.01" value="0" style="flex:1;"/>
+        <input type="number" id="offsetNum" step="0.01" value="0" style="width:70px;font-size:12px;padding:3px 5px;"/>
+        <button id="offZero" style="background:#999;padding:4px 8px;font-size:11px;">reset</button>
+      </div>
+    </div>
+  </div>
+  <div class="thumbs" id="thumbs"></div>
+</main>
+<script>
+const trials = [{"tag": "set_002", "duration": 3.6416666666666666, "rate": 240.0, "sfc": 1.1916666666666667, "mer": 2.283333333333333, "br": 2.283333333333333, "cameras": [1, 2, 3, 4, 5, 6, 7], "video_info": {"1": {"duration": 4.184325, "fps": 240.0}, "2": {"duration": 4.171992, "fps": 240.0}, "3": {"duration": 4.169362, "fps": 240.0}, "4": {"duration": 4.166667, "fps": 240.0}, "5": {"duration": 4.173375, "fps": 240.0}, "6": {"duration": 4.175992, "fps": 240.0}, "7": {"duration": 4.179592, "fps": 240.0}}}, {"tag": "set_004", "duration": 4.7375, "rate": 240.0, "sfc": 0.8458333333333333, "mer": 2.2666666666666666, "br": 2.2666666666666666, "cameras": [1, 2, 3, 4, 5, 6, 7], "video_info": {"1": {"duration": 4.178992, "fps": 240.0}, "2": {"duration": 4.181333, "fps": 240.0}, "3": {"duration": 4.179592, "fps": 240.0}, "4": {"duration": 4.179592, "fps": 240.0}, "5": {"duration": 4.166667, "fps": 240.0}, "6": {"duration": 4.166667, "fps": 240.0}, "7": {"duration": 4.174373, "fps": 240.0}}}, {"tag": "set_005", "duration": 4.229166666666667, "rate": 240.0, "sfc": 0.43333333333333335, "mer": 1.7, "br": 1.7, "cameras": [1, 2, 3, 4, 5, 6, 7], "video_info": {"1": {"duration": 4.168992, "fps": 240.0}, "2": {"duration": 4.182325, "fps": 240.0}, "3": {"duration": 4.179592, "fps": 240.0}, "4": {"duration": 4.182582, "fps": 240.0}, "5": {"duration": 4.166667, "fps": 240.0}, "6": {"duration": 4.166667, "fps": 240.0}, "7": {"duration": 4.170359, "fps": 240.0}}}, {"tag": "set_010", "duration": 3.2125, "rate": 240.0, "sfc": 1.0, "mer": 1.9625, "br": 1.9625, "cameras": [1, 2, 3, 4, 5, 6, 7], "video_info": {"1": {"duration": 4.177992, "fps": 240.0}, "2": {"duration": 4.182325, "fps": 240.0}, "3": {"duration": 4.170833, "fps": 240.0}, "4": {"duration": 4.170833, "fps": 240.0}, "5": {"duration": 4.166667, "fps": 240.0}, "6": {"duration": 4.173992, "fps": 240.0}, "7": {"duration": 4.179592, "fps": 240.0}}}, {"tag": "set_014", "duration": 3.9291666666666667, "rate": 240.0, "sfc": 1.2, "mer": 2.379166666666667, "br": 2.379166666666667, "cameras": [1, 2, 3, 4, 5, 6, 7], "video_info": {"1": {"duration": 4.173992, "fps": 240.0}, "2": {"duration": 4.187325, "fps": 240.0}, "3": {"duration": 4.185575, "fps": 240.0}, "4": {"duration": 4.166667, "fps": 240.0}, "5": {"duration": 4.173375, "fps": 240.0}, "6": {"duration": 4.169992, "fps": 240.0}, "7": {"duration": 4.173375, "fps": 240.0}}}, {"tag": "set_015", "duration": 3.85, "rate": 240.0, "sfc": 1.0708333333333333, "mer": 2.225, "br": 2.225, "cameras": [1, 2, 3, 4, 5, 6, 7], "video_info": {"1": {"duration": 4.182325, "fps": 240.0}, "2": {"duration": 4.166667, "fps": 240.0}, "3": {"duration": 4.188591, "fps": 240.0}, "4": {"duration": 4.176369, "fps": 240.0}, "5": {"duration": 4.180586, "fps": 240.0}, "6": {"duration": 4.170833, "fps": 240.0}, "7": {"duration": 4.176369, "fps": 240.0}}}, {"tag": "set_016", "duration": 3.9833333333333334, "rate": 240.0, "sfc": 1.2958333333333334, "mer": 2.4916666666666667, "br": 2.4916666666666667, "cameras": [1, 2, 3, 4, 5, 6, 7], "video_info": {"1": {"duration": 4.174992, "fps": 240.0}, "2": {"duration": 4.170992, "fps": 240.0}, "3": {"duration": 4.183579, "fps": 240.0}, "4": {"duration": 4.183579, "fps": 240.0}, "5": {"duration": 4.173375, "fps": 240.0}, "6": {"duration": 4.166667, "fps": 240.0}, "7": {"duration": 4.173375, "fps": 240.0}}}, {"tag": "set_017", "duration": 4.033333333333333, "rate": 240.0, "sfc": 1.0375, "mer": 2.245833333333333, "br": 2.245833333333333, "cameras": [1, 2, 3, 4, 5, 6, 7], "video_info": {"1": {"duration": 4.185325, "fps": 240.0}, "2": {"duration": 4.185325, "fps": 240.0}, "3": {"duration": 4.170359, "fps": 240.0}, "4": {"duration": 4.184577, "fps": 240.0}, "5": {"duration": 4.179592, "fps": 240.0}, "6": {"duration": 4.170833, "fps": 240.0}, "7": {"duration": 4.179592, "fps": 240.0}}}, {"tag": "set_018", "duration": 3.841666666666667, "rate": 240.0, "sfc": 1.0916666666666666, "mer": 2.2416666666666667, "br": 2.2416666666666667, "cameras": [1, 2, 3, 4, 5, 6, 7], "video_info": {"1": {"duration": 4.166667, "fps": 240.0}, "2": {"duration": 4.170833, "fps": 240.0}, "3": {"duration": 4.172355, "fps": 240.0}, "4": {"duration": 4.172355, "fps": 240.0}, "5": {"duration": 4.177366, "fps": 240.0}, "6": {"duration": 4.175992, "fps": 240.0}, "7": {"duration": 4.185575, "fps": 240.0}}}, {"tag": "set_019", "duration": 4.1375, "rate": 240.0, "sfc": 1.3333333333333333, "mer": 2.575, "br": 2.575, "cameras": [1, 2, 3, 4, 5, 6, 7], "video_info": {"1": {"duration": 4.166667, "fps": 240.0}, "2": {"duration": 4.181333, "fps": 240.0}, "3": {"duration": 4.178364, "fps": 240.0}, "4": {"duration": 4.182582, "fps": 240.0}, "5": {"duration": 4.170833, "fps": 240.0}, "6": {"duration": 4.170833, "fps": 240.0}, "7": {"duration": 4.171357, "fps": 240.0}}}];
+const trialSel = document.getElementById('trial');
+const camSel = document.getElementById('cam');
+const plot = document.getElementById('plot');
+const vid = document.getElementById('vid');
+const info = document.getElementById('info');
+const thumbs = document.getElementById('thumbs');
+let cur = 0;
+let curCam = 1;
+
+trials.forEach((t, i) => {
+  const opt = document.createElement('option');
+  opt.value = i; opt.textContent = t.tag;
+  trialSel.appendChild(opt);
+  const d = document.createElement('div');
+  d.className = 'thumb'; d.dataset.i = i;
+  d.innerHTML = `<div style="font-weight:600">${t.tag}</div>
+                 <div style="color:#888">dur ${t.duration.toFixed(2)}s · ${t.cameras.length}cam</div>`;
+  d.onclick = () => { cur = i; render(); };
+  thumbs.appendChild(d);
+});
+
+function rebuildCamSelect() {
+  const t = trials[cur];
+  camSel.innerHTML = '';
+  t.cameras.forEach(k => {
+    const o = document.createElement('option');
+    o.value = k; o.textContent = `Camera ${k} (device${k})`;
+    camSel.appendChild(o);
+  });
+  if (!t.cameras.includes(curCam)) curCam = t.cameras[0] || 1;
+  camSel.value = curCam;
+}
+
+function render() {
+  const t = trials[cur];
+  rebuildCamSelect();
+  plot.src = `trial_plots/${t.tag}.png?v=${Date.now()}`;
+  vid.src = `videos_subject_1/${t.tag}/device${curCam}_synced.MOV`;
+  vid.load();
+  trialSel.value = cur;
+  const vi = t.video_info && t.video_info[String(curCam)];
+  const vdur = (vi && vi.duration) ? vi.duration.toFixed(2) : '?';
+  info.textContent = `SFC ${t.sfc.toFixed(3)}s · MER ${t.mer.toFixed(3)}s · BR ${t.br.toFixed(3)}s · vicon ${t.duration.toFixed(2)}s · video ${vdur}s`;
+  for (const tdiv of document.querySelectorAll('.thumb')) {
+    tdiv.classList.toggle('selected', parseInt(tdiv.dataset.i) === cur);
+  }
+  // restore offset (per-trial)
+  const off = offsets[t.tag] || 0;
+  offEl.value = off; offNum.value = off;
+}
+
+trialSel.addEventListener('change', e => { cur = parseInt(e.target.value); render(); });
+camSel.addEventListener('change', e => {
+  curCam = parseInt(e.target.value);
+  const t_now = vid.currentTime;
+  vid.src = `videos_subject_1/${trials[cur].tag}/device${curCam}_synced.MOV`;
+  vid.load();
+  vid.addEventListener('loadedmetadata', () => { vid.currentTime = t_now; }, { once: true });
+});
+document.getElementById('prev').onclick = () => { cur = (cur - 1 + trials.length) % trials.length; render(); };
+document.getElementById('next').onclick = () => { cur = (cur + 1) % trials.length; render(); };
+// Per-trial video offset (video_time = vicon_time + offset).
+// Stored per-trial so user can tune different trials separately.
+const offsets = {};
+
+function getFps() {
+  const t = trials[cur];
+  const vi = t.video_info && t.video_info[String(curCam)];
+  return (vi && vi.fps) ? vi.fps : 240;
+}
+function clampTime(tsec) {
+  const t = trials[cur];
+  const vi = t.video_info && t.video_info[String(curCam)];
+  const dur = (vi && vi.duration) ? vi.duration : t.duration;
+  return Math.max(0, Math.min(dur - 1e-3, tsec));
+}
+function seekPause(viconSec) {
+  const off = offsets[trials[cur].tag] || 0;
+  const videoSec = clampTime(viconSec + off);
+  const apply = () => {
+    try { vid.pause(); } catch(e) {}
+    vid.currentTime = videoSec;
+  };
+  if (vid.readyState >= 1) apply();
+  else vid.addEventListener('loadedmetadata', apply, { once: true });
+}
+document.getElementById('jsfc').onclick = () => seekPause(trials[cur].sfc);
+document.getElementById('jmer').onclick = () => seekPause(trials[cur].mer);
+document.getElementById('jbr').onclick  = () => seekPause(trials[cur].br);
+
+// Frame-stepping buttons
+document.getElementById('fstep-').onclick = () => {
+  try { vid.pause(); } catch(e) {}
+  vid.currentTime = clampTime(vid.currentTime - 1.0/getFps());
+};
+document.getElementById('fstep+').onclick = () => {
+  try { vid.pause(); } catch(e) {}
+  vid.currentTime = clampTime(vid.currentTime + 1.0/getFps());
+};
+
+// Offset UI
+const offEl = document.getElementById('offset');
+const offNum = document.getElementById('offsetNum');
+function applyOffset(val) {
+  offsets[trials[cur].tag] = val;
+  offEl.value = val; offNum.value = val;
+  updateFrameLabel();
+}
+offEl.addEventListener('input', e => applyOffset(parseFloat(e.target.value)));
+offNum.addEventListener('change', e => applyOffset(parseFloat(e.target.value)));
+document.getElementById('offZero').onclick = () => applyOffset(0);
+
+// Live current-time readout
+const frameLbl = document.getElementById('curframe');
+function updateFrameLabel() {
+  const t = trials[cur];
+  const now = vid.currentTime;
+  const off = offsets[t.tag] || 0;
+  const vicon_t = now - off;
+  const fps = getFps();
+  const frame = Math.round(now * fps);
+  let tag = '';
+  if (Math.abs(vicon_t - t.sfc) < 0.01) tag = ' ≈ SFC';
+  else if (Math.abs(vicon_t - t.mer) < 0.01) tag = ' ≈ MER';
+  else if (Math.abs(vicon_t - t.br)  < 0.01) tag = ' ≈ BR';
+  frameLbl.textContent = `video ${now.toFixed(3)}s (f${frame}) · vicon ${vicon_t.toFixed(3)}s${tag} · ${fps.toFixed(1)} fps`;
+}
+vid.addEventListener('timeupdate', updateFrameLabel);
+vid.addEventListener('seeked', updateFrameLabel);
+vid.addEventListener('loadedmetadata', updateFrameLabel);
+document.addEventListener('keydown', e => {
+  if (e.target.tagName === 'SELECT' || e.target.tagName === 'INPUT') return;
+  if (e.key === 'ArrowLeft') { cur = (cur-1+trials.length)%trials.length; render(); }
+  else if (e.key === 'ArrowRight') { cur = (cur+1)%trials.length; render(); }
+  else if (e.key === ' ') { e.preventDefault(); vid.paused ? vid.play() : vid.pause(); }
+});
+render();
+</script>
+</body></html>
